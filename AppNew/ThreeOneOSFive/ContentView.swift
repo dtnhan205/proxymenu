@@ -1615,7 +1615,7 @@ struct ContentView: View {
                 let impact = UIImpactFeedbackGenerator(style: .light)
                 impact.impactOccurred()
                 if appState.kernelExploitApplicable && !appState.kernelExploitRunning && !appState.exploitStatus.isSuccess {
-                    appState.runKernelExploitIfNeeded()
+                    appState.runKernelExploitIfNeeded(force: true)
                     showToast("Đang kích hoạt Kernel Exploit...")
                 } else if appState.exploitStatus.isSuccess {
                     showToast("Kernel Exploit: R/W Active")
@@ -3083,7 +3083,7 @@ struct ContentView: View {
                     value: kernelExploitStatusTitle,
                     valueColor: kernelExploitStatusColor,
                     copyAction: (appState.kernelExploitApplicable && !appState.kernelExploitRunning && !appState.exploitStatus.isSuccess) ? {
-                        appState.runKernelExploitIfNeeded()
+                        appState.runKernelExploitIfNeeded(force: true)
                         showToast("Bắt đầu chạy Kernel Exploit...")
                     } : nil
                 )

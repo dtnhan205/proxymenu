@@ -169,14 +169,21 @@ class AppState: ObservableObject {
         }
     }
 
-    func runKernelExploitIfNeeded() {
+    func runKernelExploitIfNeeded(force: Bool = false) {
         refreshKernelExploitStatus()
-        guard !kernelExploitRunning,
-              !exploitStatus.isSuccess,
-              !exploitStatus.isFailed else { return }
+        guard !kernelExploitRunning else { return }
+        if !force {
+            guard !exploitStatus.isSuccess,
+                  !exploitStatus.isFailed else { return }
+        } else {
+            guard !exploitStatus.isSuccess else {
+                log("app: kernel exploit already active")
+                return
+            }
+        }
         kernelExploitRunning = true
         exploitStatus = .notStarted
-        log("app: running kernel exploit on background...")
+        log(force ? "app: running kernel exploit on background (retry)..." : "app: running kernel exploit on background...")
         DispatchQueue.global(qos: .userInitiated).async {
             let ok = KernelExploit.run()
             DispatchQueue.main.async {
@@ -190,7 +197,7 @@ class AppState: ObservableObject {
                     }
                 } else {
                     self.exploitStatus = .failed(method: "kexploit", code: -1)
-                    log("app: kernel exploit failed — relaunch the app before retrying")
+                    log("app: kernel exploit failed — tap badge to retry, or continue using MHA-C2")
                 }
             }
         }
