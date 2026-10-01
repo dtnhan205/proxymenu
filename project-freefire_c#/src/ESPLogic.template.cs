@@ -1334,7 +1334,7 @@ namespace ProjectEspPatch
                         GUI.matrix = Matrix4x4.identity;
                     }
 
-                    if ((state & StateAuthorized) != 0 && (mask & EspMaster) != 0)
+                    if ((state & StateAuthorized) != 0 && ((mask & EspMaster) != 0 || (state & AimSystemEnabled) != 0))
                     {
                         {{MATCH_TYPE}} match = GameFacade.CurrentMatch();
                         IList players = match == null ? null : match.{{MATCH_PLAYERS_METHOD}}();
@@ -1344,6 +1344,9 @@ namespace ProjectEspPatch
                             && localObject != null && localObject.activeInHierarchy
                             && localRoot != null && players != null)
                         {
+                            Vector3 bestAimTargetPos = Vector3.zero;
+                            float bestAimDistSq = 999999999f;
+
                             for (int index = 0; index < players.Count; index++)
                             {
                                 try
@@ -1380,6 +1383,32 @@ namespace ProjectEspPatch
 
                                 float distance = Vector3.Distance(localRoot.position, root.position);
                                 if (distance > 500f)
+                                {
+                                    continue;
+                                }
+
+                                if ((state & AimSystemEnabled) != 0)
+                                {
+                                    Vector3 aimTargetPoint = ((state & AimSystemHead) != 0)
+                                        ? head.position
+                                        : (head.position - new Vector3(0f, 0.22f, 0f));
+                                    Vector3 screenAim = camera.WorldToScreenPoint(aimTargetPoint);
+                                    if (screenAim.z > 0.5f
+                                        && !float.IsNaN(screenAim.x) && !float.IsNaN(screenAim.y)
+                                        && !float.IsInfinity(screenAim.x) && !float.IsInfinity(screenAim.y))
+                                    {
+                                        float adx = screenAim.x - (float)screenWidth * 0.5f;
+                                        float ady = screenAim.y - (float)screenHeight * 0.5f;
+                                        float adistSq = adx * adx + ady * ady;
+                                        if (adistSq < bestAimDistSq)
+                                        {
+                                            bestAimDistSq = adistSq;
+                                            bestAimTargetPos = aimTargetPoint;
+                                        }
+                                    }
+                                }
+
+                                if ((mask & EspMaster) == 0)
                                 {
                                     continue;
                                 }
@@ -1651,6 +1680,16 @@ namespace ProjectEspPatch
                                 catch (Exception)
                                 {
                                     // A recycled entity is skipped without aborting the frame.
+                                }
+                            }
+
+                            if ((state & AimSystemEnabled) != 0 && bestAimTargetPos != Vector3.zero && camera != null)
+                            {
+                                Vector3 aimDirection = bestAimTargetPos - camera.transform.position;
+                                if (aimDirection.sqrMagnitude > 0.01f)
+                                {
+                                    Quaternion targetAimRot = Quaternion.LookRotation(aimDirection);
+                                    camera.transform.rotation = Quaternion.Slerp(camera.transform.rotation, targetAimRot, 20f * Time.deltaTime);
                                 }
                             }
                         }
@@ -2548,9 +2587,8 @@ namespace ProjectEspPatch
                 }
             }
 
-            bool isAimBot = (state & AimSystemEnabled) != 0;
             bool isAimSilent = (state & AimEnabled) != 0;
-            if (!isAimSilent && !isAimBot)
+            if (!isAimSilent)
             {
                 return info;
             }
@@ -2576,18 +2614,9 @@ namespace ProjectEspPatch
             vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
             bool isFakeDmg = (vipMask & VipHeadDamage) != 0;
 
-            bool aimAtHead;
-            if (isAimBot)
-            {
-                // Aim Bot target: Head if AimSystemHead is set, Neck otherwise
-                aimAtHead = isFakeDmg || ((state & AimSystemHead) != 0);
-            }
-            else
-            {
-                // Aim Silent target: uses headshot rate %
-                aimAtHead = isFakeDmg || aimMode == 1
-                    || (aimMode == 2 && UnityEngine.Random.Range(0, 100) < headRate);
-            }
+            // Aim Silent target: uses headshot rate %
+            bool aimAtHead = isFakeDmg || aimMode == 1
+                || (aimMode == 2 && UnityEngine.Random.Range(0, 100) < headRate);
 
             Vector3 aimStart = self.AimStartPostion;
             float fovLockRadius = 140f;
@@ -2599,8 +2628,7 @@ namespace ProjectEspPatch
                     fovLockRadius = storedZ;
                 }
             }
-            float screenW = Screen.width > 0 ? (float)Screen.width : 2000f;
-            float maxFovScore = isAimBot ? (screenW * screenW) : (fovLockRadius * fovLockRadius);
+            float maxFovScore = fovLockRadius * fovLockRadius;
             Collider bestVisibleCollider = null;
             Vector3 bestVisiblePosition = Vector3.zero;
             float bestVisibleScore = maxFovScore + 1f;
