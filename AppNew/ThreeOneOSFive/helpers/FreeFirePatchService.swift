@@ -168,11 +168,6 @@ enum FreeFirePatchService {
         }
 
         let encryptedData = encryptConfigData(jsonData)
-        let fovInt = Int(state.silentFOV)
-        let b64Str = String(data: encryptedData, encoding: .utf8) ?? ""
-
-        // Multi-channel 1: Instant system clipboard IPC (Zero permission, 0ms latency across sandboxes)
-        UIPasteboard.general.string = "INNOVA_FOV:\(fovInt)|INNOVA_CFG:\(b64Str)"
 
         var syncedTargets: [String] = []
 

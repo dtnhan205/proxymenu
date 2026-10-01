@@ -223,94 +223,55 @@ namespace ProjectEspPatch
                 {
                     string cJson = null;
 
-                    // Channel 1: Clipboard IPC (Instant memory bridge across sandboxes with 0ms latency)
-                    try
+                    // Direct multi-path file sync with FileShare.ReadWrite (Silent, zero iOS pasteboard alerts)
+                    string cfgPath = null;
+                    string cfgFile = "/menu_config.json";
+                    string pDir = Application.persistentDataPath;
+                    if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
                     {
-                        string clip = GUIUtility.systemCopyBuffer;
-                        if (!string.IsNullOrEmpty(clip))
-                        {
-                            if (clip.Contains("INNOVA_FOV:"))
-                            {
-                                int idx = clip.IndexOf("INNOVA_FOV:");
-                                int endIdx = clip.IndexOf('|', idx);
-                                string fovStr = endIdx > idx
-                                    ? clip.Substring(idx + 11, endIdx - (idx + 11))
-                                    : clip.Substring(idx + 11);
-                                int parsedFov = 0;
-                                if (int.TryParse(fovStr.Trim(), out parsedFov) && parsedFov >= 10 && parsedFov <= 600)
-                                {
-                                    fovRadius = (float)parsedFov;
-                                    driverPos.z = fovRadius;
-                                    driverObject.transform.position = driverPos;
-                                }
-                            }
-                            if (clip.Contains("INNOVA_CFG:"))
-                            {
-                                int idx = clip.IndexOf("INNOVA_CFG:");
-                                int endIdx = clip.IndexOf('|', idx);
-                                string rawCfg = endIdx > idx
-                                    ? clip.Substring(idx + 11, endIdx - (idx + 11))
-                                    : clip.Substring(idx + 11);
-                                cJson = rawCfg.Trim();
-                            }
-                        }
-                    }
-                    catch
-                    {
+                        pDir = pDir.Substring(0, pDir.Length - 1);
                     }
 
-                    // Channel 2: Multi-path file sync with FileShare.ReadWrite
-                    if (string.IsNullOrEmpty(cJson))
+                    string[] searchPaths = new string[] {
+                        pDir + cfgFile,
+                        pDir + "/IFix" + cfgFile,
+                        pDir + "/Documents" + cfgFile,
+                        pDir + "/../Documents" + cfgFile,
+                        pDir + "/../Library/Caches" + cfgFile,
+                        pDir + "/../tmp" + cfgFile,
+                        "/var/mobile/Downloads" + cfgFile,
+                        "/tmp" + cfgFile,
+                        "/private/var/tmp" + cfgFile
+                    };
+
+                    for (int sp = 0; sp < searchPaths.Length; sp++)
                     {
-                        string cfgPath = null;
-                        string cfgFile = "/menu_config.json";
-                        string pDir = Application.persistentDataPath;
-                        if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
+                        string spath = searchPaths[sp];
+                        if (!string.IsNullOrEmpty(spath) && File.Exists(spath))
                         {
-                            pDir = pDir.Substring(0, pDir.Length - 1);
+                            cfgPath = spath;
+                            break;
                         }
+                    }
 
-                        string[] searchPaths = new string[] {
-                            pDir + cfgFile,
-                            pDir + "/IFix" + cfgFile,
-                            pDir + "/Documents" + cfgFile,
-                            pDir + "/../Documents" + cfgFile,
-                            pDir + "/../Library/Caches" + cfgFile,
-                            pDir + "/../tmp" + cfgFile,
-                            "/var/mobile/Downloads" + cfgFile,
-                            "/tmp" + cfgFile,
-                            "/private/var/tmp" + cfgFile
-                        };
-
-                        for (int sp = 0; sp < searchPaths.Length; sp++)
+                    if (!string.IsNullOrEmpty(cfgPath) && File.Exists(cfgPath))
+                    {
+                        try
                         {
-                            string spath = searchPaths[sp];
-                            if (!string.IsNullOrEmpty(spath) && File.Exists(spath))
-                            {
-                                cfgPath = spath;
-                                break;
-                            }
+                            FileStream fs = new FileStream(cfgPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                            StreamReader sr = new StreamReader(fs, System.Text.Encoding.UTF8);
+                            cJson = sr.ReadToEnd();
+                            sr.Close();
+                            fs.Close();
                         }
-
-                        if (!string.IsNullOrEmpty(cfgPath) && File.Exists(cfgPath))
+                        catch (Exception)
                         {
                             try
                             {
-                                FileStream fs = new FileStream(cfgPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                                StreamReader sr = new StreamReader(fs, System.Text.Encoding.UTF8);
-                                cJson = sr.ReadToEnd();
-                                sr.Close();
-                                fs.Close();
+                                cJson = File.ReadAllText(cfgPath);
                             }
                             catch (Exception)
                             {
-                                try
-                                {
-                                    cJson = File.ReadAllText(cfgPath);
-                                }
-                                catch (Exception)
-                                {
-                                }
                             }
                         }
                     }
