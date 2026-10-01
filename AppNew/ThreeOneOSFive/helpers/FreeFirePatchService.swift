@@ -123,8 +123,10 @@ enum FreeFirePatchService {
         return b64.data(using: .utf8) ?? rawJsonData
     }
 
+    private static var lastSyncLogTime: TimeInterval = 0
+
     /// Sync the current configuration to the game container in encrypted cipher format
-    static func syncConfig(target: FreeFireTarget = selectedTarget, state: CheatMenuState = CheatMenuState.shared) {
+    static func syncConfig(target: FreeFireTarget = selectedTarget, state: CheatMenuState = CheatMenuState.shared, forceLog: Bool = false) {
         let payload = makeConfigPayload(state: state)
         guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
             return
@@ -139,7 +141,11 @@ enum FreeFirePatchService {
             try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
             let configURL = docsURL.appendingPathComponent("menu_config.json")
             try? encryptedData.write(to: configURL, options: .atomic)
-            AppLog.shared.append("[CONFIG] 🔒 Đã mã hóa và đồng bộ cấu hình -> \(target.displayName)")
+            let now = CACurrentMediaTime()
+            if forceLog || (now - lastSyncLogTime > 2.5) {
+                lastSyncLogTime = now
+                AppLog.shared.append("[CONFIG] 🔒 Đã đồng bộ cấu hình -> \(target.displayName)")
+            }
         }
 
         // 2. Also write to Downloads & Shared locations

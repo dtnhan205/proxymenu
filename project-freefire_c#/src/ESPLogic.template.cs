@@ -61,6 +61,8 @@ namespace ProjectEspPatch
         private const float AuxStateMarker = 1000000f;
         private const ulong SpeedRunningKey = 4995421289296778564UL;
         private static float customCamFov = 85f;
+        private static float activeFovRadius = 140f;
+        private static string cachedCfgPath = null;
         private const int DefaultAimState = AimEnabled | (2 << AimModeShift)
             | (3 << HeadRateShift);
 
@@ -91,16 +93,16 @@ namespace ProjectEspPatch
                     }
                     driver = new GameObject("__esp_driver");
                     driver.transform.localScale = new Vector3(0f, (float)(1 | (1 << 19) | (0 << 3) | (245 << 11)), (float)(255 << 4));
-                    driver.transform.position = new Vector3(Time.unscaledTime, Time.unscaledTime, 140f);
+                    driver.transform.position = new Vector3(Time.unscaledTime, Time.unscaledTime, activeFovRadius >= 10f ? activeFovRadius : 140f);
                     SceneEditBoxSelectTool tool = (SceneEditBoxSelectTool)driver.AddComponent(typeof(SceneEditBoxSelectTool));
                     if (tool != null)
                     {
                         UnityEngine.Object.DontDestroyOnLoad(driver);
                     }
                 }
-                else if (driver.transform.position.z < 30f)
+                else if (driver.transform.position.z < 10f)
                 {
-                    driver.transform.position = new Vector3(driver.transform.position.x, driver.transform.position.y, 140f);
+                    driver.transform.position = new Vector3(driver.transform.position.x, driver.transform.position.y, activeFovRadius >= 10f ? activeFovRadius : 140f);
                 }
                 return stealth;
             }
@@ -135,7 +137,22 @@ namespace ProjectEspPatch
             }
 
             Vector3 driverPos = driverObject.transform.position;
-            float fovRadius = driverPos.z >= 30f ? driverPos.z : 140f;
+            if (driverPos.z >= 10f && driverPos.z <= 600f)
+            {
+                activeFovRadius = driverPos.z;
+            }
+            else if (activeFovRadius >= 10f && activeFovRadius <= 600f)
+            {
+                driverPos.z = activeFovRadius;
+                driverObject.transform.position = driverPos;
+            }
+            else
+            {
+                activeFovRadius = 140f;
+                driverPos.z = 140f;
+                driverObject.transform.position = driverPos;
+            }
+            float fovRadius = activeFovRadius;
             Vector3 modalState = driverObject.transform.localScale;
             int activeModal = (int)modalState.x;
             if (activeModal != ModalAimMode && activeModal != ModalHeadRate
@@ -197,27 +214,34 @@ namespace ProjectEspPatch
             }
 
             // Remote config sync from AppNew (/menu_config.json)
-            if (curFrame < 30 || curFrame % 30 == 0)
+            if (curFrame < 60 || curFrame % 4 == 0)
             {
                 try
                 {
-                    string cfgFile = "/menu_config.json";
-                    string pDir = Application.persistentDataPath;
-                    if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
+                    string cfgPath = cachedCfgPath;
+                    if (string.IsNullOrEmpty(cfgPath) || !File.Exists(cfgPath))
                     {
-                        pDir = pDir.Substring(0, pDir.Length - 1);
-                    }
-                    string cfgPath = "";
-                    if (!string.IsNullOrEmpty(pDir))
-                    {
-                        if (File.Exists(pDir + cfgFile)) cfgPath = pDir + cfgFile;
-                        else if (File.Exists(pDir + "/Documents" + cfgFile)) cfgPath = pDir + "/Documents" + cfgFile;
-                        else if (File.Exists(pDir + "/../Documents" + cfgFile)) cfgPath = pDir + "/../Documents" + cfgFile;
-                    }
-                    if (string.IsNullOrEmpty(cfgPath))
-                    {
-                        if (File.Exists("/var/mobile/Downloads" + cfgFile)) cfgPath = "/var/mobile/Downloads" + cfgFile;
-                        else if (File.Exists("/tmp" + cfgFile)) cfgPath = "/tmp" + cfgFile;
+                        string cfgFile = "/menu_config.json";
+                        string pDir = Application.persistentDataPath;
+                        if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
+                        {
+                            pDir = pDir.Substring(0, pDir.Length - 1);
+                        }
+                        if (!string.IsNullOrEmpty(pDir))
+                        {
+                            if (File.Exists(pDir + cfgFile)) cfgPath = pDir + cfgFile;
+                            else if (File.Exists(pDir + "/Documents" + cfgFile)) cfgPath = pDir + "/Documents" + cfgFile;
+                            else if (File.Exists(pDir + "/../Documents" + cfgFile)) cfgPath = pDir + "/../Documents" + cfgFile;
+                        }
+                        if (string.IsNullOrEmpty(cfgPath))
+                        {
+                            if (File.Exists("/var/mobile/Downloads" + cfgFile)) cfgPath = "/var/mobile/Downloads" + cfgFile;
+                            else if (File.Exists("/tmp" + cfgFile)) cfgPath = "/tmp" + cfgFile;
+                        }
+                        if (!string.IsNullOrEmpty(cfgPath) && File.Exists(cfgPath))
+                        {
+                            cachedCfgPath = cfgPath;
+                        }
                     }
 
                     if (!string.IsNullOrEmpty(cfgPath) && File.Exists(cfgPath))
@@ -387,9 +411,11 @@ namespace ProjectEspPatch
                             int packedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
                             self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, -AuxStateMarker - (float)packedAux);
 
-                            if (nFov >= 30 && nFov <= 500)
+                            if (nFov >= 10 && nFov <= 600)
                             {
-                                driverPos.z = (float)nFov;
+                                activeFovRadius = (float)nFov;
+                                fovRadius = activeFovRadius;
+                                driverPos.z = activeFovRadius;
                                 driverObject.transform.position = driverPos;
                             }
 
@@ -591,6 +617,7 @@ namespace ProjectEspPatch
                 {
                     float pct = Mathf.Clamp01((pointer.x - fovTrack.x) / fovTrack.width);
                     fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 360f), 40f, 400f);
+                    activeFovRadius = fovRadius;
                     driverPos.z = fovRadius;
                     driverObject.transform.position = driverPos;
                     currentEvent.Use();
@@ -727,6 +754,7 @@ namespace ProjectEspPatch
                             {
                                 float pct = Mathf.Clamp01((pointer.x - fovTrack.x) / fovTrack.width);
                                 fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 360f), 40f, 400f);
+                                activeFovRadius = fovRadius;
                                 driverPos.z = fovRadius;
                                 driverObject.transform.position = driverPos;
                                 currentEvent.Use();
@@ -740,6 +768,7 @@ namespace ProjectEspPatch
                                 if (decBtn.Contains(pointer))
                                 {
                                     fovRadius = Mathf.Clamp(fovRadius - 10f, 40f, 400f);
+                                    activeFovRadius = fovRadius;
                                     driverPos.z = fovRadius;
                                     driverObject.transform.position = driverPos;
                                     currentEvent.Use();
@@ -747,6 +776,7 @@ namespace ProjectEspPatch
                                 else if (incBtn.Contains(pointer))
                                 {
                                     fovRadius = Mathf.Clamp(fovRadius + 10f, 40f, 400f);
+                                    activeFovRadius = fovRadius;
                                     driverPos.z = fovRadius;
                                     driverObject.transform.position = driverPos;
                                     currentEvent.Use();
@@ -761,6 +791,7 @@ namespace ProjectEspPatch
                                         if (pRect.Contains(pointer))
                                         {
                                             fovRadius = pVal;
+                                            activeFovRadius = fovRadius;
                                             driverPos.z = fovRadius;
                                             driverObject.transform.position = driverPos;
                                             currentEvent.Use();
@@ -993,6 +1024,7 @@ namespace ProjectEspPatch
                             aimMode = 2;
                             headRateIndex = 3;
                             auxState &= AuxSpeedRunningApplied;
+                            activeFovRadius = 140f;
                             driverPos.z = 140f;
                             driverObject.transform.position = driverPos;
                             fovRadius = 140f;
@@ -2416,10 +2448,14 @@ namespace ProjectEspPatch
                 || (aimMode == 2 && UnityEngine.Random.Range(0, 100) < headRate);
             Vector3 aimStart = self.AimStartPostion;
             float fovLockRadius = 140f;
-            if (driver != null)
+            if (activeFovRadius >= 10f && activeFovRadius <= 600f)
+            {
+                fovLockRadius = activeFovRadius;
+            }
+            else if (driver != null)
             {
                 float storedZ = driver.transform.position.z;
-                if (storedZ >= 30f)
+                if (storedZ >= 10f && storedZ <= 600f)
                 {
                     fovLockRadius = storedZ;
                 }

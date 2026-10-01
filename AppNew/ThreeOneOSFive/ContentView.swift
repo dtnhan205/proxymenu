@@ -99,9 +99,7 @@ final class CheatMenuState: ObservableObject {
     static let shared = CheatMenuState()
 
     private func syncIfInjected() {
-        if FreeFirePatchService.isInjected() {
-            FreeFirePatchService.syncConfig(state: self)
-        }
+        FreeFirePatchService.syncConfig(state: self)
     }
 
     // AIMING
@@ -1352,17 +1350,17 @@ struct ContentView: View {
                                         .foregroundColor(CyberTheme.crimsonNeon)
                                 }
 
-                                Text("Góc Quét (Silent FOV)")
+                                Text("Vòng Quét (Silent FOV)")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(CyberTheme.textSecondary)
 
                                 Spacer()
 
-                                Text("\(Int(cheatState.silentFOV))°")
+                                Text("\(Int(cheatState.silentFOV)) px")
                                     .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.crimsonNeon)
                             }
-                            CyberSlider(value: $cheatState.silentFOV, range: 0...180, step: 1, activeColor: CyberTheme.crimsonNeon)
+                            CyberSlider(value: $cheatState.silentFOV, range: 20...360, step: 2, activeColor: CyberTheme.crimsonNeon)
                         }
 
                         // Headshot Rate
