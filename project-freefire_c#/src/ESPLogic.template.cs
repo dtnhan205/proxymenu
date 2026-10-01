@@ -192,9 +192,12 @@ namespace ProjectEspPatch
 
             int curFrame = Time.frameCount;
 
-            // GC every ~3600 frames (~1 min at 60fps) to prevent RAM overflow.
-            if (curFrame % 3600 == 1)
+            // Dọn dẹp RAM / GC định kỳ 15 giây 1 lần (~900 frames ở 60fps) để giải phóng bộ nhớ, tối ưu FPS và chống tràn RAM
+            float nowTime = Time.unscaledTime;
+            if (nowTime - driverPos.x >= 15f || (curFrame % 900 == 1 && nowTime - driverPos.x >= 10f))
             {
+                driverPos.x = nowTime;
+                driverObject.transform.position = driverPos;
                 GC.Collect();
             }
 
