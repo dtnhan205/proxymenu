@@ -206,7 +206,7 @@ enum FreeFirePatchService {
 
         if forceLog {
             let targetNames = syncedTargets.isEmpty ? target.displayName : syncedTargets.joined(separator: ", ")
-            AppLog.shared.append("[CONFIG] 🔒 FOV: \(fovInt)px -> \(targetNames)")
+            AppLog.shared.append("[CONFIG] 🔒 FOV: \(Int(state.silentFOV))px -> \(targetNames)")
         }
     }
 
