@@ -455,7 +455,8 @@ struct CyberCard<Content: View>: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(15)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .background(
             ZStack {
                 // Background dark plate
@@ -979,7 +980,8 @@ struct ContentView: View {
                     settingsContent
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: 414)
+            .frame(maxWidth: .infinity, alignment: .center)
 
             // Floating Action HUD (Only in Menu Tab)
             if selectedTab == .menu {
@@ -1123,8 +1125,7 @@ struct ContentView: View {
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8))
             .fixedSize()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.top, 6)
     }
 
@@ -1180,7 +1181,6 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
         }
-        .frame(maxWidth: .infinity)
         .padding(4)
         .background(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
@@ -1190,7 +1190,7 @@ struct ContentView: View {
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
     }
 
     // MARK: - Game Target Selector (Side-by-side Cards)
@@ -1281,8 +1281,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.bottom, 6)
     }
 
@@ -1305,11 +1304,9 @@ struct ContentView: View {
                 // Extra Bottom Padding for floating HUD
                 Spacer().frame(height: 110)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: - AIM PROTOCOL Section (With Neck & Head options when Aimbot is on)
@@ -2082,7 +2079,7 @@ struct ContentView: View {
                 .fixedSize()
             }
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.top, 8)
 
             // Sleek Footer with Red Neon Lines
@@ -2119,7 +2116,8 @@ struct ContentView: View {
             .padding(.top, 4)
             .padding(.bottom, 6)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: 414)
+        .frame(maxWidth: .infinity, alignment: .center)
         .background(
             LinearGradient(
                 colors: [
@@ -2154,11 +2152,9 @@ struct ContentView: View {
 
                 Spacer().frame(height: 40)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: - App Core Card

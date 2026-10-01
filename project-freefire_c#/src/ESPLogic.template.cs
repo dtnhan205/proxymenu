@@ -171,8 +171,8 @@ namespace ProjectEspPatch
 
             int screenWidth = Screen.width;
             int screenHeight = Screen.height;
-            float panelWidth = Mathf.Clamp((float)screenWidth * 0.70f, 580f, (float)screenWidth - 20f);
-            float panelHeight = Mathf.Clamp((float)screenHeight * 0.72f, 540f, (float)screenHeight - 20f);
+            float panelWidth = Mathf.Clamp((float)screenWidth * 0.35f, 380f, 460f);
+            float panelHeight = Mathf.Clamp((float)screenHeight * 0.84f, 480f, (float)screenHeight - 24f);
             int state = (int)self.{{SCENE_STATE_FIELD}}.x;
             bool menuOpen = self.{{SCENE_MENU_FIELD}};
 
@@ -560,6 +560,10 @@ namespace ProjectEspPatch
             if (maxPanelY < 8f) maxPanelY = 8f;
             float panelX = Mathf.Clamp(self.{{SCENE_POSITION_FIELD}}.x, 8f, maxPanelX);
             float panelY = Mathf.Clamp(self.{{SCENE_POSITION_FIELD}}.y, 8f, maxPanelY);
+            if (self.{{SCENE_POSITION_FIELD}}.x != panelX || self.{{SCENE_POSITION_FIELD}}.y != panelY)
+            {
+                self.{{SCENE_POSITION_FIELD}} = new Vector2(panelX, panelY);
+            }
             float headerHeight = 56f;
             float footerHeight = 48f;
             float firstRowY = panelY + headerHeight + 8f;
@@ -618,7 +622,7 @@ namespace ProjectEspPatch
             }
 
             Vector2 pointer = currentEvent.mousePosition;
-            float colorPopupWidth = Mathf.Clamp(panelWidth - 48f, 480f, 760f);
+            float colorPopupWidth = Mathf.Clamp(panelWidth - 24f, 340f, 460f);
             float colorPopupHeight = 414f;
             float colorPopupX = panelX + (panelWidth - colorPopupWidth) * 0.5f;
             float colorPopupY = panelY + (panelHeight - colorPopupHeight) * 0.5f;
@@ -651,7 +655,7 @@ namespace ProjectEspPatch
                 }
             }
 
-            float fovPopupWidth = Mathf.Clamp(panelWidth - 48f, 480f, 760f);
+            float fovPopupWidth = Mathf.Clamp(panelWidth - 24f, 340f, 460f);
             float fovPopupHeight = 264f;
             float fovPopupX = panelX + (panelWidth - fovPopupWidth) * 0.5f;
             float fovPopupY = panelY + (panelHeight - fovPopupHeight) * 0.5f;
@@ -808,7 +812,7 @@ namespace ProjectEspPatch
                             else
                             {
                                 float btnRowW = fovPopupWidth - 28f;
-                                float stepBtnW = 60f;
+                                float stepBtnW = 46f;
                                 Rect decBtn = new Rect(fovPopupX + 14f, fovPopupY + 160f, stepBtnW, 34f);
                                 Rect incBtn = new Rect(fovPopupX + 14f + btnRowW - stepBtnW, fovPopupY + 160f, stepBtnW, 34f);
                                 if (decBtn.Contains(pointer))
@@ -847,7 +851,7 @@ namespace ProjectEspPatch
                     }
                     else
                     {
-                        float popupWidth = Mathf.Clamp(panelWidth - 48f, 460f, 720f);
+                        float popupWidth = Mathf.Clamp(panelWidth - 24f, 340f, 460f);
                         float popupHeight = activeModal == ModalAimMode ? 220f
                             : (activeModal == ModalHeadRate ? 320f : 166f);
                         float popupX = panelX + (panelWidth - popupWidth) * 0.5f;
@@ -1664,13 +1668,13 @@ namespace ProjectEspPatch
 
                         // Tiêu đề PROXY VIP VN V5
                         GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
-                        float titleWidth = Mathf.Clamp(panelWidth - 120f, 320f, 600f);
+                        float titleWidth = Mathf.Clamp(panelWidth - 40f, 240f, 420f);
                         GUI.Label(new Rect(
                             panelX + panelWidth * 0.5f - titleWidth * 0.5f,
                             panelY + 8f, titleWidth, 22f), "★  PROXY VIP VN V5  ★");
 
                         GUI.color = new Color(1.0f, 0.82f, 0.2f, 0.95f);
-                        float subTitleWidth = Mathf.Clamp(panelWidth - 140f, 280f, 500f);
+                        float subTitleWidth = Mathf.Clamp(panelWidth - 60f, 220f, 380f);
                         GUI.Label(new Rect(
                             panelX + panelWidth * 0.5f - subTitleWidth * 0.5f,
                             panelY + 30f, subTitleWidth, 18f), "● MOD MENU FREE FIRE OB55 ●");
@@ -2018,9 +2022,7 @@ namespace ProjectEspPatch
 
                         if (activeModal != ModalNone)
                         {
-                            float popupWidth = (activeModal == ModalFovColor || activeModal == ModalFovSize)
-                                ? Mathf.Clamp(panelWidth - 48f, 480f, 760f)
-                                : Mathf.Clamp(panelWidth - 48f, 460f, 720f);
+                            float popupWidth = Mathf.Clamp(panelWidth - 24f, 340f, 460f);
                             float popupHeight = activeModal == ModalAimMode ? 220f
                                 : (activeModal == ModalHeadRate ? 320f
                                 : (activeModal == ModalFovSize ? 264f
@@ -2277,7 +2279,7 @@ namespace ProjectEspPatch
 
                                 // CÁC NÚT BƯỚC NHẢY & PHÍM TẮT NHANH
                                 float btnRowW = popupWidth - 28f;
-                                float stepBtnW = 60f;
+                                float stepBtnW = 46f;
                                 Rect decBtn = new Rect(popupX + 14f, popupY + 160f, stepBtnW, 34f);
                                 GUI.color = new Color(0.08f, 0.10f, 0.14f, 0.95f);
                                 GUI.DrawTexture(decBtn, pixel);
@@ -2303,7 +2305,7 @@ namespace ProjectEspPatch
                                 float presetW = (btnRowW - stepBtnW * 2f - 24f) / 5f;
                                 for (int p = 0; p < 5; p++)
                                 {
-                                    float pVal = p == 0 ? 70f : (p == 1 ? 100f : (p == 2 ? 140f : (p == 3 ? 200f : 300f)));
+                                    float pVal = p == 0 ? 90f : (p == 1 ? 140f : (p == 2 ? 250f : (p == 3 ? 360f : 500f)));
                                     Rect pRect = new Rect(popupX + 14f + stepBtnW + 4f + (float)p * (presetW + 4f), popupY + 160f, presetW, 34f);
                                     bool isPreSel = Mathf.Abs(fovRadius - pVal) < 5f;
                                     GUI.color = isPreSel ? new Color(0.20f, 0.14f, 0.08f, 0.95f) : new Color(0.08f, 0.10f, 0.14f, 0.92f);
