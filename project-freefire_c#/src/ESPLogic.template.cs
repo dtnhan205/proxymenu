@@ -63,6 +63,15 @@ namespace ProjectEspPatch
         private const int DefaultAimState = AimEnabled | (2 << AimModeShift)
             | (3 << HeadRateShift);
 
+        private static int cfgBoxR = -1;
+        private static int cfgBoxG = -1;
+        private static int cfgBoxB = -1;
+        private static int cfgLineR = -1;
+        private static int cfgLineG = -1;
+        private static int cfgLineB = -1;
+        private static float cfgBoxThick = 1.5f;
+        private static float cfgLineThick = 1.5f;
+
         public static bool Bootstrap(Player self)
         {
             if (self == null)
@@ -346,12 +355,18 @@ namespace ProjectEspPatch
                             int nBoxR = -1;
                             int nBoxG = -1;
                             int nBoxB = -1;
+                            int nLineR = -1;
+                            int nLineG = -1;
+                            int nLineB = -1;
+                            int nBoxThick = -1;
+                            int nLineThick = -1;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
                                 "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color",
                                 "aim_target", "buff_damage", "fast_fire", "wide_view", "cam_distance",
-                                "speed_run", "fast_parachute", "box_r", "box_g", "box_b"
+                                "speed_run", "fast_parachute", "box_r", "box_g", "box_b",
+                                "line_r", "line_g", "line_b", "box_thickness", "line_thickness"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -393,6 +408,11 @@ namespace ProjectEspPatch
                                                 else if (k == 18) nBoxR = parsedVal;
                                                 else if (k == 19) nBoxG = parsedVal;
                                                 else if (k == 20) nBoxB = parsedVal;
+                                                else if (k == 21) nLineR = parsedVal;
+                                                else if (k == 22) nLineG = parsedVal;
+                                                else if (k == 23) nLineB = parsedVal;
+                                                else if (k == 24) nBoxThick = parsedVal;
+                                                else if (k == 25) nLineThick = parsedVal;
                                             }
                                         }
                                     }
@@ -471,6 +491,35 @@ namespace ProjectEspPatch
                             else if (nCol == 7) { cR = 30; cG = 120; cB = 255; }  // Xanh Dương
                             else if (nCol == 8) { cR = 0; cG = 255; cB = 163; }   // Xanh Ngọc
                             else if (nCol == 9) { cR = 255; cG = 255; cB = 255; } // Trắng Băng
+
+                            if (nBoxR >= 0 && nBoxG >= 0 && nBoxB >= 0)
+                            {
+                                cfgBoxR = nBoxR;
+                                cfgBoxG = nBoxG;
+                                cfgBoxB = nBoxB;
+                            }
+                            else if (nCol >= 0)
+                            {
+                                cfgBoxR = cR;
+                                cfgBoxG = cG;
+                                cfgBoxB = cB;
+                            }
+
+                            if (nLineR >= 0 && nLineG >= 0 && nLineB >= 0)
+                            {
+                                cfgLineR = nLineR;
+                                cfgLineG = nLineG;
+                                cfgLineB = nLineB;
+                            }
+                            else if (nCol >= 0)
+                            {
+                                cfgLineR = cR;
+                                cfgLineG = cG;
+                                cfgLineB = cB;
+                            }
+
+                            if (nBoxThick > 0) cfgBoxThick = (float)nBoxThick;
+                            if (nLineThick > 0) cfgLineThick = (float)nLineThick;
 
                             modalState = new Vector3(0f, (float)(1 | (1 << 19) | ((cR & 255) << 3) | ((cG & 255) << 11)), (float)((vipMask & 15) | ((cB & 255) << 4)));
                             driverObject.transform.localScale = modalState;
@@ -1443,73 +1492,94 @@ namespace ProjectEspPatch
                                 {
                                     continue;
                                 }
+                                Color boxColor = (cfgBoxR >= 0 && cfgBoxG >= 0 && cfgBoxB >= 0)
+                                    ? new Color((float)cfgBoxR / 255f, (float)cfgBoxG / 255f, (float)cfgBoxB / 255f, 0.95f)
+                                    : new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
+                                float finalBoxThick = cfgBoxThick > 0.5f ? cfgBoxThick : thickness;
+
+                                Color lineColor = (cfgLineR >= 0 && cfgLineG >= 0 && cfgLineB >= 0)
+                                    ? new Color((float)cfgLineR / 255f, (float)cfgLineG / 255f, (float)cfgLineB / 255f, 0.95f)
+                                    : new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
+                                float finalLineThick = cfgLineThick > 0.5f ? cfgLineThick : thickness;
+
                                 float rainbowTime = Time.unscaledTime * 1.5f;
                                 if ((mask & EspBox) != 0)
                                 {
-                                    float boxPhase = rainbowTime + (left * 0.002f);
-                                    int hSteps = 12;
-                                    int vSteps = 16;
-                                    float stepW = width / (float)hSteps;
-                                    float stepH = height / (float)vSteps;
-
-                                    // Cạnh trên (u: 0.00 -> 0.25)
-                                    for (int i = 0; i < hSteps; i++)
+                                    if (isRainbow)
                                     {
-                                        float u = 0.25f * ((float)i / (float)hSteps);
-                                        float segHue = (boxPhase + u) % 1f;
-                                        if (segHue < 0f) segHue += 1f;
-                                        float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                        float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                        float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                        float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                        float a = 0.45f + 0.55f * (1f - trail);
-                                        GUI.color = new Color(r, g, b, a);
-                                        GUI.DrawTexture(new Rect(left + (float)i * stepW, top, stepW + 0.5f, thickness), pixel);
+                                        float boxPhase = rainbowTime + (left * 0.002f);
+                                        int hSteps = 12;
+                                        int vSteps = 16;
+                                        float stepW = width / (float)hSteps;
+                                        float stepH = height / (float)vSteps;
+
+                                        // Cạnh trên (u: 0.00 -> 0.25)
+                                        for (int i = 0; i < hSteps; i++)
+                                        {
+                                            float u = 0.25f * ((float)i / (float)hSteps);
+                                            float segHue = (boxPhase + u) % 1f;
+                                            if (segHue < 0f) segHue += 1f;
+                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
+                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
+                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
+                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
+                                            float a = 0.45f + 0.55f * (1f - trail);
+                                            GUI.color = new Color(r, g, b, a);
+                                            GUI.DrawTexture(new Rect(left + (float)i * stepW, top, stepW + 0.5f, finalBoxThick), pixel);
+                                        }
+
+                                        // Cạnh phải (u: 0.25 -> 0.50)
+                                        for (int i = 0; i < vSteps; i++)
+                                        {
+                                            float u = 0.25f + 0.25f * ((float)i / (float)vSteps);
+                                            float segHue = (boxPhase + u) % 1f;
+                                            if (segHue < 0f) segHue += 1f;
+                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
+                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
+                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
+                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
+                                            float a = 0.45f + 0.55f * (1f - trail);
+                                            GUI.color = new Color(r, g, b, a);
+                                            GUI.DrawTexture(new Rect(left + width - finalBoxThick, top + (float)i * stepH, finalBoxThick, stepH + 0.5f), pixel);
+                                        }
+
+                                        // Cạnh dưới (u: 0.50 -> 0.75)
+                                        for (int i = 0; i < hSteps; i++)
+                                        {
+                                            float u = 0.50f + 0.25f * ((float)i / (float)hSteps);
+                                            float segHue = (boxPhase + u) % 1f;
+                                            if (segHue < 0f) segHue += 1f;
+                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
+                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
+                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
+                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
+                                            float a = 0.45f + 0.55f * (1f - trail);
+                                            GUI.color = new Color(r, g, b, a);
+                                            GUI.DrawTexture(new Rect(left + width - (float)(i + 1) * stepW, top + height - finalBoxThick, stepW + 0.5f, finalBoxThick), pixel);
+                                        }
+
+                                        // Cạnh trái (u: 0.75 -> 1.00)
+                                        for (int i = 0; i < vSteps; i++)
+                                        {
+                                            float u = 0.75f + 0.25f * ((float)i / (float)vSteps);
+                                            float segHue = (boxPhase + u) % 1f;
+                                            if (segHue < 0f) segHue += 1f;
+                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
+                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
+                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
+                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
+                                            float a = 0.45f + 0.55f * (1f - trail);
+                                            GUI.color = new Color(r, g, b, a);
+                                            GUI.DrawTexture(new Rect(left, top + height - (float)(i + 1) * stepH, finalBoxThick, stepH + 0.5f), pixel);
+                                        }
                                     }
-
-                                    // Cạnh phải (u: 0.25 -> 0.50)
-                                    for (int i = 0; i < vSteps; i++)
+                                    else
                                     {
-                                        float u = 0.25f + 0.25f * ((float)i / (float)vSteps);
-                                        float segHue = (boxPhase + u) % 1f;
-                                        if (segHue < 0f) segHue += 1f;
-                                        float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                        float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                        float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                        float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                        float a = 0.45f + 0.55f * (1f - trail);
-                                        GUI.color = new Color(r, g, b, a);
-                                        GUI.DrawTexture(new Rect(left + width - thickness, top + (float)i * stepH, thickness, stepH + 0.5f), pixel);
-                                    }
-
-                                    // Cạnh dưới (u: 0.50 -> 0.75)
-                                    for (int i = 0; i < hSteps; i++)
-                                    {
-                                        float u = 0.50f + 0.25f * ((float)i / (float)hSteps);
-                                        float segHue = (boxPhase + u) % 1f;
-                                        if (segHue < 0f) segHue += 1f;
-                                        float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                        float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                        float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                        float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                        float a = 0.45f + 0.55f * (1f - trail);
-                                        GUI.color = new Color(r, g, b, a);
-                                        GUI.DrawTexture(new Rect(left + width - (float)(i + 1) * stepW, top + height - thickness, stepW + 0.5f, thickness), pixel);
-                                    }
-
-                                    // Cạnh trái (u: 0.75 -> 1.00)
-                                    for (int i = 0; i < vSteps; i++)
-                                    {
-                                        float u = 0.75f + 0.25f * ((float)i / (float)vSteps);
-                                        float segHue = (boxPhase + u) % 1f;
-                                        if (segHue < 0f) segHue += 1f;
-                                        float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                        float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                        float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                        float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                        float a = 0.45f + 0.55f * (1f - trail);
-                                        GUI.color = new Color(r, g, b, a);
-                                        GUI.DrawTexture(new Rect(left, top + height - (float)(i + 1) * stepH, thickness, stepH + 0.5f), pixel);
+                                        GUI.color = boxColor;
+                                        GUI.DrawTexture(new Rect(left, top, width, finalBoxThick), pixel);
+                                        GUI.DrawTexture(new Rect(left, top + height - finalBoxThick, width, finalBoxThick), pixel);
+                                        GUI.DrawTexture(new Rect(left, top, finalBoxThick, height), pixel);
+                                        GUI.DrawTexture(new Rect(left + width - finalBoxThick, top, finalBoxThick, height), pixel);
                                     }
                                 }
 
@@ -1530,29 +1600,37 @@ namespace ProjectEspPatch
                                         Quaternion.Euler(0f, 0f, tracerAngle),
                                         Vector3.one);
 
-                                    int lineSteps = 28;
-                                    float segLen = tracerLength / (float)lineSteps;
-                                    float tracerPhase = rainbowTime * 1.5f + (left * 0.002f);
-                                    for (int s = 0; s < lineSteps; s++)
+                                    if (isRainbow)
                                     {
-                                        float normT = (float)s / (float)lineSteps;
-                                        float lineHue = (tracerPhase - normT * 1.2f) % 1f;
-                                        if (lineHue < 0f) lineHue += 1f;
-                                        float lr = Mathf.Clamp01(Mathf.Abs(lineHue * 6f - 3f) - 1f);
-                                        float lg = Mathf.Clamp01(2f - Mathf.Abs(lineHue * 6f - 2f));
-                                        float lb = Mathf.Clamp01(2f - Mathf.Abs(lineHue * 6f - 4f));
+                                        int lineSteps = 28;
+                                        float segLen = tracerLength / (float)lineSteps;
+                                        float tracerPhase = rainbowTime * 1.5f + (left * 0.002f);
+                                        for (int s = 0; s < lineSteps; s++)
+                                        {
+                                            float normT = (float)s / (float)lineSteps;
+                                            float lineHue = (tracerPhase - normT * 1.2f) % 1f;
+                                            if (lineHue < 0f) lineHue += 1f;
+                                            float lr = Mathf.Clamp01(Mathf.Abs(lineHue * 6f - 3f) - 1f);
+                                            float lg = Mathf.Clamp01(2f - Mathf.Abs(lineHue * 6f - 2f));
+                                            float lb = Mathf.Clamp01(2f - Mathf.Abs(lineHue * 6f - 4f));
 
-                                        float baseAlpha = 0.20f + 0.80f * (normT * normT);
-                                        float wave = ((tracerPhase * 2f - normT * 2.5f) % 1f + 1f) % 1f;
-                                        float waveAlpha = 0.6f + 0.4f * (1f - wave);
-                                        float la = Mathf.Clamp01(baseAlpha * waveAlpha);
+                                            float baseAlpha = 0.20f + 0.80f * (normT * normT);
+                                            float wave = ((tracerPhase * 2f - normT * 2.5f) % 1f + 1f) % 1f;
+                                            float waveAlpha = 0.6f + 0.4f * (1f - wave);
+                                            float la = Mathf.Clamp01(baseAlpha * waveAlpha);
 
-                                        float segThick = thickness * (0.75f + 0.45f * normT);
+                                            float segThick = finalLineThick * (0.75f + 0.45f * normT);
 
-                                        GUI.color = new Color(lr, lg, lb, la);
-                                        GUI.DrawTexture(new Rect(
-                                            (float)s * segLen, -segThick * 0.5f,
-                                            segLen + 0.5f, segThick), pixel);
+                                            GUI.color = new Color(lr, lg, lb, la);
+                                            GUI.DrawTexture(new Rect(
+                                                (float)s * segLen, -segThick * 0.5f,
+                                                segLen + 0.5f, segThick), pixel);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        GUI.color = lineColor;
+                                        GUI.DrawTexture(new Rect(0f, -finalLineThick * 0.5f, tracerLength, finalLineThick), pixel);
                                     }
                                     GUI.matrix = Matrix4x4.identity;
                                 }
