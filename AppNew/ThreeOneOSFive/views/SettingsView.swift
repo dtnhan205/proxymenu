@@ -261,7 +261,7 @@ struct SettingsView: View {
 
     private var bundleDisplayName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? "INNOVACHEAT"
+            ?? "INNOVA CHEAT"
     }
 
     private var appVersion: String {

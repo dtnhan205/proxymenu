@@ -657,7 +657,7 @@ struct ContentView: View {
         .onAppear {
             isInjected = FreeFirePatchService.isInjected(target: selectedTarget)
         }
-        .alert("INNOVACHEAT Engine", isPresented: $showInjectionAlert) {
+        .alert("INNOVA CHEAT Engine", isPresented: $showInjectionAlert) {
             Button("Đóng", role: .cancel) {}
         } message: {
             Text(injectionAlertText)
@@ -694,7 +694,7 @@ struct ContentView: View {
             // Title & Subtitle
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text("INNOVACHEAT")
+                    Text("INNOVA CHEAT")
                         .font(.system(size: 17, weight: .heavy, design: .monospaced))
                         .foregroundColor(.white)
                         .tracking(1.5)
@@ -1323,7 +1323,7 @@ struct ContentView: View {
             )
 
             CyberCard(glowColor: CyberTheme.crimsonNeon.opacity(0.10)) {
-                SettingsInfoRow(icon: "app.badge.fill", label: "Tên Ứng Dụng", value: "INNOVACHEAT", valueColor: CyberTheme.crimsonNeon)
+                SettingsInfoRow(icon: "app.badge.fill", label: "Tên Ứng Dụng", value: "INNOVA CHEAT", valueColor: CyberTheme.crimsonNeon)
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(icon: "number.circle.fill", label: "Phiên Bản Core", value: "v1.0.0 (Build 3105)", isMonospaced: true)
                 Divider().background(CyberTheme.divider)

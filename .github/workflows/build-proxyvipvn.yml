@@ -1,4 +1,4 @@
-name: Build INNOVACHEAT
+name: Build INNOVA CHEAT
 
 on:
   workflow_dispatch:
@@ -79,7 +79,7 @@ jobs:
             -scheme 3105 \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath build/INNOVACHEAT.xcarchive \
+            -archivePath "build/INNOVA CHEAT.xcarchive" \
             -clonedSourcePackagesDirPath build/SourcePackages \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
@@ -94,10 +94,10 @@ jobs:
         id: package
         run: |
           set -euo pipefail
-          APP_DIR=$(find build/INNOVACHEAT.xcarchive/Products/Applications -name "*.app" -maxdepth 1 | head -1)
+          APP_DIR=$(find "build/INNOVA CHEAT.xcarchive/Products/Applications" -name "*.app" -maxdepth 1 | head -1)
           if [ -z "$APP_DIR" ] || [ ! -d "$APP_DIR" ]; then
             echo "::error::App bundle not found. Available products:"
-            ls -la build/INNOVACHEAT.xcarchive/Products/Applications/ || true
+            ls -la "build/INNOVA CHEAT.xcarchive/Products/Applications/" || true
             exit 1
           fi
 
@@ -107,38 +107,38 @@ jobs:
           cp -r "$APP_DIR" build/ipa/Payload/
 
           cd build/ipa
-          zip -qr INNOVACHEAT.ipa Payload
+          zip -qr "INNOVA CHEAT.ipa" Payload
           cd "$GITHUB_WORKSPACE"
 
           # Verify cấu trúc IPA hợp lệ
-          unzip -l build/ipa/INNOVACHEAT.ipa | head -30
-          unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Payload/.*\.app/Info.plist" \
+          unzip -l "build/ipa/INNOVA CHEAT.ipa" | head -30
+          unzip -l "build/ipa/INNOVA CHEAT.ipa" | grep -q "Payload/.*\.app/Info.plist" \
             || { echo "::error::Invalid IPA structure - Info.plist missing"; exit 1; }
 
           # Kiểm tra bảo mật: Đảm bảo Assembly-CSharp-patch.bytes và localConfig.json KHÔNG xuất hiện rời rạc trong IPA
-          if unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Assembly-CSharp-patch.bytes"; then
+          if unzip -l "build/ipa/INNOVA CHEAT.ipa" | grep -q "Assembly-CSharp-patch.bytes"; then
             echo "::error::Assembly-CSharp-patch.bytes is still exposed in IPA!"
             exit 1
           else
             echo "🔒 SUCCESS: Assembly-CSharp-patch.bytes is completely hidden from IPA (embedded in binary)"
           fi
 
-          if unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "localConfig.json"; then
+          if unzip -l "build/ipa/INNOVA CHEAT.ipa" | grep -q "localConfig.json"; then
             echo "::error::localConfig.json is still exposed in IPA!"
             exit 1
           else
             echo "🔒 SUCCESS: localConfig.json is completely hidden from IPA (embedded in binary)"
           fi
 
-          IPA_SIZE=$(stat -f%z build/ipa/INNOVACHEAT.ipa 2>/dev/null || stat -c%s build/ipa/INNOVACHEAT.ipa)
+          IPA_SIZE=$(stat -f%z "build/ipa/INNOVA CHEAT.ipa" 2>/dev/null || stat -c%s "build/ipa/INNOVA CHEAT.ipa")
           echo "IPA size: $IPA_SIZE bytes"
-          echo "ipa_path=build/ipa/INNOVACHEAT.ipa" >> "$GITHUB_OUTPUT"
+          echo "ipa_path=build/ipa/INNOVA CHEAT.ipa" >> "$GITHUB_OUTPUT"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: INNOVACHEAT-ipa
-          path: build/ipa/INNOVACHEAT.ipa
+          name: INNOVA-CHEAT-ipa
+          path: "build/ipa/INNOVA CHEAT.ipa"
           if-no-files-found: error
           retention-days: 14
 
