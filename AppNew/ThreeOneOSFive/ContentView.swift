@@ -15,8 +15,8 @@ enum CheatTab: Int, CaseIterable {
 
     var icon: String {
         switch self {
-        case .menu: return "bolt.shield.fill"
-        case .settings: return "gearshape.2.fill"
+        case .menu: return "house.fill"
+        case .settings: return "gearshape.fill"
         }
     }
 }
@@ -176,14 +176,14 @@ final class CheatMenuState: ObservableObject {
         }
     }
 
-    // Available ESP Colors
+    // Available ESP Colors (Clean non-Naruto names)
     let colorOptions: [CheatColorOption] = [
-        CheatColorOption(id: 0, name: "Lục Bảo (Green)", color: Color(red: 0.05, green: 0.92, blue: 0.42), hex: "#0DE061"),
-        CheatColorOption(id: 1, name: "Huyết Luân (Sharingan Red)", color: Color(red: 1.00, green: 0.16, blue: 0.24), hex: "#FF293E"),
-        CheatColorOption(id: 2, name: "Chakra Lam (Cyan)", color: Color(red: 0.00, green: 0.90, blue: 1.00), hex: "#00E5FF"),
-        CheatColorOption(id: 3, name: "Hoàng Kim (Gold)", color: Color(red: 1.00, green: 0.82, blue: 0.12), hex: "#FFD11F"),
-        CheatColorOption(id: 4, name: "Susanoo Tím (Purple)", color: Color(red: 0.78, green: 0.35, blue: 1.00), hex: "#C759FF"),
-        CheatColorOption(id: 5, name: "Bạch Nhãn (Pure White)", color: Color.white, hex: "#FFFFFF")
+        CheatColorOption(id: 0, name: "Xanh Lá (Matrix Green)", color: Color(red: 0.05, green: 0.92, blue: 0.42), hex: "#0DE061"),
+        CheatColorOption(id: 1, name: "Đỏ Neon (Crimson Red)", color: Color(red: 1.00, green: 0.16, blue: 0.24), hex: "#FF293E"),
+        CheatColorOption(id: 2, name: "Xanh Cyan (Electric Blue)", color: Color(red: 0.00, green: 0.90, blue: 1.00), hex: "#00E5FF"),
+        CheatColorOption(id: 3, name: "Vàng Kim (Cyber Gold)", color: Color(red: 1.00, green: 0.82, blue: 0.12), hex: "#FFD11F"),
+        CheatColorOption(id: 4, name: "Tím Neon (Neon Purple)", color: Color(red: 0.78, green: 0.35, blue: 1.00), hex: "#C759FF"),
+        CheatColorOption(id: 5, name: "Trắng Băng (Ice White)", color: Color.white, hex: "#FFFFFF")
     ]
 
     var selectedColor: CheatColorOption {
@@ -193,21 +193,21 @@ final class CheatMenuState: ObservableObject {
     init() {
         let ud = UserDefaults.standard
         self.aimSilent = ud.object(forKey: "cheat.aimSilent") as? Bool ?? true
-        self.silentFOV = ud.object(forKey: "cheat.silentFOV") as? Double ?? 70.0
-        self.headshotRate = ud.object(forKey: "cheat.headshotRate") as? Double ?? 49.0
+        self.silentFOV = ud.object(forKey: "cheat.silentFOV") as? Double ?? 180.0
+        self.headshotRate = ud.object(forKey: "cheat.headshotRate") as? Double ?? 100.0
         self.aimBot = ud.object(forKey: "cheat.aimBot") as? Bool ?? false
         self.aimLine = ud.object(forKey: "cheat.aimLine") as? Bool ?? false
 
         self.boxESP = ud.object(forKey: "cheat.boxESP") as? Bool ?? true
         self.lineESP = ud.object(forKey: "cheat.lineESP") as? Bool ?? true
         self.healthBar = ud.object(forKey: "cheat.healthBar") as? Bool ?? true
-        self.nameTag = ud.object(forKey: "cheat.nameTag") as? Bool ?? true
-        self.distanceTag = ud.object(forKey: "cheat.distanceTag") as? Bool ?? true
-        self.skeletonESP = ud.object(forKey: "cheat.skeletonESP") as? Bool ?? true
-        self.espCount = ud.object(forKey: "cheat.espCount") as? Bool ?? true
+        self.nameTag = ud.object(forKey: "cheat.nameTag") as? Bool ?? false
+        self.distanceTag = ud.object(forKey: "cheat.distanceTag") as? Bool ?? false
+        self.skeletonESP = ud.object(forKey: "cheat.skeletonESP") as? Bool ?? false
+        self.espCount = ud.object(forKey: "cheat.espCount") as? Bool ?? false
         self.espAlert = ud.object(forKey: "cheat.espAlert") as? Bool ?? false
         self.espColorEnabled = ud.object(forKey: "cheat.espColorEnabled") as? Bool ?? true
-        self.espSelectedColorId = ud.object(forKey: "cheat.espSelectedColorId") as? Int ?? 0
+        self.espSelectedColorId = ud.object(forKey: "cheat.espSelectedColorId") as? Int ?? 1
         self.espLineThickness = ud.object(forKey: "cheat.espLineThickness") as? Double ?? 2.5
 
         self.fastMedkit = ud.object(forKey: "cheat.fastMedkit") as? Bool ?? false
@@ -216,21 +216,21 @@ final class CheatMenuState: ObservableObject {
 
     func resetToDefaults() {
         aimSilent = true
-        silentFOV = 70.0
-        headshotRate = 49.0
+        silentFOV = 180.0
+        headshotRate = 100.0
         aimBot = false
         aimLine = false
 
         boxESP = true
         lineESP = true
         healthBar = true
-        nameTag = true
-        distanceTag = true
-        skeletonESP = true
-        espCount = true
+        nameTag = false
+        distanceTag = false
+        skeletonESP = false
+        espCount = false
         espAlert = false
         espColorEnabled = true
-        espSelectedColorId = 0
+        espSelectedColorId = 1
         espLineThickness = 2.5
 
         fastMedkit = false
@@ -241,28 +241,28 @@ final class CheatMenuState: ObservableObject {
     }
 }
 
-// MARK: - Cyber Shinobi & Mecha 3D Theme Palette
+// MARK: - Cyber & Dark Sci-Fi Palette
 private enum CyberTheme {
-    static let bgVoid = Color(red: 0.035, green: 0.035, blue: 0.045)
+    static let bgVoid = Color(red: 0.04, green: 0.04, blue: 0.05)
     static let bgPlate = Color(red: 0.075, green: 0.075, blue: 0.09)
     static let bgPlateElevated = Color(red: 0.105, green: 0.105, blue: 0.13)
     static let bgInput = Color(red: 0.05, green: 0.05, blue: 0.065)
 
-    // Naruto / Sharingan Crimson Energy
+    // Cyberpunk Crimson Energy
     static let crimsonNeon = Color(red: 1.00, green: 0.18, blue: 0.25)
     static let crimsonFlame = Color(red: 0.95, green: 0.32, blue: 0.12)
-    static let crimsonDark = Color(red: 0.35, green: 0.05, blue: 0.08)
+    static let crimsonDark = Color(red: 0.40, green: 0.05, blue: 0.10)
 
-    // Mecha Cybernetic Accents
+    // Cyber High-Tech Accents
     static let cyberCyan = Color(red: 0.00, green: 0.88, blue: 0.98)
     static let mechaGold = Color(red: 1.00, green: 0.78, blue: 0.18)
-    static let matrixGreen = Color(red: 0.12, green: 0.94, blue: 0.45)
-    static let purpleChakra = Color(red: 0.72, green: 0.35, blue: 1.00)
+    static let matrixGreen = Color(red: 0.00, green: 0.95, blue: 0.45)
+    static let electricPurple = Color(red: 0.75, green: 0.35, blue: 1.00)
 
     static let cardBorderNormal = Color.white.opacity(0.09)
     static let divider = Color.white.opacity(0.07)
     static let textMuted = Color(white: 0.52)
-    static let textSecondary = Color(white: 0.75)
+    static let textSecondary = Color(white: 0.78)
 }
 
 // MARK: - 3D Cyber Card Container
@@ -278,7 +278,7 @@ struct CyberCard<Content: View>: View {
         .padding(15)
         .background(
             ZStack {
-                // Background gradient
+                // Background dark plate
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -296,9 +296,9 @@ struct CyberCard<Content: View>: View {
                     .strokeBorder(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.22),
+                                Color.white.opacity(0.20),
                                 Color.white.opacity(0.05),
-                                CyberTheme.crimsonNeon.opacity(0.20)
+                                glowColor.opacity(0.6)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -312,7 +312,7 @@ struct CyberCard<Content: View>: View {
     }
 }
 
-// MARK: - Section Header with Cyber / Shinobi Motif
+// MARK: - Section Header with Equalizer Waveform
 struct CyberSectionHeader: View {
     let title: String
     let subtitle: String
@@ -332,7 +332,7 @@ struct CyberSectionHeader: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 13, weight: .heavy, design: .monospaced))
                     .foregroundColor(.white)
                     .tracking(1.2)
                 Text(subtitle)
@@ -342,11 +342,17 @@ struct CyberSectionHeader: View {
 
             Spacer()
 
-            // 3D Mecha Telemetry Lines
+            // Futuristic Waveform Bars
             HStack(spacing: 3) {
-                Rectangle().fill(accentColor.opacity(0.9)).frame(width: 3, height: 10)
-                Rectangle().fill(accentColor.opacity(0.5)).frame(width: 3, height: 7)
-                Rectangle().fill(accentColor.opacity(0.25)).frame(width: 3, height: 4)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(accentColor.opacity(0.9))
+                    .frame(width: 3, height: 11)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(accentColor.opacity(0.6))
+                    .frame(width: 3, height: 8)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(accentColor.opacity(0.35))
+                    .frame(width: 3, height: 5)
             }
         }
         .padding(.horizontal, 4)
@@ -376,13 +382,13 @@ struct CyberToggleStyle: ToggleStyle {
                             lineWidth: 1
                         )
                 )
-                .shadow(color: configuration.isOn ? activeColor.opacity(0.5) : Color.clear, radius: 6)
+                .shadow(color: configuration.isOn ? activeColor.opacity(0.55) : Color.clear, radius: 6)
 
             // 3D Metallic Knob
             Circle()
                 .fill(
                     LinearGradient(
-                        colors: [.white, Color(white: 0.88)],
+                        colors: [.white, Color(white: 0.90)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -416,7 +422,7 @@ struct CyberRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // 3D Mecha Icon Box
+            // Icon Box
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(
@@ -460,7 +466,7 @@ struct CyberRowView: View {
     }
 }
 
-// MARK: - Cyber 3D Drag Slider
+// MARK: - Cyber Slider (Matching the exact look with colored ring & white center dot)
 struct CyberSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
@@ -477,43 +483,40 @@ struct CyberSlider: View {
             ZStack(alignment: .leading) {
                 // Recessed 3D Track Groove
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color.black.opacity(0.65))
-                    .frame(height: 6)
+                    .fill(Color.black.opacity(0.70))
+                    .frame(height: 5)
                     .overlay(
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
                     )
                     .padding(.horizontal, 12)
 
-                // Glowing Active Chakra Fill
+                // Glowing Active Fill
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [activeColor.opacity(0.8), activeColor],
+                            colors: [activeColor.opacity(0.85), activeColor],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: max(0, fraction * availableWidth), height: 6)
+                    .frame(width: max(0, fraction * availableWidth), height: 5)
                     .padding(.leading, 12)
-                    .shadow(color: activeColor.opacity(0.5), radius: 4)
+                    .shadow(color: activeColor.opacity(0.55), radius: 5)
 
-                // 3D Circular Thumb with Chakra Core
+                // Circular Thumb with colored ring and crisp white inner dot
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.white, Color(white: 0.85)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
+                        .fill(activeColor)
+                        .frame(width: 18, height: 18)
+                        .overlay(
+                            Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.8)
                         )
-                        .frame(width: 20, height: 20)
-                        .shadow(color: Color.black.opacity(0.6), radius: 4, x: 0, y: 2)
+                        .shadow(color: activeColor.opacity(0.8), radius: 5)
 
                     Circle()
-                        .fill(activeColor)
-                        .frame(width: 7, height: 7)
+                        .fill(Color.white)
+                        .frame(width: 6.5, height: 6.5)
                 }
                 .position(x: thumbX, y: geo.size.height / 2)
             }
@@ -529,7 +532,26 @@ struct CyberSlider: View {
                     }
             )
         }
-        .frame(height: 28)
+        .frame(height: 26)
+    }
+}
+
+// MARK: - Chamfered Futuristic Shape for Main Action Button
+struct ChamferedCardShape: Shape {
+    var cutSize: CGFloat = 14
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + cutSize, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - cutSize, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + cutSize))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cutSize))
+        path.addLine(to: CGPoint(x: rect.maxX - cutSize, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + cutSize, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - cutSize))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + cutSize))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -592,15 +614,53 @@ struct ContentView: View {
     @State private var toastMessage: String? = nil
     @State private var showFullKey: Bool = false
     @State private var showLogModal: Bool = false
+    @State private var showAdvancedESP: Bool = false
 
     var body: some View {
         ZStack {
-            // Deep Obsidian Matrix Backdrop
+            // 1. Deep Obsidian Base
             CyberTheme.bgVoid
                 .ignoresSafeArea()
 
+            // 2. High-Tech Cyber Wallpaper (Clean, no Naruto/anime)
+            Image("Background")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+                .opacity(0.85)
+
+            // 3. Subtle Ambient Crimson Smoke & Edge Glow
+            VStack {
+                HStack {
+                    Spacer()
+                    RadialGradient(
+                        colors: [CyberTheme.crimsonNeon.opacity(0.18), Color.clear],
+                        center: .topTrailing,
+                        startRadius: 0,
+                        endRadius: 280
+                    )
+                    .frame(width: 280, height: 280)
+                    .blur(radius: 25)
+                }
+                Spacer()
+                HStack {
+                    RadialGradient(
+                        colors: [CyberTheme.crimsonNeon.opacity(0.22), Color.clear],
+                        center: .bottomLeading,
+                        startRadius: 0,
+                        endRadius: 300
+                    )
+                    .frame(width: 300, height: 300)
+                    .blur(radius: 30)
+                    Spacer()
+                }
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+
+            // Main Content Layout
             VStack(spacing: 0) {
-                // Top Shinobi / Mecha Header Bar
+                // Top Header Bar
                 topHeaderBar
 
                 // Segmented Tab Switcher [ MENU | SETTINGS ]
@@ -609,7 +669,7 @@ struct ContentView: View {
                     .padding(.bottom, 8)
 
                 if selectedTab == .menu {
-                    // Game Target Selector (Free Fire Thường vs Free Fire MAX)
+                    // Game Target Selector (Side-by-side cards)
                     gameTargetSelector
                 }
 
@@ -621,7 +681,7 @@ struct ContentView: View {
                 }
             }
 
-            // Floating 3D Action HUD (Only in Menu Tab)
+            // Floating Action HUD (Only in Menu Tab)
             if selectedTab == .menu {
                 VStack {
                     Spacer()
@@ -647,7 +707,7 @@ struct ContentView: View {
                     .clipShape(Capsule())
                     .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
                     .shadow(color: Color.black.opacity(0.6), radius: 8)
-                    .padding(.bottom, 85)
+                    .padding(.bottom, 95)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(100)
@@ -667,11 +727,18 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Top Header Bar (Naruto + Mecha Branding)
+    // MARK: - Top Header Bar (INNOVA CHEAT + PRO VIP + READY)
     private var topHeaderBar: some View {
         HStack(spacing: 12) {
-            // Glowing Shinobi / Sharingan Emblem
+            // Glowing Crosshair Emblem
             ZStack {
+                // Outer subtle glowing ring
+                Circle()
+                    .strokeBorder(CyberTheme.crimsonNeon.opacity(0.6), lineWidth: 1.5)
+                    .frame(width: 40, height: 40)
+                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.8), radius: 6)
+
+                // Inner gradient disc
                 Circle()
                     .fill(
                         LinearGradient(
@@ -680,31 +747,38 @@ struct ContentView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32)
                     .overlay(
-                        Circle().strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                        Circle().strokeBorder(Color.white.opacity(0.3), lineWidth: 0.8)
                     )
-                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.6), radius: 8)
 
                 Image(systemName: "scope")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
             }
 
             // Title & Subtitle
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text("INNOVA CHEAT")
-                        .font(.system(size: 17, weight: .heavy, design: .monospaced))
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 0) {
+                    Text("INNOVA")
+                        .font(.system(size: 19, weight: .heavy, design: .monospaced))
                         .foregroundColor(.white)
-                        .tracking(1.5)
+                        .tracking(1.0)
 
-                    // Shinobi Tag
+                    Text("CHEAT")
+                        .font(.system(size: 19, weight: .heavy, design: .monospaced))
+                        .foregroundColor(CyberTheme.crimsonNeon)
+                        .tracking(1.0)
+                        .shadow(color: CyberTheme.crimsonNeon.opacity(0.6), radius: 6)
+                }
+
+                HStack(spacing: 6) {
+                    // VIP Badge
                     HStack(spacing: 3) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 8, weight: .bold))
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 7.5, weight: .bold))
                             .foregroundColor(CyberTheme.crimsonNeon)
-                        Text("SHINOBI")
+                        Text("VIP PRO")
                             .font(.system(size: 8.5, weight: .heavy, design: .monospaced))
                             .foregroundColor(CyberTheme.crimsonNeon)
                     }
@@ -713,30 +787,32 @@ struct ContentView: View {
                     .background(CyberTheme.crimsonNeon.opacity(0.14))
                     .clipShape(Capsule())
                     .overlay(Capsule().strokeBorder(CyberTheme.crimsonNeon.opacity(0.3), lineWidth: 0.8))
-                }
 
-                Text("CHAKRA MATRIX • FREE FIRE BYPASS ENGINE")
-                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
-                    .foregroundColor(CyberTheme.textMuted)
+                    Text("INTERNAL ENGINE • FREE FIRE BYPASS")
+                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                        .foregroundColor(CyberTheme.textMuted)
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
 
-            // Status Indicator Dot
+            // Status Indicator Dot & Badge
             HStack(spacing: 5) {
                 Circle()
-                    .fill(isInjected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon)
+                    .fill(isInjected ? CyberTheme.matrixGreen : CyberTheme.matrixGreen)
                     .frame(width: 7, height: 7)
-                    .shadow(color: (isInjected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon).opacity(0.8), radius: 4)
+                    .shadow(color: CyberTheme.matrixGreen.opacity(0.85), radius: 4)
 
                 Text(isInjected ? "INJECTED" : "READY")
                     .font(.system(size: 10, weight: .heavy, design: .monospaced))
-                    .foregroundColor(isInjected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon)
+                    .foregroundColor(isInjected ? CyberTheme.matrixGreen : CyberTheme.matrixGreen)
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 4.5)
             .background(Color.white.opacity(0.06))
             .clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8))
         }
         .padding(.horizontal, 16)
         .padding(.top, 6)
@@ -755,7 +831,7 @@ struct ContentView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.icon)
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 13, weight: .bold))
                             .foregroundColor(selectedTab == tab ? .white : CyberTheme.textMuted)
 
                         Text(tab.title)
@@ -764,15 +840,15 @@ struct ContentView: View {
                             .tracking(1.0)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 36)
+                    .frame(height: 38)
                     .background(
                         ZStack {
                             if selectedTab == tab {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .fill(
                                         LinearGradient(
                                             colors: [
-                                                CyberTheme.crimsonNeon.opacity(0.85),
+                                                CyberTheme.crimsonNeon.opacity(0.90),
                                                 CyberTheme.crimsonDark
                                             ],
                                             startPoint: .topLeading,
@@ -780,12 +856,12 @@ struct ContentView: View {
                                         )
                                     )
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.30), lineWidth: 1)
                                     )
-                                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.4), radius: 6)
+                                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.45), radius: 8)
                             } else {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .fill(Color.white.opacity(0.04))
                             }
                         }
@@ -796,20 +872,21 @@ struct ContentView: View {
         }
         .padding(4)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .fill(Color(red: 0.06, green: 0.06, blue: 0.08))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
         .padding(.horizontal, 16)
     }
 
-    // MARK: - Game Target Selector
+    // MARK: - Game Target Selector (Side-by-side Cards)
     private var gameTargetSelector: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             ForEach(FreeFireTarget.allCases) { target in
+                let isSelected = (selectedTarget == target)
                 Button {
                     let impact = UIImpactFeedbackGenerator(style: .light)
                     impact.impactOccurred()
@@ -817,48 +894,70 @@ struct ContentView: View {
                     FreeFirePatchService.selectedTarget = target
                     isInjected = FreeFirePatchService.isInjected(target: target)
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: target == .freeFireMAX ? "flame.fill" : "cross.case.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(selectedTarget == target ? .white : CyberTheme.textMuted)
-
-                        Text(target.displayName)
-                            .font(.system(size: 13, weight: selectedTarget == target ? .bold : .medium))
-                            .foregroundColor(selectedTarget == target ? .white : Color(white: 0.8))
-
-                        if FreeFirePatchService.isInjected(target: target) {
+                    HStack(spacing: 10) {
+                        // Flame badge
+                        ZStack {
                             Circle()
-                                .fill(CyberTheme.matrixGreen)
-                                .frame(width: 7, height: 7)
-                                .shadow(color: CyberTheme.matrixGreen.opacity(0.8), radius: 3)
+                                .fill(
+                                    isSelected ?
+                                    LinearGradient(colors: [CyberTheme.crimsonNeon, CyberTheme.crimsonDark], startPoint: .topLeading, endPoint: .bottomTrailing) :
+                                    LinearGradient(colors: [Color.white.opacity(0.08), Color.white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                                .frame(width: 32, height: 32)
+                                .shadow(color: isSelected ? CyberTheme.crimsonNeon.opacity(0.5) : Color.clear, radius: 4)
+
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(isSelected ? .white : Color(white: 0.55))
                         }
+
+                        // Title & Subtitle
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(target.displayName)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(.white)
+                                .lineLimit(1)
+
+                            Text(target == .freeFireTH ? "Chế độ chơi chính" : "Tối ưu hiệu suất hơn")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(CyberTheme.textMuted)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(isSelected ? CyberTheme.crimsonNeon : CyberTheme.textMuted)
                     }
+                    .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 38)
+                    .frame(height: 52)
                     .background(
                         ZStack {
-                            if selectedTarget == target {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: 13, style: .continuous)
                                     .fill(
                                         LinearGradient(
                                             colors: [
-                                                Color(white: 0.18),
-                                                Color(white: 0.10)
+                                                Color(red: 0.22, green: 0.04, blue: 0.07),
+                                                Color(red: 0.10, green: 0.02, blue: 0.04)
                                             ],
                                             startPoint: .topLeading,
                                             endPoint: .bottomTrailing
                                         )
                                     )
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .strokeBorder(CyberTheme.crimsonNeon.opacity(0.7), lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                            .strokeBorder(CyberTheme.crimsonNeon.opacity(0.85), lineWidth: 1)
                                     )
+                                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.30), radius: 6)
                             } else {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(CyberTheme.bgPlate)
+                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                    .fill(Color(red: 0.08, green: 0.08, blue: 0.10).opacity(0.85))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                                     )
                             }
                         }
@@ -875,87 +974,109 @@ struct ContentView: View {
     private var menuContent: some View {
         ScrollView(showsIndicators: true) {
             VStack(alignment: .leading, spacing: 18) {
-                // AIMING Section
+                // AIM PROTOCOL Section
                 aimingSection
 
-                // ESP Section
+                // ESP MATRIX Section
                 espSection
 
-                // COMBAT Section
+                // COMBAT MODS Section
                 combatSection
 
                 // Extra Bottom Padding for floating HUD
-                Spacer().frame(height: 95)
+                Spacer().frame(height: 100)
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
         }
     }
 
-    // MARK: - AIMING Section
+    // MARK: - AIM PROTOCOL Section
     private var aimingSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
                 title: "AIM PROTOCOL",
-                subtitle: "Khóa mục tiêu & Cân bằng Chakra",
+                subtitle: "Tự động khóa mục tiêu & giảm giật",
                 icon: "scope",
                 accentColor: CyberTheme.crimsonNeon
             )
 
+            // Card 1: Aim Silent & Sliders (FOV & Headshot)
             CyberCard(glowColor: CyberTheme.crimsonNeon.opacity(cheatState.aimSilent ? 0.14 : 0.0)) {
                 // Aim Silent Row
                 CyberRowView(
                     iconName: "wind",
                     title: "Aim Silent (Tàng Hình)",
-                    subtitle: "Khóa tâm ẩn giấu không giật màn hình",
+                    subtitle: "Khóa tâm ẩn, giảm giật màn hình",
                     isOn: $cheatState.aimSilent,
                     activeColor: CyberTheme.crimsonNeon
                 )
 
-                // Sub-controls for Aim Silent
-                if cheatState.aimSilent {
-                    VStack(spacing: 12) {
-                        // Silent FOV
-                        VStack(spacing: 4) {
-                            HStack {
-                                Text("Góc Quét (Silent FOV)")
-                                    .font(.system(size: 12.5, weight: .medium))
-                                    .foregroundColor(CyberTheme.textSecondary)
-                                Spacer()
-                                Text("\(Int(cheatState.silentFOV))°")
-                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                // Sub-controls (Silent FOV & Headshot Rate)
+                VStack(spacing: 12) {
+                    // Silent FOV
+                    VStack(spacing: 4) {
+                        HStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(CyberTheme.crimsonNeon.opacity(0.18))
+                                    .frame(width: 22, height: 22)
+                                Image(systemName: "scope")
+                                    .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(CyberTheme.crimsonNeon)
                             }
-                            CyberSlider(value: $cheatState.silentFOV, range: 0...180, step: 1, activeColor: CyberTheme.crimsonNeon)
-                        }
 
-                        // Headshot Rate
-                        VStack(spacing: 4) {
-                            HStack {
-                                Text("Tỉ Lệ Trúng Đầu (Headshot)")
-                                    .font(.system(size: 12.5, weight: .medium))
-                                    .foregroundColor(CyberTheme.textSecondary)
-                                Spacer()
-                                Text("\(Int(cheatState.headshotRate))%")
-                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            Text("Góc Quét (Silent FOV)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(CyberTheme.textSecondary)
+
+                            Spacer()
+
+                            Text("\(Int(cheatState.silentFOV))°")
+                                .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                                .foregroundColor(CyberTheme.crimsonNeon)
+                        }
+                        CyberSlider(value: $cheatState.silentFOV, range: 0...180, step: 1, activeColor: CyberTheme.crimsonNeon)
+                    }
+
+                    // Headshot Rate
+                    VStack(spacing: 4) {
+                        HStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(CyberTheme.mechaGold.opacity(0.18))
+                                    .frame(width: 22, height: 22)
+                                Image(systemName: "target")
+                                    .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(CyberTheme.mechaGold)
                             }
-                            CyberSlider(value: $cheatState.headshotRate, range: 0...100, step: 1, activeColor: CyberTheme.mechaGold)
+
+                            Text("Tỉ Lệ Trúng Đầu (Headshot)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(CyberTheme.textSecondary)
+
+                            Spacer()
+
+                            Text("\(Int(cheatState.headshotRate))%")
+                                .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                                .foregroundColor(CyberTheme.mechaGold)
                         }
+                        CyberSlider(value: $cheatState.headshotRate, range: 0...100, step: 1, activeColor: CyberTheme.mechaGold)
                     }
-                    .padding(.top, 4)
-                    .padding(.bottom, 6)
                 }
+                .padding(.top, 4)
+                .padding(.bottom, 4)
+            }
 
-                Divider().background(CyberTheme.divider)
-
+            // Card 2: Aim Bot & Aim Line (Separate card directly below)
+            CyberCard(glowColor: (cheatState.aimBot || cheatState.aimLine) ? CyberTheme.cyberCyan.opacity(0.10) : Color.clear) {
                 // Aim Bot Row
                 CyberRowView(
                     iconName: "target",
                     title: "Aim Bot (Tự Động)",
                     subtitle: "Hút tâm trực tiếp vào đầu / cổ địch",
                     isOn: $cheatState.aimBot,
-                    activeColor: CyberTheme.cyberCyan
+                    activeColor: CyberTheme.crimsonNeon
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -966,26 +1087,26 @@ struct ContentView: View {
                     title: "Aim Line (Tia Dẫn Tâm)",
                     subtitle: "Vạch định vị từ nòng súng đến kẻ địch",
                     isOn: $cheatState.aimLine,
-                    activeColor: CyberTheme.matrixGreen
+                    activeColor: CyberTheme.crimsonNeon
                 )
             }
         }
     }
 
-    // MARK: - ESP Section (Byakugan Vision)
+    // MARK: - ESP MATRIX Section
     private var espSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
-                title: "BYAKUGAN ESP MATRIX",
-                subtitle: "Bạch nhãn quét xuyên vật thể & bản đồ",
+                title: "ESP MATRIX SYSTEM",
+                subtitle: "Nhìn xuyên tường, định vị vị trí đối thủ",
                 icon: "eye.fill",
                 accentColor: CyberTheme.cyberCyan
             )
 
-            CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.10)) {
+            CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.12)) {
                 // Box ESP
                 CyberRowView(
-                    iconName: "square.dashed",
+                    iconName: "shippingbox.fill",
                     title: "Khung 2D (Box ESP)",
                     subtitle: "Hộp nhận diện bao quanh đối thủ",
                     isOn: $cheatState.boxESP,
@@ -1007,151 +1128,177 @@ struct ContentView: View {
 
                 // Health Bar
                 CyberRowView(
-                    iconName: "heart.text.square.fill",
+                    iconName: "cross.case.fill",
                     title: "Thanh Máu (Health Bar)",
-                    subtitle: "Hiển thị lượng sinh lực thời gian thực",
+                    subtitle: "Hiển thị máu đối thủ",
                     isOn: $cheatState.healthBar,
-                    activeColor: CyberTheme.matrixGreen
-                )
-
-                Divider().background(CyberTheme.divider)
-
-                // Name Tag
-                CyberRowView(
-                    iconName: "tag.fill",
-                    title: "Tên Kẻ Địch (Name Tag)",
-                    subtitle: "Nhận diện nickname của mục tiêu",
-                    isOn: $cheatState.nameTag,
                     activeColor: CyberTheme.cyberCyan
                 )
 
                 Divider().background(CyberTheme.divider)
 
-                // Distance Tag
-                CyberRowView(
-                    iconName: "ruler.fill",
-                    title: "Khoảng Cách (Distance Tag)",
-                    subtitle: "Đo cự ly chính xác theo mét",
-                    isOn: $cheatState.distanceTag,
-                    activeColor: CyberTheme.mechaGold
-                )
+                // Advanced ESP Expandable Toggle
+                Button {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                        showAdvancedESP.toggle()
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(CyberTheme.cyberCyan)
 
-                Divider().background(CyberTheme.divider)
+                        Text("Tùy Chọn ESP Mở Rộng")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color.white)
 
-                // Skeleton ESP
-                CyberRowView(
-                    iconName: "figure.stand",
-                    title: "Khung Xương (Skeleton ESP)",
-                    subtitle: "Mô phỏng khớp xương & cử động",
-                    isOn: $cheatState.skeletonESP,
-                    activeColor: CyberTheme.purpleChakra
-                )
+                        Spacer()
 
-                Divider().background(CyberTheme.divider)
+                        Image(systemName: showAdvancedESP ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(CyberTheme.textMuted)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
 
-                // ESP Count
-                CyberRowView(
-                    iconName: "number",
-                    title: "Đếm Số Lượng Địch (ESP Count)",
-                    subtitle: "Cảnh báo số lượng quân địch trong 250m",
-                    isOn: $cheatState.espCount,
-                    activeColor: CyberTheme.mechaGold
-                )
+                if showAdvancedESP {
+                    VStack(spacing: 8) {
+                        Divider().background(CyberTheme.divider)
 
-                Divider().background(CyberTheme.divider)
+                        // Name Tag
+                        CyberRowView(
+                            iconName: "tag.fill",
+                            title: "Tên Kẻ Địch (Name Tag)",
+                            subtitle: "Nhận diện nickname của mục tiêu",
+                            isOn: $cheatState.nameTag,
+                            activeColor: CyberTheme.cyberCyan
+                        )
 
-                // ESP Alert
-                CyberRowView(
-                    iconName: "exclamationmark.triangle.fill",
-                    title: "Cảnh Báo Địch Sau Lưng (360° Alert)",
-                    subtitle: "Radar cảnh báo nguy hiểm xung quanh",
-                    isOn: $cheatState.espAlert,
-                    activeColor: CyberTheme.crimsonNeon
-                )
+                        Divider().background(CyberTheme.divider)
 
-                Divider().background(CyberTheme.divider)
+                        // Distance Tag
+                        CyberRowView(
+                            iconName: "ruler.fill",
+                            title: "Khoảng Cách (Distance Tag)",
+                            subtitle: "Đo cự ly chính xác theo mét",
+                            isOn: $cheatState.distanceTag,
+                            activeColor: CyberTheme.mechaGold
+                        )
 
-                // ESP Color Option
-                CyberRowView(
-                    iconName: "paintpalette.fill",
-                    title: "Màu Sắc ESP",
-                    subtitle: "Tùy biến bảng màu hiển thị",
-                    isOn: $cheatState.espColorEnabled,
-                    activeColor: cheatState.selectedColor.color
-                )
+                        Divider().background(CyberTheme.divider)
 
-                if cheatState.espColorEnabled {
-                    VStack(spacing: 12) {
-                        // Color Selector Menu
-                        Menu {
-                            ForEach(cheatState.colorOptions) { option in
-                                Button {
-                                    cheatState.espSelectedColorId = option.id
-                                } label: {
-                                    HStack {
-                                        Text(option.name)
-                                        if option.id == cheatState.espSelectedColorId {
-                                            Image(systemName: "checkmark")
+                        // Skeleton ESP
+                        CyberRowView(
+                            iconName: "figure.stand",
+                            title: "Khung Xương (Skeleton ESP)",
+                            subtitle: "Mô phỏng khớp xương & cử động",
+                            isOn: $cheatState.skeletonESP,
+                            activeColor: CyberTheme.electricPurple
+                        )
+
+                        Divider().background(CyberTheme.divider)
+
+                        // ESP Count
+                        CyberRowView(
+                            iconName: "number",
+                            title: "Đếm Số Lượng Địch (ESP Count)",
+                            subtitle: "Cảnh báo số lượng quân địch trong 250m",
+                            isOn: $cheatState.espCount,
+                            activeColor: CyberTheme.mechaGold
+                        )
+
+                        Divider().background(CyberTheme.divider)
+
+                        // 360 Alert
+                        CyberRowView(
+                            iconName: "exclamationmark.triangle.fill",
+                            title: "Cảnh Báo Địch Sau Lưng (360° Alert)",
+                            subtitle: "Radar cảnh báo nguy hiểm xung quanh",
+                            isOn: $cheatState.espAlert,
+                            activeColor: CyberTheme.crimsonNeon
+                        )
+
+                        Divider().background(CyberTheme.divider)
+
+                        // ESP Color Selector
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text("Màu Sắc ESP")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(CyberTheme.textSecondary)
+                                Spacer()
+                            }
+
+                            Menu {
+                                ForEach(cheatState.colorOptions) { option in
+                                    Button {
+                                        cheatState.espSelectedColorId = option.id
+                                    } label: {
+                                        HStack {
+                                            Text(option.name)
+                                            if option.id == cheatState.espSelectedColorId {
+                                                Image(systemName: "checkmark")
+                                            }
                                         }
                                     }
                                 }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(cheatState.selectedColor.color)
+                                        .frame(width: 14, height: 14)
+                                        .shadow(color: cheatState.selectedColor.color.opacity(0.8), radius: 4)
+
+                                    Text(cheatState.selectedColor.name)
+                                        .font(.system(size: 13.5, weight: .semibold))
+                                        .foregroundColor(.white)
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(CyberTheme.textMuted)
+                                }
+                                .padding(.horizontal, 14)
+                                .frame(height: 40)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(Color(white: 0.12))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                                )
                             }
-                        } label: {
-                            HStack(spacing: 8) {
-                                Circle()
-                                    .fill(cheatState.selectedColor.color)
-                                    .frame(width: 14, height: 14)
-                                    .shadow(color: cheatState.selectedColor.color.opacity(0.8), radius: 4)
 
-                                Text(cheatState.selectedColor.name)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.white)
-
-                                Spacer()
-
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(CyberTheme.textMuted)
+                            // Line Thickness Slider
+                            VStack(spacing: 4) {
+                                HStack {
+                                    Text("Độ Dày Nét Vẽ ESP")
+                                        .font(.system(size: 12.5, weight: .medium))
+                                        .foregroundColor(CyberTheme.textSecondary)
+                                    Spacer()
+                                    Text(String(format: "%.1f px", cheatState.espLineThickness))
+                                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.white)
+                                }
+                                CyberSlider(value: $cheatState.espLineThickness, range: 1.0...8.0, step: 0.5, activeColor: cheatState.selectedColor.color)
                             }
-                            .padding(.horizontal, 14)
-                            .frame(height: 42)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color(white: 0.12))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                            )
-                        }
-
-                        // Line thickness slider
-                        VStack(spacing: 4) {
-                            HStack {
-                                Text("Độ Dày Nét Vẽ ESP (px)")
-                                    .font(.system(size: 12.5, weight: .medium))
-                                    .foregroundColor(CyberTheme.textSecondary)
-                                Spacer()
-                                Text(String(format: "%.1f px", cheatState.espLineThickness))
-                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                                    .foregroundColor(.white)
-                            }
-                            CyberSlider(value: $cheatState.espLineThickness, range: 1.0...8.0, step: 0.5, activeColor: cheatState.selectedColor.color)
                         }
                     }
                     .padding(.top, 4)
-                    .padding(.bottom, 6)
                 }
             }
         }
     }
 
-    // MARK: - COMBAT Section
+    // MARK: - COMBAT MODS Section
     private var combatSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
-                title: "COMBAT OVERDRIVE",
-                subtitle: "Cường hóa thể thuật nhẫn giả",
+                title: "COMBAT MODS",
+                subtitle: "Hỗ trợ giao tranh & tối ưu vũ khí",
                 icon: "shield.righthalf.filled",
                 accentColor: CyberTheme.crimsonFlame
             )
@@ -1180,99 +1327,155 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Floating 3D Mecha Action HUD
+    // MARK: - Floating Futuristic Action HUD (Bottom Bar)
     private var bottomActionBar: some View {
-        HStack(spacing: 12) {
-            // Main Inject / Uninject Button
-            Button {
-                if isInjected {
-                    handleUninjectCheat()
-                } else {
-                    handleInjectCheat()
-                }
-            } label: {
-                HStack(spacing: 9) {
-                    if isInjecting {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(0.9)
-                        Text(isInjected ? "ĐANG GỠ BỎ..." : "ĐANG INJECT...")
-                            .font(.system(size: 15, weight: .heavy, design: .monospaced))
-                            .foregroundColor(.white)
-                    } else if isInjected {
-                        Image(systemName: "trash.circle.fill")
-                            .font(.system(size: 19, weight: .bold))
-                            .foregroundColor(.white)
-                        Text("UNINJECT (\(selectedTarget.displayName.uppercased()))")
-                            .font(.system(size: 14, weight: .heavy, design: .monospaced))
-                            .foregroundColor(.white)
-                            .tracking(0.5)
+        VStack(spacing: 6) {
+            HStack(spacing: 12) {
+                // Main Inject Button (Chamfered Futuristic Angle)
+                Button {
+                    if isInjected {
+                        handleUninjectCheat()
                     } else {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                        Text("INJECT (\(selectedTarget.displayName.uppercased()))")
-                            .font(.system(size: 14, weight: .heavy, design: .monospaced))
-                            .foregroundColor(.white)
-                            .tracking(0.5)
+                        handleInjectCheat()
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(
-                    ZStack {
-                        if isInjected {
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.88, green: 0.20, blue: 0.25),
-                                    Color(red: 0.60, green: 0.10, blue: 0.15)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        } else {
-                            LinearGradient(
-                                colors: [
-                                    CyberTheme.crimsonNeon,
-                                    CyberTheme.crimsonDark
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+                } label: {
+                    HStack(spacing: 12) {
+                        // Flame icon badge
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.20))
+                                .frame(width: 34, height: 34)
+
+                            Image(systemName: isInjected ? "trash.fill" : "flame.fill")
+                                .font(.system(size: 16, weight: .heavy))
+                                .foregroundColor(.white)
                         }
+
+                        // Label
+                        VStack(alignment: .leading, spacing: 2) {
+                            if isInjecting {
+                                Text(isInjected ? "ĐANG GỠ BỎ..." : "ĐANG INJECT...")
+                                    .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+                            } else {
+                                Text(isInjected ? "UNINJECT (\(selectedTarget.displayName.uppercased()))" : "INJECT (\(selectedTarget.displayName.uppercased()))")
+                                    .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .tracking(0.5)
+
+                                Text(isInjected ? "Nhấn để hủy kích hoạt chức năng" : "Bắt đầu kích hoạt chức năng")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(Color.white.opacity(0.85))
+                            }
+                        }
+
+                        Spacer()
                     }
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-                )
-                .shadow(color: (isInjected ? Color.red : CyberTheme.crimsonNeon).opacity(0.5), radius: 10, y: 3)
-            }
-            .buttonStyle(.plain)
-            .disabled(isInjecting)
-
-            // Reset Defaults Button
-            Button(action: handleResetDefaults) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(CyberTheme.bgPlateElevated)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                        )
-                        .frame(width: 52, height: 52)
-
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(
+                        ZStack {
+                            if isInjected {
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.85, green: 0.15, blue: 0.22),
+                                        Color(red: 0.55, green: 0.08, blue: 0.12)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            } else {
+                                LinearGradient(
+                                    colors: [
+                                        CyberTheme.crimsonNeon,
+                                        Color(red: 0.70, green: 0.05, blue: 0.14)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            }
+                        }
+                    )
+                    .clipShape(ChamferedCardShape(cutSize: 12))
+                    .overlay(
+                        ChamferedCardShape(cutSize: 12)
+                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                    )
+                    .shadow(color: (isInjected ? Color.red : CyberTheme.crimsonNeon).opacity(0.65), radius: 12, y: 3)
                 }
+                .buttonStyle(.plain)
+                .disabled(isInjecting)
+
+                // Secondary Quick Action Circular Button (Lightning Bolt)
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .rigid)
+                    impact.impactOccurred()
+                    if !isInjected {
+                        handleInjectCheat()
+                    } else {
+                        handleResetDefaults()
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(white: 0.18),
+                                        Color(white: 0.09)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.6), radius: 6)
+
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
+            // Sleek Footer with Red Neon Lines
+            HStack(spacing: 12) {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.clear, CyberTheme.crimsonNeon.opacity(0.6)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(height: 1)
+
+                Text("INNOVA CHEAT")
+                    .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
+                    .foregroundColor(Color.white.opacity(0.45))
+                    .tracking(2.0)
+
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [CyberTheme.crimsonNeon.opacity(0.6), Color.clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(height: 1)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 4)
+            .padding(.bottom, 6)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 24)
         .background(
             LinearGradient(
                 colors: [
@@ -1286,7 +1489,7 @@ struct ContentView: View {
         )
     }
 
-    // MARK: - SETTINGS Tab Content (Full Comprehensive System Specs)
+    // MARK: - SETTINGS Tab Content
     private var settingsContent: some View {
         ScrollView(showsIndicators: true) {
             VStack(alignment: .leading, spacing: 18) {
@@ -1592,10 +1795,10 @@ struct ContentView: View {
                 title: "TIỆN ÍCH & NHẬT KÝ",
                 subtitle: "Bảo trì & Xem console logs",
                 icon: "terminal.fill",
-                accentColor: CyberTheme.purpleChakra
+                accentColor: CyberTheme.electricPurple
             )
 
-            CyberCard(glowColor: CyberTheme.purpleChakra.opacity(0.10)) {
+            CyberCard(glowColor: CyberTheme.electricPurple.opacity(0.10)) {
                 // View Console Logs Button
                 Button {
                     showLogModal = true
@@ -1603,7 +1806,7 @@ struct ContentView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "terminal.fill")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(CyberTheme.purpleChakra)
+                            .foregroundColor(CyberTheme.electricPurple)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Xem Nhật Ký Hoạt Động (Console Logs)")
