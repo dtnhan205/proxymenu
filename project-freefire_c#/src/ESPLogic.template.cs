@@ -224,6 +224,51 @@ namespace ProjectEspPatch
                         string cJson = File.ReadAllText(cfgPath);
                         if (!string.IsNullOrEmpty(cJson))
                         {
+                            cJson = cJson.Trim();
+                            if (!cJson.Contains("\"box_esp\""))
+                            {
+                                try
+                                {
+                                    string b64Str = cJson;
+                                    int pData = cJson.IndexOf("\"data\":");
+                                    if (pData >= 0)
+                                    {
+                                        int sQ = cJson.IndexOf('"', pData + 7);
+                                        if (sQ >= 0)
+                                        {
+                                            int eQ = cJson.IndexOf('"', sQ + 1);
+                                            if (eQ > sQ) b64Str = cJson.Substring(sQ + 1, eQ - sQ - 1);
+                                        }
+                                    }
+                                    byte[] encBytes = Convert.FromBase64String(b64Str);
+                                    byte[] xKey = new byte[16];
+                                    xKey[0] = 75;
+                                    xKey[1] = 158;
+                                    xKey[2] = 51;
+                                    xKey[3] = 127;
+                                    xKey[4] = 26;
+                                    xKey[5] = 136;
+                                    xKey[6] = 210;
+                                    xKey[7] = 101;
+                                    xKey[8] = 12;
+                                    xKey[9] = 241;
+                                    xKey[10] = 84;
+                                    xKey[11] = 155;
+                                    xKey[12] = 39;
+                                    xKey[13] = 234;
+                                    xKey[14] = 99;
+                                    xKey[15] = 24;
+                                    for (int i = 0; i < encBytes.Length; i++)
+                                    {
+                                        encBytes[i] = (byte)(encBytes[i] ^ xKey[i % 16]);
+                                    }
+                                    cJson = System.Text.Encoding.UTF8.GetString(encBytes);
+                                }
+                                catch
+                                {
+                                }
+                            }
+
                             state |= StateAuthorized;
 
                             int nBox = 1;

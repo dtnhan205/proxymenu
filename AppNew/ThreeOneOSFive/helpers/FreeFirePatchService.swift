@@ -96,29 +96,48 @@ enum FreeFirePatchService {
         ]
     }
 
-    /// Sync the current configuration to the game container
+    // 16-byte XOR key matching the in-game patch decryption
+    private static let configCipherKey: [UInt8] = [
+        75, 158, 51, 127, 26, 136, 210, 101, 12, 241, 84, 155, 39, 234, 99, 24
+    ]
+
+    /// Encrypts configuration JSON into an unreadable cipher string (anti-crack / anti-reverse)
+    static func encryptConfigData(_ rawJsonData: Data) -> Data {
+        var bytes = [UInt8](rawJsonData)
+        let kCount = configCipherKey.count
+        for i in 0..<bytes.count {
+            bytes[i] ^= configCipherKey[i % kCount]
+        }
+        let b64 = Data(bytes).base64EncodedString()
+        return b64.data(using: .utf8) ?? rawJsonData
+    }
+
+    /// Sync the current configuration to the game container in encrypted cipher format
     static func syncConfig(target: FreeFireTarget = selectedTarget, state: CheatMenuState = CheatMenuState.shared) {
         let payload = makeConfigPayload(state: state)
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]) else {
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
             return
         }
+
+        // Encrypt payload so it cannot be read or tampered with outside the game
+        let encryptedData = encryptConfigData(jsonData)
 
         // 1. Write to Game Data Container Documents
         if let containerPath = ContainerStore.resolveAppContainerPath(bundleID: target.rawValue) {
             let docsURL = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents")
             try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
             let configURL = docsURL.appendingPathComponent("menu_config.json")
-            try? jsonData.write(to: configURL, options: .atomic)
-            AppLog.shared.append("[CONFIG] 🔄 Đã đồng bộ cấu hình -> \(target.displayName)")
+            try? encryptedData.write(to: configURL, options: .atomic)
+            AppLog.shared.append("[CONFIG] 🔒 Đã mã hóa và đồng bộ cấu hình -> \(target.displayName)")
         }
 
         // 2. Also write to Downloads & Shared locations
         let dlURL = URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json")
-        try? jsonData.write(to: dlURL, options: .atomic)
+        try? encryptedData.write(to: dlURL, options: .atomic)
 
         if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let proxyCfg = proxyDocs.appendingPathComponent("menu_config.json")
-            try? jsonData.write(to: proxyCfg, options: .atomic)
+            try? encryptedData.write(to: proxyCfg, options: .atomic)
         }
     }
 
