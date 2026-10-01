@@ -258,6 +258,43 @@ final class CheatMenuState: ObservableObject {
         }
     }
 
+    @Published var buffDamage: Bool {
+        didSet {
+            UserDefaults.standard.set(buffDamage, forKey: "cheat.buffDamage")
+            syncIfInjected()
+        }
+    }
+    @Published var fastFire: Bool {
+        didSet {
+            UserDefaults.standard.set(fastFire, forKey: "cheat.fastFire")
+            syncIfInjected()
+        }
+    }
+    @Published var wideView: Bool {
+        didSet {
+            UserDefaults.standard.set(wideView, forKey: "cheat.wideView")
+            syncIfInjected()
+        }
+    }
+    @Published var camDistance: Double {
+        didSet {
+            UserDefaults.standard.set(camDistance, forKey: "cheat.camDistance")
+            syncIfInjected()
+        }
+    }
+    @Published var speedRun: Bool {
+        didSet {
+            UserDefaults.standard.set(speedRun, forKey: "cheat.speedRun")
+            syncIfInjected()
+        }
+    }
+    @Published var fastParachute: Bool {
+        didSet {
+            UserDefaults.standard.set(fastParachute, forKey: "cheat.fastParachute")
+            syncIfInjected()
+        }
+    }
+
     // 10 Rich, Vibrant Gaming Color Palette
     let colorOptions: [CheatColorOption] = [
         CheatColorOption(id: 0, name: "Đỏ Neon (Crimson Red)", color: Color(red: 1.00, green: 0.16, blue: 0.24), hex: "#FF293E"),
@@ -337,6 +374,12 @@ final class CheatMenuState: ObservableObject {
 
         self.fastMedkit = ud.object(forKey: "cheat.fastMedkit") as? Bool ?? false
         self.noRecoil = ud.object(forKey: "cheat.noRecoil") as? Bool ?? false
+        self.buffDamage = ud.object(forKey: "cheat.buffDamage") as? Bool ?? false
+        self.fastFire = ud.object(forKey: "cheat.fastFire") as? Bool ?? false
+        self.wideView = ud.object(forKey: "cheat.wideView") as? Bool ?? false
+        self.camDistance = ud.object(forKey: "cheat.camDistance") as? Double ?? 85.0
+        self.speedRun = ud.object(forKey: "cheat.speedRun") as? Bool ?? false
+        self.fastParachute = ud.object(forKey: "cheat.fastParachute") as? Bool ?? false
     }
 
     func resetToDefaults() {
@@ -364,6 +407,12 @@ final class CheatMenuState: ObservableObject {
 
         fastMedkit = false
         noRecoil = false
+        buffDamage = false
+        fastFire = false
+        wideView = false
+        camDistance = 85.0
+        speedRun = false
+        fastParachute = false
 
         AppLog.shared.append("[CONFIG] Cheat settings reset to default values.")
         syncIfInjected()
