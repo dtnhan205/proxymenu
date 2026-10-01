@@ -139,6 +139,7 @@ enum FreeFirePatchService {
             "aim_target": state.aimBotTarget == .head ? 1 : 0,
             "aim_bot_target": state.aimBotTarget.rawValue,
             "no_recoil": state.noRecoil ? 1 : 0,
+            "draw_fov": state.drawFOV ? 1 : 0,
             "aim_fov": Int(state.silentFOV),
             "headshot_rate": rateIndex,
             "color": state.espSelectedColorId,

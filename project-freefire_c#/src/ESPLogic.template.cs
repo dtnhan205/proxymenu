@@ -349,13 +349,14 @@ namespace ProjectEspPatch
                             int nLineR = -1;
                             int nLineG = -1;
                             int nLineB = -1;
+                            int nDrawFov = -1;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
                                 "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color",
                                 "aim_target", "buff_damage", "fast_fire", "wide_view", "cam_distance",
                                 "speed_run", "fast_parachute", "box_r", "box_g", "box_b",
-                                "line_r", "line_g", "line_b"
+                                "line_r", "line_g", "line_b", "draw_fov"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -400,6 +401,7 @@ namespace ProjectEspPatch
                                                 else if (k == 21) nLineR = parsedVal;
                                                 else if (k == 22) nLineG = parsedVal;
                                                 else if (k == 23) nLineB = parsedVal;
+                                                else if (k == 24) nDrawFov = parsedVal;
                                             }
                                         }
                                     }
@@ -412,7 +414,14 @@ namespace ProjectEspPatch
                             if (nHealth != 0) newEsp |= EspHealth;
                             if (nName != 0) newEsp |= EspName;
                             if (nDist != 0) newEsp |= EspDistance;
-                            if (nSilent != 0 || nBot != 0) newEsp |= EspFov;
+                            if (nDrawFov >= 0)
+                            {
+                                if (nDrawFov != 0) newEsp |= EspFov;
+                            }
+                            else if (nSilent != 0 || nBot != 0)
+                            {
+                                newEsp |= EspFov;
+                            }
                             if (newEsp != 0) newEsp |= EspMaster;
 
                             int newAim = 0;
@@ -1313,7 +1322,7 @@ namespace ProjectEspPatch
                     Player localPlayer = GameFacade.CurrentLocalPlayer();
                     Transform localRoot = localPlayer == null ? null : localPlayer.RootTransform;
 
-                    if ((state & StateAuthorized) != 0 && (state & AimEnabled) != 0 && (mask & EspFov) != 0)
+                    if ((state & StateAuthorized) != 0 && ((state & AimEnabled) != 0 || (state & AimSystemEnabled) != 0) && (mask & EspFov) != 0)
                     {
                         Color fovBaseColor = isRainbow
                             ? Color.white

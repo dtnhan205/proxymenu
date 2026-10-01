@@ -129,6 +129,13 @@ final class CheatMenuState: ObservableObject {
             syncIfInjected()
         }
     }
+    @Published var drawFOV: Bool {
+        didSet {
+            UserDefaults.standard.set(drawFOV, forKey: "cheat.drawFOV")
+            AppLog.shared.append("[AIM] Vòng FOV: \(drawFOV ? "ENABLED" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
     @Published var silentFOV: Double {
         didSet {
             UserDefaults.standard.set(silentFOV, forKey: "cheat.silentFOV")
@@ -484,6 +491,7 @@ final class CheatMenuState: ObservableObject {
     init() {
         let ud = UserDefaults.standard
         self.aimSilent = ud.object(forKey: "cheat.aimSilent") as? Bool ?? false
+        self.drawFOV = ud.object(forKey: "cheat.drawFOV") as? Bool ?? true
         self.silentFOV = ud.object(forKey: "cheat.silentFOV") as? Double ?? 180.0
         self.headshotRate = ud.object(forKey: "cheat.headshotRate") as? Double ?? 100.0
         self.aimBot = ud.object(forKey: "cheat.aimBot") as? Bool ?? false
@@ -544,6 +552,7 @@ final class CheatMenuState: ObservableObject {
 
     func resetToDefaults() {
         aimSilent = false
+        drawFOV = true
         silentFOV = 180.0
         headshotRate = 100.0
         aimBot = false
@@ -1915,6 +1924,15 @@ struct ContentView: View {
                     VStack(spacing: 12) {
                         Divider().background(CyberTheme.divider)
 
+                        // Nút Bật / Tắt Vòng FOV
+                        CyberRowView(
+                            iconName: "circle.circle",
+                            title: "Vòng Tròn FOV (Hiện Vòng Quét)",
+                            subtitle: "Bật / tắt vòng tròn ngắm trên màn hình",
+                            isOn: $cheatState.drawFOV,
+                            activeColor: CyberTheme.crimsonNeon
+                        )
+
                         // Silent FOV
                         VStack(spacing: 4) {
                             HStack(spacing: 8) {
@@ -2101,10 +2119,87 @@ struct ContentView: View {
                                 .buttonStyle(.plain)
                             }
                         }
+
+                        Divider().background(CyberTheme.divider)
+
+                        // Nút Bật / Tắt Vòng FOV cho Aimbot
+                        CyberRowView(
+                            iconName: "circle.circle",
+                            title: "Vòng Tròn FOV (Hiện Vòng Quét)",
+                            subtitle: "Bật / tắt vòng tròn ngắm trên màn hình",
+                            isOn: $cheatState.drawFOV,
+                            activeColor: CyberTheme.crimsonNeon
+                        )
+
+                        // FOV Slider cho Aimbot
+                        VStack(spacing: 4) {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .fill(CyberTheme.crimsonNeon.opacity(0.18))
+                                        .frame(width: 22, height: 22)
+                                    Image(systemName: "scope")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(CyberTheme.crimsonNeon)
+                                }
+
+                                Text("Vòng Quét (Aimbot FOV)")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(CyberTheme.textSecondary)
+
+                                Spacer()
+
+                                Text("\(Int(cheatState.silentFOV)) px")
+                                    .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.crimsonNeon)
+                            }
+                            CyberSlider(value: $cheatState.silentFOV, range: 20...500, step: 2, activeColor: CyberTheme.crimsonNeon)
+
+                            // Quick FOV Presets
+                            HStack(spacing: 6) {
+                                ForEach([90, 140, 250, 360, 500], id: \.self) { preset in
+                                    let isSelected = Int(cheatState.silentFOV) == preset
+                                    Button {
+                                        let impact = UIImpactFeedbackGenerator(style: .light)
+                                        impact.impactOccurred()
+                                        withAnimation(.easeInOut(duration: 0.15)) {
+                                            cheatState.silentFOV = Double(preset)
+                                        }
+                                    } label: {
+                                        Text(preset == 500 ? "500 (MAX)" : "\(preset)")
+                                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                            .foregroundColor(isSelected ? .white : CyberTheme.textMuted)
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                    .fill(isSelected ? CyberTheme.crimsonNeon.opacity(0.85) : Color.white.opacity(0.06))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                Spacer()
+                            }
+                            .padding(.top, 2)
+                        }
                     }
                     .padding(.top, 2)
                     .padding(.bottom, 6)
                     .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: cheatState.aimBot)
+
+            // Card 3: Vòng Tròn FOV (Hiện khi chưa bật Aim hoặc muốn cấu hình trước)
+            if !cheatState.aimSilent && !cheatState.aimBot {
+                CyberCard(glowColor: cheatState.drawFOV ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
+                    CyberRowView(
+                        iconName: "circle.circle",
+                        title: "Vòng Tròn FOV (Hiện Vòng Quét)",
+                        subtitle: "Bật / tắt vòng tròn ngắm trên màn hình",
+                        isOn: $cheatState.drawFOV,
+                        activeColor: CyberTheme.crimsonNeon
+                    )
                 }
             }
         }
