@@ -19,8 +19,6 @@ class AppLog: ObservableObject {
     @Published var entries: [String] = []
 
     private let lock = NSLock()
-    private var pendingEntries: [String] = []
-    private var isFlushScheduled: Bool = false
     private var lastMessage: String = ""
     private var repeatCount: Int = 1
 
@@ -35,67 +33,31 @@ class AppLog: ObservableObject {
         if trimmed == lastMessage {
             repeatCount += 1
             let repeatedText = "\(trimmed) (x\(repeatCount))"
-            if !pendingEntries.isEmpty {
-                pendingEntries[pendingEntries.count - 1] = repeatedText
-            } else {
-                pendingEntries.append(repeatedText)
-            }
             lock.unlock()
-            scheduleFlush()
+            DispatchQueue.main.async {
+                if !self.entries.isEmpty {
+                    self.entries[self.entries.count - 1] = repeatedText
+                } else {
+                    self.entries.append(repeatedText)
+                }
+            }
             return
         }
 
         lastMessage = trimmed
         repeatCount = 1
-        pendingEntries.append(trimmed)
-
-        if pendingEntries.count > Self.maxCapacity {
-            pendingEntries.removeFirst(pendingEntries.count - Self.maxCapacity)
-        }
         lock.unlock()
 
-        scheduleFlush()
-    }
-
-    private func scheduleFlush() {
-        lock.lock()
-        guard !isFlushScheduled else {
-            lock.unlock()
-            return
-        }
-        isFlushScheduled = true
-        lock.unlock()
-
-        // Batch flush every 50ms for instant UI feedback without thread lockup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let self = self else { return }
-            self.lock.lock()
-            let batch = self.pendingEntries
-            self.pendingEntries.removeAll()
-            self.isFlushScheduled = false
-            let lastMsg = self.lastMessage
-            self.lock.unlock()
-
-            guard !batch.isEmpty else { return }
-
-            var current = self.entries
-            if let firstBatch = batch.first, !lastMsg.isEmpty, firstBatch.hasPrefix(lastMsg), !current.isEmpty {
-                current[current.count - 1] = firstBatch
-                current.append(contentsOf: batch.dropFirst())
-            } else {
-                current.append(contentsOf: batch)
+        DispatchQueue.main.async {
+            self.entries.append(trimmed)
+            if self.entries.count > Self.maxCapacity {
+                self.entries.removeFirst(self.entries.count - Self.maxCapacity)
             }
-
-            if current.count > Self.maxCapacity {
-                current.removeFirst(current.count - Self.maxCapacity)
-            }
-            self.entries = current
         }
     }
 
     func clear() {
         lock.lock()
-        pendingEntries.removeAll()
         lastMessage = ""
         repeatCount = 1
         lock.unlock()
