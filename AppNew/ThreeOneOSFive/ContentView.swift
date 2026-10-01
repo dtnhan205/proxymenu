@@ -1,15 +1,22 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Cheat Tab Enum
+// MARK: - Cheat Tab Enum (Menu & Settings)
 enum CheatTab: Int, CaseIterable {
     case menu = 0
-    case log = 1
+    case settings = 1
 
     var title: String {
         switch self {
-        case .menu: return "Menu"
-        case .log: return "Log"
+        case .menu: return "MENU"
+        case .settings: return "SETTINGS"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .menu: return "bolt.shield.fill"
+        case .settings: return "gearshape.2.fill"
         }
     }
 }
@@ -34,13 +41,13 @@ struct CheatColorOption: Identifiable, Hashable {
 final class CheatMenuState: ObservableObject {
     static let shared = CheatMenuState()
 
-    // AIMING
     private func syncIfInjected() {
         if FreeFirePatchService.isInjected() {
             FreeFirePatchService.syncConfig(state: self)
         }
     }
 
+    // AIMING
     @Published var aimSilent: Bool {
         didSet {
             UserDefaults.standard.set(aimSilent, forKey: "cheat.aimSilent")
@@ -169,15 +176,14 @@ final class CheatMenuState: ObservableObject {
         }
     }
 
-
     // Available ESP Colors
     let colorOptions: [CheatColorOption] = [
-        CheatColorOption(id: 0, name: "Green", color: Color(red: 0.05, green: 0.88, blue: 0.38), hex: "#0DE061"),
-        CheatColorOption(id: 1, name: "Red", color: Color(red: 1.00, green: 0.24, blue: 0.24), hex: "#FF3D3D"),
-        CheatColorOption(id: 2, name: "Cyan", color: Color(red: 0.00, green: 0.90, blue: 1.00), hex: "#00E5FF"),
-        CheatColorOption(id: 3, name: "Yellow", color: Color(red: 1.00, green: 0.88, blue: 0.10), hex: "#FFE11A"),
-        CheatColorOption(id: 4, name: "Purple", color: Color(red: 0.78, green: 0.35, blue: 1.00), hex: "#C759FF"),
-        CheatColorOption(id: 5, name: "White", color: Color.white, hex: "#FFFFFF")
+        CheatColorOption(id: 0, name: "Lục Bảo (Green)", color: Color(red: 0.05, green: 0.92, blue: 0.42), hex: "#0DE061"),
+        CheatColorOption(id: 1, name: "Huyết Luân (Sharingan Red)", color: Color(red: 1.00, green: 0.16, blue: 0.24), hex: "#FF293E"),
+        CheatColorOption(id: 2, name: "Chakra Lam (Cyan)", color: Color(red: 0.00, green: 0.90, blue: 1.00), hex: "#00E5FF"),
+        CheatColorOption(id: 3, name: "Hoàng Kim (Gold)", color: Color(red: 1.00, green: 0.82, blue: 0.12), hex: "#FFD11F"),
+        CheatColorOption(id: 4, name: "Susanoo Tím (Purple)", color: Color(red: 0.78, green: 0.35, blue: 1.00), hex: "#C759FF"),
+        CheatColorOption(id: 5, name: "Bạch Nhãn (Pure White)", color: Color.white, hex: "#FFFFFF")
     ]
 
     var selectedColor: CheatColorOption {
@@ -235,62 +241,231 @@ final class CheatMenuState: ObservableObject {
     }
 }
 
-// MARK: - Custom Colors & Palette
-private enum CheatPalette {
-    static let background = Color(red: 0.05, green: 0.05, blue: 0.06)
-    static let cardBackground = Color(red: 0.086, green: 0.086, blue: 0.094)
-    static let cardBorder = Color(white: 0.15)
-    static let divider = Color(white: 0.14)
-    static let sectionHeader = Color(white: 0.44)
+// MARK: - Cyber Shinobi & Mecha 3D Theme Palette
+private enum CyberTheme {
+    static let bgVoid = Color(red: 0.035, green: 0.035, blue: 0.045)
+    static let bgPlate = Color(red: 0.075, green: 0.075, blue: 0.09)
+    static let bgPlateElevated = Color(red: 0.105, green: 0.105, blue: 0.13)
+    static let bgInput = Color(red: 0.05, green: 0.05, blue: 0.065)
 
-    // Cream / Off-White theme for active toggles, icons, and button
-    static let cream = Color(red: 0.95, green: 0.93, blue: 0.88)
-    static let darkKnob = Color(red: 0.08, green: 0.08, blue: 0.08)
+    // Naruto / Sharingan Crimson Energy
+    static let crimsonNeon = Color(red: 1.00, green: 0.18, blue: 0.25)
+    static let crimsonFlame = Color(red: 0.95, green: 0.32, blue: 0.12)
+    static let crimsonDark = Color(red: 0.35, green: 0.05, blue: 0.08)
 
-    // Inactive elements
-    static let inactiveTrack = Color(red: 0.17, green: 0.17, blue: 0.19)
-    static let inactiveThumb = Color(red: 0.54, green: 0.54, blue: 0.56)
-    static let inactiveIconBox = Color(red: 0.14, green: 0.14, blue: 0.16)
-    static let inactiveIcon = Color(red: 0.72, green: 0.72, blue: 0.75)
+    // Mecha Cybernetic Accents
+    static let cyberCyan = Color(red: 0.00, green: 0.88, blue: 0.98)
+    static let mechaGold = Color(red: 1.00, green: 0.78, blue: 0.18)
+    static let matrixGreen = Color(red: 0.12, green: 0.94, blue: 0.45)
+    static let purpleChakra = Color(red: 0.72, green: 0.35, blue: 1.00)
 
-    // Tab switcher
-    static let tabBackground = Color(red: 0.15, green: 0.15, blue: 0.16)
-    static let tabSelected = Color(red: 0.32, green: 0.32, blue: 0.35)
+    static let cardBorderNormal = Color.white.opacity(0.09)
+    static let divider = Color.white.opacity(0.07)
+    static let textMuted = Color(white: 0.52)
+    static let textSecondary = Color(white: 0.75)
 }
 
-// MARK: - Custom Switch Toggle Style
-struct CheatSwitchToggleStyle: ToggleStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack {
-            configuration.label
-            Spacer()
-            ZStack(alignment: configuration.isOn ? .trailing : .leading) {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(configuration.isOn ? CheatPalette.cream : CheatPalette.inactiveTrack)
-                    .frame(width: 51, height: 31)
+// MARK: - 3D Cyber Card Container
+struct CyberCard<Content: View>: View {
+    var glowColor: Color = CyberTheme.crimsonNeon.opacity(0.08)
+    var cornerRadius: CGFloat = 16
+    @ViewBuilder let content: () -> Content
 
-                Circle()
-                    .fill(configuration.isOn ? CheatPalette.darkKnob : CheatPalette.inactiveThumb)
-                    .frame(width: 23, height: 23)
-                    .padding(.horizontal, 4)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content()
+        }
+        .padding(15)
+        .background(
+            ZStack {
+                // Background gradient
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                CyberTheme.bgPlateElevated,
+                                CyberTheme.bgPlate
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                // 3D Metallic Edge Highlight
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.22),
+                                Color.white.opacity(0.05),
+                                CyberTheme.crimsonNeon.opacity(0.20)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
             }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                let generator = UIImpactFeedbackGenerator(style: .light)
-                generator.impactOccurred()
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
-                    configuration.isOn.toggle()
-                }
+        )
+        .shadow(color: Color.black.opacity(0.55), radius: 8, x: 0, y: 4)
+        .shadow(color: glowColor, radius: 10, x: 0, y: 0)
+    }
+}
+
+// MARK: - Section Header with Cyber / Shinobi Motif
+struct CyberSectionHeader: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    var accentColor: Color = CyberTheme.crimsonNeon
+
+    var body: some View {
+        HStack(spacing: 9) {
+            ZStack {
+                Circle()
+                    .fill(accentColor.opacity(0.18))
+                    .frame(width: 24, height: 24)
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(accentColor)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                    .foregroundColor(.white)
+                    .tracking(1.2)
+                Text(subtitle)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(CyberTheme.textMuted)
+            }
+
+            Spacer()
+
+            // 3D Mecha Telemetry Lines
+            HStack(spacing: 3) {
+                Rectangle().fill(accentColor.opacity(0.9)).frame(width: 3, height: 10)
+                Rectangle().fill(accentColor.opacity(0.5)).frame(width: 3, height: 7)
+                Rectangle().fill(accentColor.opacity(0.25)).frame(width: 3, height: 4)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - Cyber 3D Toggle Style
+struct CyberToggleStyle: ToggleStyle {
+    var activeColor: Color = CyberTheme.crimsonNeon
+
+    func makeBody(configuration: Configuration) -> some View {
+        ZStack(alignment: configuration.isOn ? .trailing : .leading) {
+            // Recessed Track
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(
+                    configuration.isOn ?
+                    LinearGradient(colors: [activeColor, activeColor.opacity(0.8)], startPoint: .leading, endPoint: .trailing) :
+                    LinearGradient(colors: [Color(white: 0.14), Color(white: 0.10)], startPoint: .leading, endPoint: .trailing)
+                )
+                .frame(width: 48, height: 28)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .strokeBorder(
+                            configuration.isOn ?
+                            Color.white.opacity(0.35) :
+                            Color.white.opacity(0.12),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: configuration.isOn ? activeColor.opacity(0.5) : Color.clear, radius: 6)
+
+            // 3D Metallic Knob
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [.white, Color(white: 0.88)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 22, height: 22)
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.black.opacity(0.15), lineWidth: 0.5)
+                )
+                .shadow(color: Color.black.opacity(0.4), radius: 3, x: 0, y: 1.5)
+                .padding(.horizontal, 3)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                configuration.isOn.toggle()
             }
         }
     }
 }
 
-// MARK: - Custom Drag Slider
-struct CheatSlider: View {
+// MARK: - Cyber Row View Component
+struct CyberRowView: View {
+    let iconName: String
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+    var activeColor: Color = CyberTheme.crimsonNeon
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // 3D Mecha Icon Box
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        isOn ?
+                        LinearGradient(colors: [activeColor, activeColor.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing) :
+                        LinearGradient(colors: [Color.white.opacity(0.08), Color.white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .frame(width: 38, height: 38)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(isOn ? Color.white.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                    .shadow(color: isOn ? activeColor.opacity(0.5) : Color.clear, radius: 6, x: 0, y: 0)
+
+                Image(systemName: iconName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(isOn ? .white : Color(white: 0.65))
+            }
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isOn)
+
+            // Title & Subtitle
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+
+                Text(subtitle)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(CyberTheme.textMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Custom 3D Toggle
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(CyberToggleStyle(activeColor: activeColor))
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Cyber 3D Drag Slider
+struct CyberSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     var step: Double = 1.0
+    var activeColor: Color = CyberTheme.crimsonNeon
 
     var body: some View {
         GeometryReader { geo in
@@ -300,24 +475,47 @@ struct CheatSlider: View {
             let thumbX = 12 + fraction * availableWidth
 
             ZStack(alignment: .leading) {
-                // Background Track
-                Capsule()
-                    .fill(Color(white: 0.22))
-                    .frame(height: 3)
+                // Recessed 3D Track Groove
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.black.opacity(0.65))
+                    .frame(height: 6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                    )
                     .padding(.horizontal, 12)
 
-                // Active Track
-                Capsule()
-                    .fill(Color.white.opacity(0.35))
-                    .frame(width: max(0, fraction * availableWidth), height: 3)
+                // Glowing Active Chakra Fill
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [activeColor.opacity(0.8), activeColor],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(0, fraction * availableWidth), height: 6)
                     .padding(.leading, 12)
+                    .shadow(color: activeColor.opacity(0.5), radius: 4)
 
-                // White Circular Thumb
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 22, height: 22)
-                    .shadow(color: Color.black.opacity(0.4), radius: 3, x: 0, y: 1)
-                    .position(x: thumbX, y: geo.size.height / 2)
+                // 3D Circular Thumb with Chakra Core
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.white, Color(white: 0.85)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: 20, height: 20)
+                        .shadow(color: Color.black.opacity(0.6), radius: 4, x: 0, y: 2)
+
+                    Circle()
+                        .fill(activeColor)
+                        .frame(width: 7, height: 7)
+                }
+                .position(x: thumbX, y: geo.size.height / 2)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -335,47 +533,47 @@ struct CheatSlider: View {
     }
 }
 
-// MARK: - Cheat Row Component
-struct CheatRowView: View {
-    let iconName: String
-    let title: String
-    let subtitle: String
-    @Binding var isOn: Bool
+// MARK: - Settings Information Row View
+struct SettingsInfoRow: View {
+    let icon: String
+    let label: String
+    let value: String
+    var valueColor: Color = .white
+    var isMonospaced: Bool = false
+    var copyAction: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 14) {
-            // Icon Square
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isOn ? CheatPalette.cream : CheatPalette.inactiveIconBox)
-                    .frame(width: 42, height: 42)
+        HStack(spacing: 11) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(CyberTheme.crimsonNeon)
+                .frame(width: 20)
 
-                Image(systemName: iconName)
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(isOn ? CheatPalette.darkKnob : CheatPalette.inactiveIcon)
-            }
-            .animation(.easeInOut(duration: 0.2), value: isOn)
-
-            // Title & Subtitle
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-
-                Text(subtitle)
-                    .font(.system(size: 11.5, weight: .regular))
-                    .foregroundColor(Color(white: 0.58))
-                    .lineLimit(1)
-            }
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(CyberTheme.textSecondary)
 
             Spacer()
 
-            // Custom Switch
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .toggleStyle(CheatSwitchToggleStyle())
+            Text(value)
+                .font(.system(size: 13, weight: .semibold, design: isMonospaced ? .monospaced : .default))
+                .foregroundColor(valueColor)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            if let copy = copyAction {
+                Button(action: copy) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(CyberTheme.crimsonNeon)
+                        .padding(5)
+                        .background(CyberTheme.crimsonNeon.opacity(0.12))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 3)
     }
 }
 
@@ -391,34 +589,39 @@ struct ContentView: View {
     @State private var selectedTarget: FreeFireTarget = FreeFirePatchService.selectedTarget
     @State private var showInjectionAlert: Bool = false
     @State private var injectionAlertText: String = ""
-    @State private var copiedLogToast: Bool = false
+    @State private var toastMessage: String? = nil
+    @State private var showFullKey: Bool = false
+    @State private var showLogModal: Bool = false
 
     var body: some View {
         ZStack {
-            // Solid dark backdrop
-            CheatPalette.background
+            // Deep Obsidian Matrix Backdrop
+            CyberTheme.bgVoid
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top Segmented Bar: [ Menu | Log ]
+                // Top Shinobi / Mecha Header Bar
+                topHeaderBar
+
+                // Segmented Tab Switcher [ MENU | SETTINGS ]
                 topTabBar
-                    .padding(.top, 6)
+                    .padding(.top, 8)
                     .padding(.bottom, 8)
 
                 if selectedTab == .menu {
-                    // Game Target Selector (FF Thường vs FF MAX)
+                    // Game Target Selector (Free Fire Thường vs Free Fire MAX)
                     gameTargetSelector
                 }
 
-                // Tab Content
+                // Tab Content Views
                 if selectedTab == .menu {
                     menuContent
                 } else {
-                    logContent
+                    settingsContent
                 }
             }
 
-            // Fixed Bottom Action Bar (Only in Menu Tab)
+            // Floating 3D Action HUD (Only in Menu Tab)
             if selectedTab == .menu {
                 VStack {
                     Spacer()
@@ -427,23 +630,24 @@ struct ContentView: View {
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             }
 
-            // Copy Toast
-            if copiedLogToast {
+            // Quick Toast Notification
+            if let msg = toastMessage {
                 VStack {
                     Spacer()
                     HStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(CheatPalette.cream)
-                        Text("Đã sao chép toàn bộ log!")
-                            .font(.system(size: 13, weight: .semibold))
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundColor(CyberTheme.matrixGreen)
+                        Text(msg)
+                            .font(.system(size: 12.5, weight: .semibold))
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color(white: 0.2).opacity(0.95))
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.14).opacity(0.95))
                     .clipShape(Capsule())
-                    .shadow(radius: 6)
-                    .padding(.bottom, 30)
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+                    .shadow(color: Color.black.opacity(0.6), radius: 8)
+                    .padding(.bottom, 85)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(100)
@@ -453,11 +657,153 @@ struct ContentView: View {
         .onAppear {
             isInjected = FreeFirePatchService.isInjected(target: selectedTarget)
         }
-        .alert("Cheat Engine", isPresented: $showInjectionAlert) {
-            Button("OK", role: .cancel) {}
+        .alert("INNOVACHEAT Engine", isPresented: $showInjectionAlert) {
+            Button("Đóng", role: .cancel) {}
         } message: {
             Text(injectionAlertText)
         }
+        .sheet(isPresented: $showLogModal) {
+            logTerminalSheet
+        }
+    }
+
+    // MARK: - Top Header Bar (Naruto + Mecha Branding)
+    private var topHeaderBar: some View {
+        HStack(spacing: 12) {
+            // Glowing Shinobi / Sharingan Emblem
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [CyberTheme.crimsonNeon, CyberTheme.crimsonDark],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Circle().strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.6), radius: 8)
+
+                Image(systemName: "scope")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+            }
+
+            // Title & Subtitle
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("INNOVACHEAT")
+                        .font(.system(size: 17, weight: .heavy, design: .monospaced))
+                        .foregroundColor(.white)
+                        .tracking(1.5)
+
+                    // Shinobi Tag
+                    HStack(spacing: 3) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(CyberTheme.crimsonNeon)
+                        Text("SHINOBI")
+                            .font(.system(size: 8.5, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.crimsonNeon)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .background(CyberTheme.crimsonNeon.opacity(0.14))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(CyberTheme.crimsonNeon.opacity(0.3), lineWidth: 0.8))
+                }
+
+                Text("CHAKRA MATRIX • FREE FIRE BYPASS ENGINE")
+                    .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                    .foregroundColor(CyberTheme.textMuted)
+            }
+
+            Spacer()
+
+            // Status Indicator Dot
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(isInjected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon)
+                    .frame(width: 7, height: 7)
+                    .shadow(color: (isInjected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon).opacity(0.8), radius: 4)
+
+                Text(isInjected ? "INJECTED" : "READY")
+                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    .foregroundColor(isInjected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.06))
+            .clipShape(Capsule())
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+    }
+
+    // MARK: - Top Tab Switcher [ MENU | SETTINGS ]
+    private var topTabBar: some View {
+        HStack(spacing: 6) {
+            ForEach(CheatTab.allCases, id: \.self) { tab in
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(selectedTab == tab ? .white : CyberTheme.textMuted)
+
+                        Text(tab.title)
+                            .font(.system(size: 13, weight: selectedTab == tab ? .heavy : .medium, design: .monospaced))
+                            .foregroundColor(selectedTab == tab ? .white : CyberTheme.textMuted)
+                            .tracking(1.0)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(
+                        ZStack {
+                            if selectedTab == tab {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                CyberTheme.crimsonNeon.opacity(0.85),
+                                                CyberTheme.crimsonDark
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
+                                    )
+                                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.4), radius: 6)
+                            } else {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.white.opacity(0.04))
+                            }
+                        }
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(red: 0.06, green: 0.06, blue: 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Game Target Selector
@@ -474,27 +820,48 @@ struct ContentView: View {
                     HStack(spacing: 6) {
                         Image(systemName: target == .freeFireMAX ? "flame.fill" : "cross.case.fill")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(selectedTarget == target ? CheatPalette.darkKnob : CheatPalette.inactiveIcon)
+                            .foregroundColor(selectedTarget == target ? .white : CyberTheme.textMuted)
 
                         Text(target.displayName)
                             .font(.system(size: 13, weight: selectedTarget == target ? .bold : .medium))
-                            .foregroundColor(selectedTarget == target ? CheatPalette.darkKnob : .white)
+                            .foregroundColor(selectedTarget == target ? .white : Color(white: 0.8))
 
                         if FreeFirePatchService.isInjected(target: target) {
                             Circle()
-                                .fill(Color.green)
+                                .fill(CyberTheme.matrixGreen)
                                 .frame(width: 7, height: 7)
+                                .shadow(color: CyberTheme.matrixGreen.opacity(0.8), radius: 3)
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 36)
+                    .frame(height: 38)
                     .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(selectedTarget == target ? CheatPalette.cream : CheatPalette.cardBackground)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(selectedTarget == target ? Color.clear : CheatPalette.cardBorder, lineWidth: 1)
+                        ZStack {
+                            if selectedTarget == target {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(white: 0.18),
+                                                Color(white: 0.10)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(CyberTheme.crimsonNeon.opacity(0.7), lineWidth: 1)
+                                    )
+                            } else {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(CyberTheme.bgPlate)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                                    )
+                            }
+                        }
                     )
                 }
                 .buttonStyle(.plain)
@@ -504,42 +871,10 @@ struct ContentView: View {
         .padding(.bottom, 6)
     }
 
-    // MARK: - Top Tab Switcher
-    private var topTabBar: some View {
-        HStack(spacing: 0) {
-            ForEach(CheatTab.allCases, id: \.self) { tab in
-                Button {
-                    let impact = UIImpactFeedbackGenerator(style: .light)
-                    impact.impactOccurred()
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                        selectedTab = tab
-                    }
-                } label: {
-                    Text(tab.title)
-                        .font(.system(size: 14, weight: selectedTab == tab ? .bold : .medium))
-                        .foregroundColor(selectedTab == tab ? .white : Color(white: 0.6))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(selectedTab == tab ? CheatPalette.tabSelected : Color.clear)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(CheatPalette.tabBackground)
-        )
-        .padding(.horizontal, 16)
-    }
-
     // MARK: - Menu Tab Content
     private var menuContent: some View {
         ScrollView(showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 18) {
                 // AIMING Section
                 aimingSection
 
@@ -549,8 +884,8 @@ struct ContentView: View {
                 // COMBAT Section
                 combatSection
 
-                // Extra Bottom Padding so content isn't covered by bottom bar
-                Spacer().frame(height: 90)
+                // Extra Bottom Padding for floating HUD
+                Spacer().frame(height: 95)
             }
             .padding(.horizontal, 16)
             .padding(.top, 4)
@@ -560,18 +895,21 @@ struct ContentView: View {
     // MARK: - AIMING Section
     private var aimingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("AIMING")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(CheatPalette.sectionHeader)
-                .padding(.leading, 4)
+            CyberSectionHeader(
+                title: "AIM PROTOCOL",
+                subtitle: "Khóa mục tiêu & Cân bằng Chakra",
+                icon: "scope",
+                accentColor: CyberTheme.crimsonNeon
+            )
 
-            VStack(spacing: 0) {
+            CyberCard(glowColor: CyberTheme.crimsonNeon.opacity(cheatState.aimSilent ? 0.14 : 0.0)) {
                 // Aim Silent Row
-                CheatRowView(
+                CyberRowView(
                     iconName: "wind",
-                    title: "Aim Silent",
-                    subtitle: "Silent aim with headshot rate and FOV",
-                    isOn: $cheatState.aimSilent
+                    title: "Aim Silent (Tàng Hình)",
+                    subtitle: "Khóa tâm ẩn giấu không giật màn hình",
+                    isOn: $cheatState.aimSilent,
+                    activeColor: CyberTheme.crimsonNeon
                 )
 
                 // Sub-controls for Aim Silent
@@ -580,183 +918,171 @@ struct ContentView: View {
                         // Silent FOV
                         VStack(spacing: 4) {
                             HStack {
-                                Text("Silent FOV")
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(Color(white: 0.7))
+                                Text("Góc Quét (Silent FOV)")
+                                    .font(.system(size: 12.5, weight: .medium))
+                                    .foregroundColor(CyberTheme.textSecondary)
                                 Spacer()
-                                Text("\(Int(cheatState.silentFOV))")
-                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(.white)
+                                Text("\(Int(cheatState.silentFOV))°")
+                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                    .foregroundColor(CyberTheme.crimsonNeon)
                             }
-                            CheatSlider(value: $cheatState.silentFOV, range: 0...180, step: 1)
+                            CyberSlider(value: $cheatState.silentFOV, range: 0...180, step: 1, activeColor: CyberTheme.crimsonNeon)
                         }
 
                         // Headshot Rate
                         VStack(spacing: 4) {
                             HStack {
-                                Text("Headshot")
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(Color(white: 0.7))
+                                Text("Tỉ Lệ Trúng Đầu (Headshot)")
+                                    .font(.system(size: 12.5, weight: .medium))
+                                    .foregroundColor(CyberTheme.textSecondary)
                                 Spacer()
                                 Text("\(Int(cheatState.headshotRate))%")
-                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(.white)
+                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                    .foregroundColor(CyberTheme.mechaGold)
                             }
-                            CheatSlider(value: $cheatState.headshotRate, range: 0...100, step: 1)
+                            CyberSlider(value: $cheatState.headshotRate, range: 0...100, step: 1, activeColor: CyberTheme.mechaGold)
                         }
                     }
                     .padding(.top, 4)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 6)
                 }
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // Aim Bot Row
-                CheatRowView(
-                    iconName: "scope",
-                    title: "Aim Bot",
-                    subtitle: "Head or neck aim with FOV mode",
-                    isOn: $cheatState.aimBot
+                CyberRowView(
+                    iconName: "target",
+                    title: "Aim Bot (Tự Động)",
+                    subtitle: "Hút tâm trực tiếp vào đầu / cổ địch",
+                    isOn: $cheatState.aimBot,
+                    activeColor: CyberTheme.cyberCyan
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // Aim Line Row
-                CheatRowView(
+                CyberRowView(
                     iconName: "pencil.line",
-                    title: "Aim Line",
-                    subtitle: "Line from crosshair to selected target",
-                    isOn: $cheatState.aimLine
+                    title: "Aim Line (Tia Dẫn Tâm)",
+                    subtitle: "Vạch định vị từ nòng súng đến kẻ địch",
+                    isOn: $cheatState.aimLine,
+                    activeColor: CyberTheme.matrixGreen
                 )
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(CheatPalette.cardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(CheatPalette.cardBorder, lineWidth: 1)
-            )
         }
     }
 
-    // MARK: - ESP Section
+    // MARK: - ESP Section (Byakugan Vision)
     private var espSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("ESP")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(CheatPalette.sectionHeader)
-                .padding(.leading, 4)
+            CyberSectionHeader(
+                title: "BYAKUGAN ESP MATRIX",
+                subtitle: "Bạch nhãn quét xuyên vật thể & bản đồ",
+                icon: "eye.fill",
+                accentColor: CyberTheme.cyberCyan
+            )
 
-            VStack(spacing: 0) {
+            CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.10)) {
                 // Box ESP
-                CheatRowView(
+                CyberRowView(
                     iconName: "square.dashed",
-                    title: "Box ESP",
-                    subtitle: "Enemy bounding box",
-                    isOn: $cheatState.boxESP
+                    title: "Khung 2D (Box ESP)",
+                    subtitle: "Hộp nhận diện bao quanh đối thủ",
+                    isOn: $cheatState.boxESP,
+                    activeColor: CyberTheme.cyberCyan
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // Line ESP
-                CheatRowView(
+                CyberRowView(
                     iconName: "line.diagonal",
-                    title: "Line ESP",
-                    subtitle: "Tracer to enemy position",
-                    isOn: $cheatState.lineESP
+                    title: "Tia Chỉ Hướng (Line ESP)",
+                    subtitle: "Tia định vị từ đỉnh màn hình xuống địch",
+                    isOn: $cheatState.lineESP,
+                    activeColor: CyberTheme.cyberCyan
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // Health Bar
-                CheatRowView(
-                    iconName: "heart.text.square",
-                    title: "Health Bar",
-                    subtitle: "Live enemy health",
-                    isOn: $cheatState.healthBar
+                CyberRowView(
+                    iconName: "heart.text.square.fill",
+                    title: "Thanh Máu (Health Bar)",
+                    subtitle: "Hiển thị lượng sinh lực thời gian thực",
+                    isOn: $cheatState.healthBar,
+                    activeColor: CyberTheme.matrixGreen
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // Name Tag
-                CheatRowView(
+                CyberRowView(
                     iconName: "tag.fill",
-                    title: "Name Tag",
-                    subtitle: "Show enemy name",
-                    isOn: $cheatState.nameTag
+                    title: "Tên Kẻ Địch (Name Tag)",
+                    subtitle: "Nhận diện nickname của mục tiêu",
+                    isOn: $cheatState.nameTag,
+                    activeColor: CyberTheme.cyberCyan
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // Distance Tag
-                CheatRowView(
+                CyberRowView(
                     iconName: "ruler.fill",
-                    title: "Distance Tag",
-                    subtitle: "Show range in metres",
-                    isOn: $cheatState.distanceTag
+                    title: "Khoảng Cách (Distance Tag)",
+                    subtitle: "Đo cự ly chính xác theo mét",
+                    isOn: $cheatState.distanceTag,
+                    activeColor: CyberTheme.mechaGold
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // Skeleton ESP
-                CheatRowView(
+                CyberRowView(
                     iconName: "figure.stand",
-                    title: "Skeleton ESP",
-                    subtitle: "Bone-line overlay",
-                    isOn: $cheatState.skeletonESP
+                    title: "Khung Xương (Skeleton ESP)",
+                    subtitle: "Mô phỏng khớp xương & cử động",
+                    isOn: $cheatState.skeletonESP,
+                    activeColor: CyberTheme.purpleChakra
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // ESP Count
-                CheatRowView(
+                CyberRowView(
                     iconName: "number",
-                    title: "ESP Count",
-                    subtitle: "Nearby enemy count (250m)",
-                    isOn: $cheatState.espCount
+                    title: "Đếm Số Lượng Địch (ESP Count)",
+                    subtitle: "Cảnh báo số lượng quân địch trong 250m",
+                    isOn: $cheatState.espCount,
+                    activeColor: CyberTheme.mechaGold
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // ESP Alert
-                CheatRowView(
+                CyberRowView(
                     iconName: "exclamationmark.triangle.fill",
-                    title: "ESP Alert",
-                    subtitle: "360-degree enemy direction alerts (250m)",
-                    isOn: $cheatState.espAlert
+                    title: "Cảnh Báo Địch Sau Lưng (360° Alert)",
+                    subtitle: "Radar cảnh báo nguy hiểm xung quanh",
+                    isOn: $cheatState.espAlert,
+                    activeColor: CyberTheme.crimsonNeon
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
-                // ESP Color Row
-                CheatRowView(
+                // ESP Color Option
+                CyberRowView(
                     iconName: "paintpalette.fill",
-                    title: "ESP Color",
-                    subtitle: "Select ESP overlay color",
-                    isOn: $cheatState.espColorEnabled
+                    title: "Màu Sắc ESP",
+                    subtitle: "Tùy biến bảng màu hiển thị",
+                    isOn: $cheatState.espColorEnabled,
+                    activeColor: cheatState.selectedColor.color
                 )
 
-                // Sub-settings for ESP Color
                 if cheatState.espColorEnabled {
                     VStack(spacing: 12) {
-                        // ESP Color indicator row
-                        HStack {
-                            Text("ESP Color")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundColor(Color(white: 0.7))
-                            Spacer()
-                            Circle()
-                                .fill(cheatState.selectedColor.color)
-                                .frame(width: 10, height: 10)
-                            Text(cheatState.selectedColor.name)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(cheatState.selectedColor.color)
-                        }
-
-                        // Color Picker Dropdown Field (matching screenshot)
+                        // Color Selector Menu
                         Menu {
                             ForEach(cheatState.colorOptions) { option in
                                 Button {
@@ -772,96 +1098,92 @@ struct ContentView: View {
                             }
                         } label: {
                             HStack(spacing: 8) {
+                                Circle()
+                                    .fill(cheatState.selectedColor.color)
+                                    .frame(width: 14, height: 14)
+                                    .shadow(color: cheatState.selectedColor.color.opacity(0.8), radius: 4)
+
                                 Text(cheatState.selectedColor.name)
-                                    .font(.system(size: 15, weight: .medium))
+                                    .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.white)
+
+                                Spacer()
+
                                 Image(systemName: "chevron.up.chevron.down")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(Color(white: 0.6))
-                                Spacer()
+                                    .foregroundColor(CyberTheme.textMuted)
                             }
                             .padding(.horizontal, 14)
-                            .frame(height: 40)
+                            .frame(height: 42)
                             .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .fill(Color(white: 0.12))
                             )
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(Color(white: 0.18), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
                             )
                         }
 
-                        // Line thickness px slider
-                        HStack(spacing: 12) {
-                            Text("Line (thickness) px")
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundColor(Color(white: 0.7))
-                                .layoutPriority(1)
-                            CheatSlider(value: $cheatState.espLineThickness, range: 1.0...8.0, step: 0.5)
+                        // Line thickness slider
+                        VStack(spacing: 4) {
+                            HStack {
+                                Text("Độ Dày Nét Vẽ ESP (px)")
+                                    .font(.system(size: 12.5, weight: .medium))
+                                    .foregroundColor(CyberTheme.textSecondary)
+                                Spacer()
+                                Text(String(format: "%.1f px", cheatState.espLineThickness))
+                                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                            }
+                            CyberSlider(value: $cheatState.espLineThickness, range: 1.0...8.0, step: 0.5, activeColor: cheatState.selectedColor.color)
                         }
                     }
                     .padding(.top, 4)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 6)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(CheatPalette.cardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(CheatPalette.cardBorder, lineWidth: 1)
-            )
         }
     }
 
     // MARK: - COMBAT Section
     private var combatSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("COMBAT")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(CheatPalette.sectionHeader)
-                .padding(.leading, 4)
+            CyberSectionHeader(
+                title: "COMBAT OVERDRIVE",
+                subtitle: "Cường hóa thể thuật nhẫn giả",
+                icon: "shield.righthalf.filled",
+                accentColor: CyberTheme.crimsonFlame
+            )
 
-            VStack(spacing: 0) {
+            CyberCard(glowColor: CyberTheme.crimsonFlame.opacity(0.10)) {
                 // Fast Medkit
-                CheatRowView(
+                CyberRowView(
                     iconName: "cross.case.fill",
-                    title: "Fast Medkit",
-                    subtitle: "Instant healing consumable speed",
-                    isOn: $cheatState.fastMedkit
+                    title: "Bơm Máu Siêu Tốc (Fast Medkit)",
+                    subtitle: "Tăng tốc độ hồi phục sinh lực tức thì",
+                    isOn: $cheatState.fastMedkit,
+                    activeColor: CyberTheme.matrixGreen
                 )
 
-                Divider().background(CheatPalette.divider)
+                Divider().background(CyberTheme.divider)
 
                 // No Recoil
-                CheatRowView(
-                    iconName: "shield.fill",
-                    title: "No Recoil",
-                    subtitle: "Reduce weapon recoil to 0%",
-                    isOn: $cheatState.noRecoil
+                CyberRowView(
+                    iconName: "bolt.shield.fill",
+                    title: "Không Giật (No Recoil 0%)",
+                    subtitle: "Khử rung lắc nòng súng khi xả đạn liên tục",
+                    isOn: $cheatState.noRecoil,
+                    activeColor: CyberTheme.crimsonNeon
                 )
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(CheatPalette.cardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(CheatPalette.cardBorder, lineWidth: 1)
-            )
         }
     }
 
-    // MARK: - Bottom Floating Action Bar
+    // MARK: - Floating 3D Mecha Action HUD
     private var bottomActionBar: some View {
         HStack(spacing: 12) {
-            // Main Inject / Uninject Cheat Button
+            // Main Inject / Uninject Button
             Button {
                 if isInjected {
                     handleUninjectCheat()
@@ -869,54 +1191,80 @@ struct ContentView: View {
                     handleInjectCheat()
                 }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: 9) {
                     if isInjecting {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: isInjected ? .white : CheatPalette.darkKnob))
-                            .scaleEffect(0.85)
-                        Text(isInjected ? "Đang gỡ bỏ..." : "Đang Inject...")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(isInjected ? .white : CheatPalette.darkKnob)
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.9)
+                        Text(isInjected ? "ĐANG GỠ BỎ..." : "ĐANG INJECT...")
+                            .font(.system(size: 15, weight: .heavy, design: .monospaced))
+                            .foregroundColor(.white)
                     } else if isInjected {
                         Image(systemName: "trash.circle.fill")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 19, weight: .bold))
                             .foregroundColor(.white)
-                        Text("Uninject (\(selectedTarget.displayName))")
-                            .font(.system(size: 15, weight: .bold))
+                        Text("UNINJECT (\(selectedTarget.displayName.uppercased()))")
+                            .font(.system(size: 14, weight: .heavy, design: .monospaced))
                             .foregroundColor(.white)
+                            .tracking(0.5)
                     } else {
-                        Image(systemName: "arrow.down.circle.fill")
+                        Image(systemName: "flame.fill")
                             .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(CheatPalette.darkKnob)
-                        Text("Inject (\(selectedTarget.displayName))")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(CheatPalette.darkKnob)
+                            .foregroundColor(.white)
+                        Text("INJECT (\(selectedTarget.displayName.uppercased()))")
+                            .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                            .foregroundColor(.white)
+                            .tracking(0.5)
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(isInjected ? Color(red: 0.85, green: 0.22, blue: 0.22) : CheatPalette.cream)
+                    ZStack {
+                        if isInjected {
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.88, green: 0.20, blue: 0.25),
+                                    Color(red: 0.60, green: 0.10, blue: 0.15)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        } else {
+                            LinearGradient(
+                                colors: [
+                                    CyberTheme.crimsonNeon,
+                                    CyberTheme.crimsonDark
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        }
+                    }
                 )
-                .shadow(color: Color.black.opacity(0.35), radius: 8, y: 3)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                )
+                .shadow(color: (isInjected ? Color.red : CyberTheme.crimsonNeon).opacity(0.5), radius: 10, y: 3)
             }
             .buttonStyle(.plain)
             .disabled(isInjecting)
 
-            // Reload / Reset Button
+            // Reset Defaults Button
             Button(action: handleResetDefaults) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(CheatPalette.cardBackground)
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(CyberTheme.bgPlateElevated)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(CheatPalette.cardBorder, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
                         )
                         .frame(width: 52, height: 52)
 
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
                 }
             }
@@ -924,13 +1272,13 @@ struct ContentView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 10)
-        .padding(.bottom, 22)
+        .padding(.bottom, 24)
         .background(
             LinearGradient(
                 colors: [
-                    CheatPalette.background.opacity(0.0),
-                    CheatPalette.background.opacity(0.92),
-                    CheatPalette.background
+                    CyberTheme.bgVoid.opacity(0.0),
+                    CyberTheme.bgVoid.opacity(0.92),
+                    CyberTheme.bgVoid
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -938,174 +1286,487 @@ struct ContentView: View {
         )
     }
 
-    // MARK: - Log Tab Content
-    private var logContent: some View {
-        VStack(spacing: 12) {
-            // License & System Status Card
-            licenseStatusCard
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
+    // MARK: - SETTINGS Tab Content (Full Comprehensive System Specs)
+    private var settingsContent: some View {
+        ScrollView(showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 18) {
+                // Card 1: App Info & Engine Core
+                appCoreCard
 
-            // Log Viewer Header
-            HStack {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color(red: 0.15, green: 0.9, blue: 0.35))
-                        .frame(width: 6, height: 6)
-                    Text("CONSOLE LOGS (\(appLog.entries.count))")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color(white: 0.6))
-                }
+                // Card 2: License Key & Remaining Expiration
+                licenseSettingsCard
 
-                Spacer()
+                // Card 3: Device Hardware & Model Specs
+                deviceHardwareCard
 
-                // Copy Logs Button
-                Button {
-                    let fullText = appLog.entries.joined(separator: "\n")
-                    UIPasteboard.general.string = fullText
-                    withAnimation { copiedLogToast = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                        withAnimation { copiedLogToast = false }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "doc.on.doc")
-                            .font(.system(size: 11))
-                        Text("Copy")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color(white: 0.18))
-                    .clipShape(Capsule())
-                }
+                // Card 4: Compatibility & Kernel Status
+                systemCompatibilityCard
 
-                // Clear Logs Button
-                Button {
-                    appLog.entries.removeAll()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
-                        Text("Clear")
-                            .font(.system(size: 11, weight: .semibold))
-                    }
-                    .foregroundColor(Color(red: 1.0, green: 0.4, blue: 0.4))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color(white: 0.18))
-                    .clipShape(Capsule())
-                }
+                // Card 5: Utilities & Log Terminal Action
+                utilitiesCard
+
+                Spacer().frame(height: 35)
             }
             .padding(.horizontal, 16)
+            .padding(.top, 4)
+        }
+    }
 
-            // Scrollable Log Console
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 4) {
-                        if appLog.entries.isEmpty {
-                            VStack(spacing: 8) {
-                                Image(systemName: "terminal")
-                                    .font(.system(size: 28))
-                                    .foregroundColor(Color(white: 0.3))
-                                Text("Chưa có log hệ thống")
-                                    .font(.system(size: 13, design: .monospaced))
-                                    .foregroundColor(Color(white: 0.4))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 40)
-                        } else {
-                            ForEach(Array(appLog.entries.enumerated()), id: \.offset) { idx, entry in
-                                Text(entry)
-                                    .font(.system(size: 11, weight: .regular, design: .monospaced))
-                                    .foregroundColor(logColor(for: entry))
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .id(idx)
-                            }
-                        }
-                    }
-                    .padding(12)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(red: 0.04, green: 0.04, blue: 0.05))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(CheatPalette.cardBorder, lineWidth: 1)
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-                .onChange(of: appLog.entries.count) { count in
-                    guard count > 0 else { return }
-                    proxy.scrollTo(count - 1, anchor: .bottom)
-                }
+    // MARK: - App Core Card
+    private var appCoreCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CyberSectionHeader(
+                title: "THÔNG TIN ỨNG DỤNG",
+                subtitle: "Phiên bản & Lõi hệ thống",
+                icon: "shield.lefthalf.filled",
+                accentColor: CyberTheme.crimsonNeon
+            )
+
+            CyberCard(glowColor: CyberTheme.crimsonNeon.opacity(0.10)) {
+                SettingsInfoRow(icon: "app.badge.fill", label: "Tên Ứng Dụng", value: "INNOVACHEAT", valueColor: CyberTheme.crimsonNeon)
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(icon: "number.circle.fill", label: "Phiên Bản Core", value: "v1.0.0 (Build 3105)", isMonospaced: true)
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(icon: "cpu.fill", label: "Kiến Trúc Binary", value: "ARM64e • iOS Metal", isMonospaced: true)
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(icon: "gamecontroller.fill", label: "Đối Tượng Hỗ Trợ", value: "Free Fire & FF MAX")
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(icon: "bolt.horizontal.fill", label: "Patch Engine", value: "IFix Dynamic Bytecode", valueColor: CyberTheme.matrixGreen)
             }
         }
     }
 
-    // MARK: - License Info Card in Log Tab
-    private var licenseStatusCard: some View {
-        VStack(spacing: 8) {
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(red: 0.15, green: 0.9, blue: 0.35))
-                    Text("LICENSE HOẠT ĐỘNG")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
+    // MARK: - License Settings Card
+    private var licenseSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CyberSectionHeader(
+                title: "GIẤY PHÉP & BẢN QUYỀN",
+                subtitle: "Trạng thái key & Thời hạn sử dụng",
+                icon: "key.fill",
+                accentColor: CyberTheme.mechaGold
+            )
+
+            CyberCard(glowColor: CyberTheme.mechaGold.opacity(0.10)) {
+                // Key Display & Copy Action
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("KEY ĐANG SỬ DỤNG")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(CyberTheme.textMuted)
+
+                        Text(showFullKey ? (licenseStore.savedKey ?? "Chưa có key") : maskedKeyText(licenseStore.savedKey))
+                            .font(.system(size: 13.5, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    // Toggle Visibility Button
+                    Button {
+                        showFullKey.toggle()
+                    } label: {
+                        Image(systemName: showFullKey ? "eye.slash.fill" : "eye.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(CyberTheme.textMuted)
+                            .padding(6)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+
+                    // Copy Key Button
+                    Button {
+                        if let key = licenseStore.savedKey, !key.isEmpty {
+                            UIPasteboard.general.string = key
+                            showToast("Đã sao chép License Key!")
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.doc.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(CyberTheme.mechaGold)
+                            .padding(6)
+                            .background(CyberTheme.mechaGold.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
 
-                Spacer()
+                Divider().background(CyberTheme.divider)
 
-                // Change Key / Logout Button
+                // Remaining Time Big Highlight
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("THỜI GIAN CÒN LẠI")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundColor(CyberTheme.textMuted)
+
+                        Text(remainingTimeText(licenseStore.expiresAt))
+                            .font(.system(size: 16, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.matrixGreen)
+                    }
+
+                    Spacer()
+
+                    // VIP Status Pill
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(CyberTheme.matrixGreen)
+                        Text("VIP ACTIVE")
+                            .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.matrixGreen)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(CyberTheme.matrixGreen.opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(CyberTheme.matrixGreen.opacity(0.3), lineWidth: 1))
+                }
+
+                Divider().background(CyberTheme.divider)
+
+                SettingsInfoRow(
+                    icon: "calendar.badge.clock",
+                    label: "Ngày Hết Hạn",
+                    value: formattedDate(licenseStore.expiresAt),
+                    isMonospaced: true
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Change Key Action Button
                 Button {
+                    let impact = UIImpactFeedbackGenerator(style: .rigid)
+                    impact.impactOccurred()
                     LicenseStore.shared.clear()
                 } label: {
-                    Text("Đổi Key")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(white: 0.8))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color(white: 0.2))
-                        .clipShape(Capsule())
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("Đổi Mã Key Khác")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(Color.red.opacity(0.9))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(Color.red.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.red.opacity(0.25), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    // MARK: - Device Hardware Card
+    private var deviceHardwareCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CyberSectionHeader(
+                title: "THÔNG TIN THIẾT BỊ",
+                subtitle: "Phần cứng & Định danh máy",
+                icon: "iphone.gen3",
+                accentColor: CyberTheme.cyberCyan
+            )
+
+            CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.10)) {
+                SettingsInfoRow(
+                    icon: "tag.fill",
+                    label: "Tên Thiết Bị",
+                    value: UIDevice.current.name
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "iphone",
+                    label: "Dòng Máy",
+                    value: AppInfo.hardwareDisplayName,
+                    valueColor: CyberTheme.cyberCyan
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "cube.fill",
+                    label: "Mã Model",
+                    value: AppInfo.displayMachineName,
+                    isMonospaced: true
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "gearshape.fill",
+                    label: "Hệ Điều Hành",
+                    value: "iOS \(AppInfo.osVersion) (\(AppInfo.osBuild))",
+                    isMonospaced: true
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "barcode.viewfinder",
+                    label: "Device Serial",
+                    value: maskedKeyText(DeviceIdentity.serial()),
+                    isMonospaced: true,
+                    copyAction: {
+                        UIPasteboard.general.string = DeviceIdentity.serial()
+                        showToast("Đã sao chép Serial thiết bị!")
+                    }
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "hand.tap.fill",
+                    label: "Cử Chỉ Điều Hướng",
+                    value: AppInfo.isHomeButton ? "Phím Home Cổ Điển" : "Face ID / Vuốt Màn Hình"
+                )
+            }
+        }
+    }
+
+    // MARK: - System Compatibility Card
+    private var systemCompatibilityCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CyberSectionHeader(
+                title: "KHẢ NĂNG HỖ TRỢ & HỆ THỐNG",
+                subtitle: "Tương thích Kernel Exploit & Game",
+                icon: "checkmark.shield.fill",
+                accentColor: CyberTheme.matrixGreen
+            )
+
+            CyberCard(glowColor: CyberTheme.matrixGreen.opacity(0.10)) {
+                // Compatibility Banner
+                HStack(spacing: 10) {
+                    Image(systemName: isDeviceSupported ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(isDeviceSupported ? CyberTheme.matrixGreen : CyberTheme.mechaGold)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(isDeviceSupported ? "ĐƯỢC HỖ TRỢ HOÀN TOÀN" : "HỖ TRỢ GIỚI HẠN")
+                            .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                            .foregroundColor(.white)
+                        Text(isDeviceSupported ? "Thiết bị tương thích 100% injection & bypass" : "Phiên bản iOS có thể cần thêm offset")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(CyberTheme.textMuted)
+                    }
+                    Spacer()
+                }
+                .padding(10)
+                .background((isDeviceSupported ? CyberTheme.matrixGreen : CyberTheme.mechaGold).opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                Divider().background(CyberTheme.divider)
+
+                SettingsInfoRow(
+                    icon: "lock.open.trianglebadge.exclamationmark.fill",
+                    label: "Kernel Exploit",
+                    value: "KFD / Opa334 Sẵn Sàng",
+                    valueColor: CyberTheme.matrixGreen
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "folder.badge.gearshape",
+                    label: "Quyền Sandbox",
+                    value: "Container Documents R/W Active",
+                    valueColor: CyberTheme.matrixGreen
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "cross.case.fill",
+                    label: "Free Fire Thường",
+                    value: isGameInstalled(.freeFireTH) ? "Đã Cài Đặt (Sẵn sàng)" : "Chưa Tìm Thấy",
+                    valueColor: isGameInstalled(.freeFireTH) ? CyberTheme.matrixGreen : CyberTheme.textMuted
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "flame.fill",
+                    label: "Free Fire MAX",
+                    value: isGameInstalled(.freeFireMAX) ? "Đã Cài Đặt (Sẵn sàng)" : "Chưa Tìm Thấy",
+                    valueColor: isGameInstalled(.freeFireMAX) ? CyberTheme.matrixGreen : CyberTheme.textMuted
+                )
+            }
+        }
+    }
+
+    // MARK: - Utilities & Log Terminal Action Card
+    private var utilitiesCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CyberSectionHeader(
+                title: "TIỆN ÍCH & NHẬT KÝ",
+                subtitle: "Bảo trì & Xem console logs",
+                icon: "terminal.fill",
+                accentColor: CyberTheme.purpleChakra
+            )
+
+            CyberCard(glowColor: CyberTheme.purpleChakra.opacity(0.10)) {
+                // View Console Logs Button
+                Button {
+                    showLogModal = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "terminal.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(CyberTheme.purpleChakra)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Xem Nhật Ký Hoạt Động (Console Logs)")
+                                .font(.system(size: 13.5, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("\(appLog.entries.count) dòng log hệ thống")
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundColor(CyberTheme.textMuted)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(CyberTheme.textMuted)
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+
+                Divider().background(CyberTheme.divider)
+
+                // Reset Menu Settings Button
+                Button(action: handleResetDefaults) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.counterclockwise.circle.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(CyberTheme.mechaGold)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Khôi Phục Cài Đặt Menu Mặc Định")
+                                .font(.system(size: 13.5, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("Đưa toàn bộ thông số Aim & ESP về ban đầu")
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundColor(CyberTheme.textMuted)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Log Terminal Modal Sheet
+    private var logTerminalSheet: some View {
+        NavigationView {
+            ZStack {
+                CyberTheme.bgVoid
+                    .ignoresSafeArea()
+
+                VStack(spacing: 12) {
+                    // Action Buttons Header
+                    HStack {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(CyberTheme.matrixGreen)
+                                .frame(width: 8, height: 8)
+                            Text("SYSTEM CONSOLE (\(appLog.entries.count))")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+
+                        Spacer()
+
+                        // Copy All Logs
+                        Button {
+                            let text = appLog.entries.joined(separator: "\n")
+                            UIPasteboard.general.string = text
+                            showToast("Đã sao chép toàn bộ logs!")
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 11))
+                                Text("Copy")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Capsule())
+                        }
+
+                        // Clear Logs
+                        Button {
+                            appLog.entries.removeAll()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11))
+                                Text("Clear")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(Color.red.opacity(0.85))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.red.opacity(0.15))
+                            .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                    // Scrollable Console
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 4) {
+                                if appLog.entries.isEmpty {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "terminal")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(Color.white.opacity(0.2))
+                                        Text("Chưa có log hệ thống")
+                                            .font(.system(size: 13, design: .monospaced))
+                                            .foregroundColor(CyberTheme.textMuted)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 60)
+                                } else {
+                                    ForEach(Array(appLog.entries.enumerated()), id: \.offset) { idx, entry in
+                                        Text(entry)
+                                            .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                            .foregroundColor(logColor(for: entry))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .id(idx)
+                                    }
+                                }
+                            }
+                            .padding(14)
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color(red: 0.04, green: 0.04, blue: 0.05))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                        .onChange(of: appLog.entries.count) { count in
+                            guard count > 0 else { return }
+                            proxy.scrollTo(count - 1, anchor: .bottom)
+                        }
+                    }
                 }
             }
-
-            Divider().background(Color(white: 0.18))
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("KEY ĐANG DÙNG")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundColor(Color(white: 0.5))
-                    Text(maskedKeyText(licenseStore.savedKey))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("THỜI GIAN CÒN LẠI")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundColor(Color(white: 0.5))
-                    Text(remainingTimeText(licenseStore.expiresAt))
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color(red: 0.15, green: 0.9, blue: 0.35))
+            .navigationTitle("Console Logs")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") {
+                        showLogModal = false
+                    }
+                    .foregroundColor(CyberTheme.crimsonNeon)
                 }
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(CheatPalette.cardBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(CheatPalette.cardBorder, lineWidth: 1)
-        )
     }
 
     // MARK: - Actions
@@ -1125,7 +1786,7 @@ struct ContentView: View {
                     self.isInjected = true
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.success)
-                    self.injectionAlertText = "✅ Đã Inject Cheat thành công vào \(self.selectedTarget.displayName)!\n\nĐã nạp file patch (Assembly-CSharp-patch.bytes) và cấu hình kích hoạt (localConfig.json, menu_config.json). Bạn có thể mở game và trải nghiệm."
+                    self.injectionAlertText = "✅ Đã Inject Cheat thành công."
                     self.showInjectionAlert = true
                 }
             } catch {
@@ -1154,7 +1815,7 @@ struct ContentView: View {
             self.isInjected = false
             let notif = UINotificationFeedbackGenerator()
             notif.notificationOccurred(.success)
-            self.injectionAlertText = "🗑️ Đã Uninject (xóa file patch & localConfig.json) thành công khỏi \(self.selectedTarget.displayName)."
+            self.injectionAlertText = "🗑️ Đã Uninject thành công."
             self.showInjectionAlert = true
         }
     }
@@ -1163,21 +1824,43 @@ struct ContentView: View {
         let impact = UIImpactFeedbackGenerator(style: .rigid)
         impact.impactOccurred()
         cheatState.resetToDefaults()
+        showToast("Đã khôi phục cài đặt mặc định!")
+    }
+
+    private func showToast(_ message: String) {
+        withAnimation { toastMessage = message }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation { toastMessage = nil }
+        }
+    }
+
+    private func isGameInstalled(_ target: FreeFireTarget) -> Bool {
+        return ContainerStore.resolveAppContainerPath(bundleID: target.rawValue) != nil
+    }
+
+    private var isDeviceSupported: Bool {
+        let v = AppInfo.versionTuple
+        return ExploitSupportPolicy.isSupported(
+            major: v.major,
+            minor: v.minor,
+            patch: v.patch,
+            build: AppInfo.osBuild
+        )
     }
 
     private func logColor(for text: String) -> Color {
         if text.contains("[CHEAT]") || text.contains("Inject") {
-            return Color(red: 0.15, green: 0.9, blue: 0.35)
+            return CyberTheme.matrixGreen
         } else if text.contains("[AIM]") {
-            return Color(red: 0.0, green: 0.85, blue: 1.0)
+            return CyberTheme.cyberCyan
         } else if text.contains("[ESP]") {
-            return Color(red: 1.0, green: 0.88, blue: 0.2)
+            return CyberTheme.mechaGold
         } else if text.contains("[COMBAT]") {
-            return Color(red: 1.0, green: 0.35, blue: 0.45)
+            return CyberTheme.crimsonNeon
         } else if text.contains("Lỗi") || text.contains("failed") || text.contains("error") {
             return Color(red: 1.0, green: 0.3, blue: 0.3)
         }
-        return Color(white: 0.8)
+        return Color(white: 0.82)
     }
 
     private func maskedKeyText(_ raw: String?) -> String {
@@ -1189,15 +1872,27 @@ struct ContentView: View {
     }
 
     private func remainingTimeText(_ date: Date?) -> String {
-        guard let date = date else { return "Vĩnh viễn" }
+        guard let date = date else { return "Vĩnh Viễn (Lifetime)" }
         let diff = date.timeIntervalSince(Date())
-        if diff <= 0 { return "Đã hết hạn" }
-        let hours = Int(diff) / 3600
-        let days = hours / 24
-        if days > 0 {
-            return "\(days) ngày \(hours % 24)h"
-        }
+        if diff <= 0 { return "Đã Hết Hạn" }
+        let days = Int(diff) / 86400
+        let hours = (Int(diff) % 86400) / 3600
         let minutes = (Int(diff) % 3600) / 60
-        return "\(hours)h \(minutes)m"
+        if days > 0 {
+            return "\(days) ngày \(hours) giờ"
+        } else if hours > 0 {
+            return "\(hours) giờ \(minutes) phút"
+        } else {
+            let seconds = Int(diff) % 60
+            return "\(minutes) phút \(seconds)s"
+        }
+    }
+
+    private func formattedDate(_ date: Date?) -> String {
+        guard let date = date else { return "Vĩnh viễn (Không giới hạn)" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM/yyyy • HH:mm"
+        return formatter.string(from: date)
     }
 }
