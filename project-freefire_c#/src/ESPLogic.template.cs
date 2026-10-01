@@ -379,12 +379,15 @@ namespace ProjectEspPatch
                             int nCamDist = 85;
                             int nSpeed = 0;
                             int nParachute = 0;
+                            int nBoxR = -1;
+                            int nBoxG = -1;
+                            int nBoxB = -1;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
                                 "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color",
                                 "aim_target", "buff_damage", "fast_fire", "wide_view", "cam_distance",
-                                "speed_run", "fast_parachute"
+                                "speed_run", "fast_parachute", "box_r", "box_g", "box_b"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -423,6 +426,9 @@ namespace ProjectEspPatch
                                                 else if (k == 15) nCamDist = parsedVal;
                                                 else if (k == 16) nSpeed = parsedVal;
                                                 else if (k == 17) nParachute = parsedVal;
+                                                else if (k == 18) nBoxR = parsedVal;
+                                                else if (k == 19) nBoxG = parsedVal;
+                                                else if (k == 20) nBoxB = parsedVal;
                                             }
                                         }
                                     }
@@ -486,7 +492,13 @@ namespace ProjectEspPatch
                             }
 
                             int cR = 255, cG = 41, cB = 62; // 0: Đỏ Neon
-                            if (nCol == 1) { cR = 0; cG = 229; cB = 255; }       // Xanh Cyan
+                            if (nBoxR >= 0 && nBoxG >= 0 && nBoxB >= 0)
+                            {
+                                cR = nBoxR;
+                                cG = nBoxG;
+                                cB = nBoxB;
+                            }
+                            else if (nCol == 1) { cR = 0; cG = 229; cB = 255; }       // Xanh Cyan
                             else if (nCol == 2) { cR = 13; cG = 224; cB = 97; }   // Xanh Lá
                             else if (nCol == 3) { cR = 255; cG = 209; cB = 31; }  // Vàng Kim
                             else if (nCol == 4) { cR = 255; cG = 122; cB = 0; }   // Cam Lửa

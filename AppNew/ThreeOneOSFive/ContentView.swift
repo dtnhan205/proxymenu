@@ -53,11 +53,13 @@ enum AimBotTarget: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - ESP Color Target (Toàn bộ hoặc từng bộ phận)
+// MARK: - ESP Color Target (Toàn bộ hoặc từng loại ESP)
 enum ESPColorTarget: Int, CaseIterable, Identifiable {
     case all = 0
     case box = 1
     case line = 2
+    case health = 3
+    case tag = 4
 
     var id: Int { rawValue }
 
@@ -66,6 +68,18 @@ enum ESPColorTarget: Int, CaseIterable, Identifiable {
         case .all: return "Tất Cả"
         case .box: return "Khung Box"
         case .line: return "Tia Line"
+        case .health: return "Thanh Máu"
+        case .tag: return "Tên & Cự Ly"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .all: return "Tất Cả"
+        case .box: return "Box"
+        case .line: return "Line"
+        case .health: return "Máu"
+        case .tag: return "Tên/Cự Ly"
         }
     }
 
@@ -74,6 +88,8 @@ enum ESPColorTarget: Int, CaseIterable, Identifiable {
         case .all: return "paintpalette.fill"
         case .box: return "shippingbox.fill"
         case .line: return "line.diagonal"
+        case .health: return "cross.case.fill"
+        case .tag: return "tag.fill"
         }
     }
 }
@@ -246,6 +262,31 @@ final class CheatMenuState: ObservableObject {
         }
     }
 
+    // ESP RGB Colors & Thickness per element
+    @Published var boxR: Double { didSet { UserDefaults.standard.set(boxR, forKey: "cheat.boxR"); syncIfInjected() } }
+    @Published var boxG: Double { didSet { UserDefaults.standard.set(boxG, forKey: "cheat.boxG"); syncIfInjected() } }
+    @Published var boxB: Double { didSet { UserDefaults.standard.set(boxB, forKey: "cheat.boxB"); syncIfInjected() } }
+    @Published var boxThickness: Double { didSet { UserDefaults.standard.set(boxThickness, forKey: "cheat.boxThickness"); syncIfInjected() } }
+
+    @Published var lineR: Double { didSet { UserDefaults.standard.set(lineR, forKey: "cheat.lineR"); syncIfInjected() } }
+    @Published var lineG: Double { didSet { UserDefaults.standard.set(lineG, forKey: "cheat.lineG"); syncIfInjected() } }
+    @Published var lineB: Double { didSet { UserDefaults.standard.set(lineB, forKey: "cheat.lineB"); syncIfInjected() } }
+    @Published var lineThickness: Double { didSet { UserDefaults.standard.set(lineThickness, forKey: "cheat.lineThickness"); syncIfInjected() } }
+
+    @Published var healthR: Double { didSet { UserDefaults.standard.set(healthR, forKey: "cheat.healthR"); syncIfInjected() } }
+    @Published var healthG: Double { didSet { UserDefaults.standard.set(healthG, forKey: "cheat.healthG"); syncIfInjected() } }
+    @Published var healthB: Double { didSet { UserDefaults.standard.set(healthB, forKey: "cheat.healthB"); syncIfInjected() } }
+    @Published var healthThickness: Double { didSet { UserDefaults.standard.set(healthThickness, forKey: "cheat.healthThickness"); syncIfInjected() } }
+
+    @Published var tagR: Double { didSet { UserDefaults.standard.set(tagR, forKey: "cheat.tagR"); syncIfInjected() } }
+    @Published var tagG: Double { didSet { UserDefaults.standard.set(tagG, forKey: "cheat.tagG"); syncIfInjected() } }
+    @Published var tagB: Double { didSet { UserDefaults.standard.set(tagB, forKey: "cheat.tagB"); syncIfInjected() } }
+    @Published var tagThickness: Double { didSet { UserDefaults.standard.set(tagThickness, forKey: "cheat.tagThickness"); syncIfInjected() } }
+
+    @Published var allR: Double { didSet { UserDefaults.standard.set(allR, forKey: "cheat.allR"); syncIfInjected() } }
+    @Published var allG: Double { didSet { UserDefaults.standard.set(allG, forKey: "cheat.allG"); syncIfInjected() } }
+    @Published var allB: Double { didSet { UserDefaults.standard.set(allB, forKey: "cheat.allB"); syncIfInjected() } }
+
     // COMBAT
     @Published var fastMedkit: Bool {
         didSet {
@@ -318,28 +359,127 @@ final class CheatMenuState: ObservableObject {
         getColor(for: espSelectedColorId)
     }
 
+    func getRGBForPresetId(_ id: Int) -> (Double, Double, Double) {
+        switch id {
+        case 0: return (255, 41, 62)    // Đỏ Neon
+        case 1: return (0, 229, 255)    // Xanh Cyan
+        case 2: return (13, 224, 97)    // Xanh Lá
+        case 3: return (255, 209, 31)   // Vàng Kim
+        case 4: return (255, 122, 0)    // Cam Lửa
+        case 5: return (157, 0, 255)    // Tím Neon
+        case 6: return (255, 20, 147)   // Hồng Neon
+        default: return (0, 229, 255)
+        }
+    }
+
+    func findClosestPresetId(r: Double, g: Double, b: Double) -> Int {
+        var closest = 1
+        var minDiff = Double.infinity
+        for id in 0...6 {
+            let pr = getRGBForPresetId(id)
+            let diff = (r - pr.0)*(r - pr.0) + (g - pr.1)*(g - pr.1) + (b - pr.2)*(b - pr.2)
+            if diff < minDiff {
+                minDiff = diff
+                closest = id
+            }
+        }
+        return closest
+    }
+
+    func getRGB(for target: ESPColorTarget) -> (r: Double, g: Double, b: Double) {
+        switch target {
+        case .all: return (allR, allG, allB)
+        case .box: return (boxR, boxG, boxB)
+        case .line: return (lineR, lineG, lineB)
+        case .health: return (healthR, healthG, healthB)
+        case .tag: return (tagR, tagG, tagB)
+        }
+    }
+
+    func getColor(for target: ESPColorTarget) -> Color {
+        let rgb = getRGB(for: target)
+        return Color(red: rgb.r / 255.0, green: rgb.g / 255.0, blue: rgb.b / 255.0)
+    }
+
+    func getHex(for target: ESPColorTarget) -> String {
+        let rgb = getRGB(for: target)
+        let r = Int(min(max(rgb.r, 0), 255))
+        let g = Int(min(max(rgb.g, 0), 255))
+        let b = Int(min(max(rgb.b, 0), 255))
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+
+    func setRGB(r: Double, g: Double, b: Double, for target: ESPColorTarget) {
+        let cr = min(max(r, 0), 255)
+        let cg = min(max(g, 0), 255)
+        let cb = min(max(b, 0), 255)
+        switch target {
+        case .all:
+            allR = cr; allG = cg; allB = cb
+            boxR = cr; boxG = cg; boxB = cb
+            lineR = cr; lineG = cg; lineB = cb
+            healthR = cr; healthG = cg; healthB = cb
+            tagR = cr; tagG = cg; tagB = cb
+        case .box:
+            boxR = cr; boxG = cg; boxB = cb
+        case .line:
+            lineR = cr; lineG = cg; lineB = cb
+        case .health:
+            healthR = cr; healthG = cg; healthB = cb
+        case .tag:
+            tagR = cr; tagG = cg; tagB = cb
+        }
+        let closest = findClosestPresetId(r: cr, g: cg, b: cb)
+        espSelectedColorId = closest
+        if target == .box || target == .all { boxColorId = closest }
+        if target == .line || target == .all { lineColorId = closest }
+        AppLog.shared.append("[ESP] Màu \(target.title): \(getHex(for: target))")
+    }
+
+    func getThickness(for target: ESPColorTarget) -> Double {
+        switch target {
+        case .all: return boxThickness
+        case .box: return boxThickness
+        case .line: return lineThickness
+        case .health: return healthThickness
+        case .tag: return tagThickness
+        }
+    }
+
+    func setThickness(_ val: Double, for target: ESPColorTarget) {
+        let v = min(max(val, 1.0), 10.0)
+        switch target {
+        case .all:
+            boxThickness = v
+            lineThickness = v
+            healthThickness = v
+            tagThickness = v
+            espLineThickness = v
+        case .box:
+            boxThickness = v
+        case .line:
+            lineThickness = v
+            espLineThickness = v
+        case .health:
+            healthThickness = v
+        case .tag:
+            tagThickness = v
+        }
+    }
+
     func getColorId(for target: ESPColorTarget) -> Int {
         switch target {
         case .all: return espSelectedColorId
         case .box: return boxColorId
         case .line: return lineColorId
+        case .health: return 2
+        case .tag: return 3
         }
     }
 
     func setColorId(_ id: Int, for target: ESPColorTarget) {
-        switch target {
-        case .all:
-            espSelectedColorId = id
-            boxColorId = id
-            lineColorId = id
-            AppLog.shared.append("[ESP] Đổi màu toàn bộ: \(getColor(for: id).name)")
-        case .box:
-            boxColorId = id
-            AppLog.shared.append("[ESP] Đổi màu Khung Box: \(getColor(for: id).name)")
-        case .line:
-            lineColorId = id
-            AppLog.shared.append("[ESP] Đổi màu Tia Line: \(getColor(for: id).name)")
-        }
+        let rgb = getRGBForPresetId(id)
+        setRGB(r: rgb.0, g: rgb.1, b: rgb.2, for: target)
     }
 
     init() {
@@ -367,6 +507,31 @@ final class CheatMenuState: ObservableObject {
         self.lineColorId = ud.object(forKey: "cheat.lineColorId") as? Int ?? 1
         self.skeletonColorId = ud.object(forKey: "cheat.skeletonColorId") as? Int ?? 5
         self.espLineThickness = ud.object(forKey: "cheat.espLineThickness") as? Double ?? 2.5
+
+        // RGB & Thickness Initializers
+        self.boxR = ud.object(forKey: "cheat.boxR") as? Double ?? 0.0
+        self.boxG = ud.object(forKey: "cheat.boxG") as? Double ?? 229.0
+        self.boxB = ud.object(forKey: "cheat.boxB") as? Double ?? 255.0
+        self.boxThickness = ud.object(forKey: "cheat.boxThickness") as? Double ?? 2.0
+
+        self.lineR = ud.object(forKey: "cheat.lineR") as? Double ?? 0.0
+        self.lineG = ud.object(forKey: "cheat.lineG") as? Double ?? 229.0
+        self.lineB = ud.object(forKey: "cheat.lineB") as? Double ?? 255.0
+        self.lineThickness = ud.object(forKey: "cheat.lineThickness") as? Double ?? 2.0
+
+        self.healthR = ud.object(forKey: "cheat.healthR") as? Double ?? 13.0
+        self.healthG = ud.object(forKey: "cheat.healthG") as? Double ?? 224.0
+        self.healthB = ud.object(forKey: "cheat.healthB") as? Double ?? 97.0
+        self.healthThickness = ud.object(forKey: "cheat.healthThickness") as? Double ?? 3.0
+
+        self.tagR = ud.object(forKey: "cheat.tagR") as? Double ?? 255.0
+        self.tagG = ud.object(forKey: "cheat.tagG") as? Double ?? 209.0
+        self.tagB = ud.object(forKey: "cheat.tagB") as? Double ?? 31.0
+        self.tagThickness = ud.object(forKey: "cheat.tagThickness") as? Double ?? 2.0
+
+        self.allR = ud.object(forKey: "cheat.allR") as? Double ?? 0.0
+        self.allG = ud.object(forKey: "cheat.allG") as? Double ?? 229.0
+        self.allB = ud.object(forKey: "cheat.allB") as? Double ?? 255.0
 
         self.fastMedkit = ud.object(forKey: "cheat.fastMedkit") as? Bool ?? false
         self.noRecoil = ud.object(forKey: "cheat.noRecoil") as? Bool ?? false
@@ -400,6 +565,30 @@ final class CheatMenuState: ObservableObject {
         lineColorId = 1
         skeletonColorId = 5
         espLineThickness = 2.5
+
+        boxR = 0.0
+        boxG = 229.0
+        boxB = 255.0
+        boxThickness = 2.0
+
+        lineR = 0.0
+        lineG = 229.0
+        lineB = 255.0
+        lineThickness = 2.0
+
+        healthR = 13.0
+        healthG = 224.0
+        healthB = 97.0
+        healthThickness = 3.0
+
+        tagR = 255.0
+        tagG = 209.0
+        tagB = 31.0
+        tagThickness = 2.0
+
+        allR = 0.0
+        allG = 229.0
+        allB = 255.0
 
         fastMedkit = false
         noRecoil = false
@@ -602,6 +791,7 @@ struct CyberRowView: View {
     @Binding var isOn: Bool
     var activeColor: Color = CyberTheme.crimsonNeon
     var tagColor: Color? = nil
+    var colorAction: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -636,10 +826,30 @@ struct CyberRowView: View {
                         .minimumScaleFactor(0.8)
 
                     if let tColor = tagColor, isOn {
-                        Circle()
-                            .fill(tColor)
-                            .frame(width: 8, height: 8)
-                            .shadow(color: tColor.opacity(0.8), radius: 3)
+                        if let action = colorAction {
+                            Button(action: action) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(tColor)
+                                        .frame(width: 22, height: 20)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                .strokeBorder(Color.white.opacity(0.5), lineWidth: 1)
+                                        )
+                                        .shadow(color: tColor.opacity(0.8), radius: 4)
+
+                                    Image(systemName: "paintpalette.fill")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(Color.white.opacity(0.9))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Circle()
+                                .fill(tColor)
+                                .frame(width: 8, height: 8)
+                                .shadow(color: tColor.opacity(0.8), radius: 3)
+                        }
                     }
                 }
 
@@ -795,11 +1005,121 @@ struct SettingsInfoRow: View {
     }
 }
 
-// MARK: - ESP Color Picker Popup (7 Preset Colors)
+// MARK: - RGB Interactive Canvas Component (Touch & Drag Spectrum)
+struct RGBSpectrumCanvas: View {
+    @Binding var curR: Double
+    @Binding var curG: Double
+    @Binding var curB: Double
+    @State private var cursorLoc: CGPoint = CGPoint(x: 150, y: 65)
+    @State private var hasInitialized: Bool = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = max(geo.size.width, 10)
+            let h = max(geo.size.height, 10)
+
+            ZStack {
+                // 1. Horizontal Rainbow Hue Gradient
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 1, green: 0, blue: 0),
+                                Color(red: 1, green: 1, blue: 0),
+                                Color(red: 0, green: 1, blue: 0),
+                                Color(red: 0, green: 1, blue: 1),
+                                Color(red: 0, green: 0, blue: 1),
+                                Color(red: 1, green: 0, blue: 1),
+                                Color(red: 1, green: 0, blue: 0)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+
+                // 2. Vertical Shade Overlay (White at top, Clear at mid, Black at bottom)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.85),
+                                Color.white.opacity(0.0),
+                                Color.black.opacity(0.90)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                // 3. Crisp Cyber Border
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
+
+                // 4. Draggable Ring Cursor
+                Circle()
+                    .strokeBorder(Color.white, lineWidth: 2.5)
+                    .background(Circle().fill(Color(red: min(max(curR, 0), 255) / 255.0, green: min(max(curG, 0), 255) / 255.0, blue: min(max(curB, 0), 255) / 255.0)))
+                    .frame(width: 26, height: 26)
+                    .shadow(color: Color.black.opacity(0.8), radius: 5)
+                    .position(cursorLoc)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { val in
+                        let clampedX = min(max(val.location.x, 0), w)
+                        let clampedY = min(max(val.location.y, 0), h)
+                        cursorLoc = CGPoint(x: clampedX, y: clampedY)
+
+                        let normX = Double(clampedX / w)
+                        let normY = Double(clampedY / h)
+                        let sat: CGFloat = normY < 0.5 ? CGFloat(normY * 2.0) : 1.0
+                        let bri: CGFloat = normY < 0.5 ? 1.0 : CGFloat(1.0 - (normY - 0.5) * 1.8)
+                        let uiColor = UIColor(hue: CGFloat(normX), saturation: max(sat, 0.05), brightness: max(bri, 0.05), alpha: 1.0)
+                        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                        if uiColor.getRed(&r, green: &g, blue: &b, alpha: &a) {
+                            curR = Double(r * 255.0)
+                            curG = Double(g * 255.0)
+                            curB = Double(b * 255.0)
+                        }
+                    }
+            )
+            .onAppear {
+                if !hasInitialized {
+                    hasInitialized = true
+                    cursorLoc = CGPoint(x: w * 0.5, y: h * 0.5)
+                }
+            }
+        }
+        .frame(height: 135)
+    }
+}
+
+// MARK: - ESP RGB Color Picker Popup
 struct ESPColorPickerPopup: View {
     @ObservedObject var cheatState: CheatMenuState
     let target: ESPColorTarget
     @Environment(\.dismiss) private var dismiss
+
+    @State private var curR: Double = 0
+    @State private var curG: Double = 229
+    @State private var curB: Double = 255
+    @State private var curThickness: Double = 2.0
+
+    var currentColor: Color {
+        Color(
+            red: min(max(curR, 0), 255) / 255.0,
+            green: min(max(curG, 0), 255) / 255.0,
+            blue: min(max(curB, 0), 255) / 255.0
+        )
+    }
+
+    var hexString: String {
+        let r = Int(min(max(curR, 0), 255))
+        let g = Int(min(max(curG, 0), 255))
+        let b = Int(min(max(curB, 0), 255))
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
 
     var body: some View {
         NavigationView {
@@ -807,76 +1127,254 @@ struct ESPColorPickerPopup: View {
                 CyberTheme.bgVoid
                     .ignoresSafeArea()
 
-                VStack(spacing: 16) {
-                    HStack(spacing: 10) {
-                        Image(systemName: target.icon)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(CyberTheme.cyberCyan)
-                        Text("Chọn Màu Cho: \(target.title)")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 16) {
+                        // 1. Live Preview & Target Info Card
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(currentColor)
+                                    .frame(width: 56, height: 56)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.6), lineWidth: 1.5)
+                                    )
+                                    .shadow(color: currentColor.opacity(0.85), radius: 10)
 
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 14) {
-                        ForEach(cheatState.colorOptions) { option in
-                            let isPicked = (cheatState.getColorId(for: target) == option.id)
-
-                            Button {
-                                let impact = UIImpactFeedbackGenerator(style: .medium)
-                                impact.impactOccurred()
-                                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
-                                    cheatState.setColorId(option.id, for: target)
-                                }
-                                dismiss()
-                            } label: {
-                                VStack(spacing: 6) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [option.color, option.color.opacity(0.8)],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                            .frame(width: 48, height: 48)
-                                            .overlay(
-                                                Circle()
-                                                    .strokeBorder(isPicked ? Color.white : Color.white.opacity(0.2), lineWidth: isPicked ? 2.5 : 1)
-                                            )
-                                            .shadow(color: option.color.opacity(isPicked ? 0.8 : 0.25), radius: isPicked ? 8 : 2)
-
-                                        if isPicked {
-                                            Image(systemName: "checkmark")
-                                                .font(.system(size: 16, weight: .heavy))
-                                                .foregroundColor(.white)
-                                                .shadow(color: Color.black.opacity(0.6), radius: 2)
-                                        }
-                                    }
-
-                                    Text(option.name)
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundColor(isPicked ? .white : CyberTheme.textMuted)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.7)
-                                        .multilineTextAlignment(.center)
-                                }
+                                Image(systemName: target.icon)
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundColor(curR + curG + curB > 450 ? .black : .white)
                             }
-                            .buttonStyle(.plain)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("MỤC ÁP DỤNG: \(target.title.uppercased())")
+                                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.cyberCyan)
+                                    .tracking(1.0)
+
+                                Text(hexString)
+                                    .font(.system(size: 18, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+
+                                Text("RGB(\(Int(curR)), \(Int(curG)), \(Int(curB))) • Dày \(String(format: "%.1f", curThickness)) px")
+                                    .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
+                            }
+
+                            Spacer()
                         }
+                        .padding(12)
+                        .background(Color(red: 0.08, green: 0.08, blue: 0.11))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+
+                        // 2. Interactive 2D Color Spectrum Box (Drag / Tap)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "hand.draw.fill")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(CyberTheme.cyberCyan)
+                                Text("CHẠM HOẶC KÉO TỚI MÀU THÍCH")
+                                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
+                                    .tracking(0.5)
+                                Spacer()
+                            }
+
+                            RGBSpectrumCanvas(curR: $curR, curG: $curG, curB: $curB)
+                        }
+
+                        // 3. Individual RGB Channel Sliders
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(CyberTheme.mechaGold)
+                                Text("TÙY CHỈNH THÔNG SỐ RGB (0 - 255)")
+                                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
+                                    .tracking(0.5)
+                                Spacer()
+                            }
+
+                            // R Slider
+                            VStack(spacing: 3) {
+                                HStack {
+                                    Text("R (Đỏ)")
+                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                        .foregroundColor(Color(red: 1.0, green: 0.25, blue: 0.3))
+                                    Spacer()
+                                    Text("\(Int(curR))")
+                                        .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                                        .foregroundColor(Color(red: 1.0, green: 0.25, blue: 0.3))
+                                }
+                                CyberSlider(value: $curR, range: 0...255, step: 1, activeColor: Color(red: 1.0, green: 0.2, blue: 0.3))
+                            }
+
+                            // G Slider
+                            VStack(spacing: 3) {
+                                HStack {
+                                    Text("G (Xanh Lá)")
+                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                        .foregroundColor(Color(red: 0.1, green: 0.9, blue: 0.4))
+                                    Spacer()
+                                    Text("\(Int(curG))")
+                                        .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                                        .foregroundColor(Color(red: 0.1, green: 0.9, blue: 0.4))
+                                }
+                                CyberSlider(value: $curG, range: 0...255, step: 1, activeColor: Color(red: 0.1, green: 0.9, blue: 0.4))
+                            }
+
+                            // B Slider
+                            VStack(spacing: 3) {
+                                HStack {
+                                    Text("B (Xanh Dương)")
+                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                        .foregroundColor(Color(red: 0.0, green: 0.8, blue: 1.0))
+                                    Spacer()
+                                    Text("\(Int(curB))")
+                                        .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                                        .foregroundColor(Color(red: 0.0, green: 0.8, blue: 1.0))
+                                }
+                                CyberSlider(value: $curB, range: 0...255, step: 1, activeColor: Color(red: 0.0, green: 0.8, blue: 1.0))
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(red: 0.07, green: 0.07, blue: 0.09))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        // 4. Quick Preset Colors
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("BẢNG MÀU CHỌN NHANH (PRESETS)")
+                                .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                .foregroundColor(CyberTheme.textMuted)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(cheatState.colorOptions) { opt in
+                                        Button {
+                                            let impact = UIImpactFeedbackGenerator(style: .light)
+                                            impact.impactOccurred()
+                                            let rgb = cheatState.getRGBForPresetId(opt.id)
+                                            curR = rgb.0
+                                            curG = rgb.1
+                                            curB = rgb.2
+                                        } label: {
+                                            ZStack {
+                                                Circle()
+                                                    .fill(opt.color)
+                                                    .frame(width: 34, height: 34)
+                                                    .overlay(
+                                                        Circle().strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                                                    )
+                                                    .shadow(color: opt.color.opacity(0.6), radius: 4)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+
+                        // 5. Thickness Slider for this specific ESP target
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "line.horizontal.3")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(CyberTheme.cyberCyan)
+                                Text("ĐỘ DÀY NÉT VẼ CHO \(target.title.uppercased())")
+                                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
+                                    .tracking(0.5)
+                                Spacer()
+                                Text(String(format: "%.1f px", curThickness))
+                                    .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(currentColor)
+                            }
+
+                            CyberSlider(value: $curThickness, range: 1.0...8.0, step: 0.5, activeColor: currentColor)
+
+                            // Quick thickness buttons
+                            HStack(spacing: 6) {
+                                ForEach([1.5, 2.0, 3.0, 5.0, 8.0], id: \.self) { th in
+                                    let isSel = abs(curThickness - th) < 0.2
+                                    Button {
+                                        let impact = UIImpactFeedbackGenerator(style: .light)
+                                        impact.impactOccurred()
+                                        curThickness = th
+                                    } label: {
+                                        Text(String(format: "%.1f px", th))
+                                            .font(.system(size: 10, weight: isSel ? .bold : .medium, design: .monospaced))
+                                            .foregroundColor(isSel ? .white : CyberTheme.textMuted)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                    .fill(isSel ? currentColor.opacity(0.8) : Color.white.opacity(0.06))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(red: 0.07, green: 0.07, blue: 0.09))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                        // 6. Action Apply Button
+                        Button {
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                            cheatState.setRGB(r: curR, g: curG, b: curB, for: target)
+                            cheatState.setThickness(curThickness, for: target)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 15, weight: .bold))
+                                Text("LƯU & ÁP DỤNG CHO \(target.title.uppercased())")
+                                    .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                                    .tracking(0.5)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [currentColor, currentColor.opacity(0.75)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                                    )
+                                    .shadow(color: currentColor.opacity(0.6), radius: 8)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+                        .padding(.bottom, 24)
                     }
                     .padding(.horizontal, 16)
-
-                    Spacer()
+                    .padding(.top, 12)
                 }
             }
+            .navigationTitle("Tùy Biến: \(target.title)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Xong") {
+                        cheatState.setRGB(r: curR, g: curG, b: curB, for: target)
+                        cheatState.setThickness(curThickness, for: target)
                         dismiss()
                     }
                     .foregroundColor(CyberTheme.cyberCyan)
@@ -885,6 +1383,13 @@ struct ESPColorPickerPopup: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            let rgb = cheatState.getRGB(for: target)
+            curR = rgb.r
+            curG = rgb.g
+            curB = rgb.b
+            curThickness = cheatState.getThickness(for: target)
+        }
     }
 }
 
@@ -1529,7 +2034,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - ESP MATRIX Section (With Separate Color Pickers for Box, Line, Skeleton, All)
+    // MARK: - ESP MATRIX Section (RGB Customizer & Thickness per Element)
     private var espSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
@@ -1541,26 +2046,34 @@ struct ContentView: View {
 
             // Card 1: Main ESP Features (Box, Line, Thanh Máu, Name, Khoảng Cách)
             CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.12)) {
-                // Box ESP (With active color dot)
+                // Box ESP (With active color badge & direct popup trigger)
                 CyberRowView(
                     iconName: "shippingbox.fill",
                     title: "Khung 2D (Box ESP)",
                     subtitle: "Hộp nhận diện bao quanh đối thủ",
                     isOn: $cheatState.boxESP,
-                    activeColor: cheatState.getColor(for: cheatState.boxColorId).color,
-                    tagColor: cheatState.getColor(for: cheatState.boxColorId).color
+                    activeColor: cheatState.getColor(for: .box),
+                    tagColor: cheatState.getColor(for: .box),
+                    colorAction: {
+                        selectedColorTarget = .box
+                        showColorPickerPopup = true
+                    }
                 )
 
                 Divider().background(CyberTheme.divider)
 
-                // Line ESP (With active color dot)
+                // Line ESP (With active color badge & direct popup trigger)
                 CyberRowView(
                     iconName: "line.diagonal",
                     title: "Tia Chỉ Hướng (Line ESP)",
                     subtitle: "Tia định vị từ đỉnh màn hình xuống địch",
                     isOn: $cheatState.lineESP,
-                    activeColor: cheatState.getColor(for: cheatState.lineColorId).color,
-                    tagColor: cheatState.getColor(for: cheatState.lineColorId).color
+                    activeColor: cheatState.getColor(for: .line),
+                    tagColor: cheatState.getColor(for: .line),
+                    colorAction: {
+                        selectedColorTarget = .line
+                        showColorPickerPopup = true
+                    }
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -1571,7 +2084,12 @@ struct ContentView: View {
                     title: "Thanh Máu (Health Bar)",
                     subtitle: "Hiển thị lượng máu đối thủ",
                     isOn: $cheatState.healthBar,
-                    activeColor: CyberTheme.cyberCyan
+                    activeColor: cheatState.getColor(for: .health),
+                    tagColor: cheatState.getColor(for: .health),
+                    colorAction: {
+                        selectedColorTarget = .health
+                        showColorPickerPopup = true
+                    }
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -1582,7 +2100,12 @@ struct ContentView: View {
                     title: "Tên Kẻ Địch (Name Tag)",
                     subtitle: "Nhận diện nickname của mục tiêu",
                     isOn: $cheatState.nameTag,
-                    activeColor: CyberTheme.cyberCyan
+                    activeColor: cheatState.getColor(for: .tag),
+                    tagColor: cheatState.getColor(for: .tag),
+                    colorAction: {
+                        selectedColorTarget = .tag
+                        showColorPickerPopup = true
+                    }
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -1593,143 +2116,238 @@ struct ContentView: View {
                     title: "Khoảng Cách (Distance Tag)",
                     subtitle: "Đo cự ly chính xác theo mét",
                     isOn: $cheatState.distanceTag,
-                    activeColor: CyberTheme.mechaGold
+                    activeColor: cheatState.getColor(for: .tag),
+                    tagColor: cheatState.getColor(for: .tag),
+                    colorAction: {
+                        selectedColorTarget = .tag
+                        showColorPickerPopup = true
+                    }
                 )
             }
 
-            // Card 2: Dedicated Rich Color Matrix Customizer (Box, Line, All)
-            CyberCard(glowColor: cheatState.getColor(for: cheatState.getColorId(for: selectedColorTarget)).color.opacity(0.15)) {
-                VStack(alignment: .leading, spacing: 10) {
+            // Card 2: Dedicated RGB Color & Thickness Customizer per ESP Type
+            let currentTargetColor = cheatState.getColor(for: selectedColorTarget)
+            let currentTargetThickness = cheatState.getThickness(for: selectedColorTarget)
+
+            CyberCard(glowColor: currentTargetColor.opacity(0.18)) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 8) {
                         Image(systemName: "paintpalette.fill")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(CyberTheme.cyberCyan)
 
-                        Text("BẢNG MÀU ESP TÙY BIẾN")
+                        Text("BẢNG MÀU RGB & ĐỘ DÀY ESP")
                             .font(.system(size: 12, weight: .heavy, design: .monospaced))
                             .foregroundColor(.white)
                             .tracking(1.0)
 
                         Spacer()
 
-                        Text("7 Gam Màu")
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundColor(CyberTheme.textMuted)
+                        Text("TÙY CHỈNH TỪNG MỤC")
+                            .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                            .foregroundColor(CyberTheme.cyberCyan)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(CyberTheme.cyberCyan.opacity(0.12))
+                            .clipShape(Capsule())
                     }
 
-                    // Target Element Tabs [ Tất Cả | Khung Box | Tia Line | Khung Xương ]
-                    HStack(spacing: 5) {
-                        ForEach(ESPColorTarget.allCases) { target in
-                            let isSelected = (selectedColorTarget == target)
-                            let currentTargetColor = cheatState.getColor(for: cheatState.getColorId(for: target)).color
+                    // 1. Selector Option: Chọn loại ESP để chỉnh màu
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("CHỌN LOẠI ESP ĐỂ THIẾT LẬP:")
+                            .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.textMuted)
+                            .tracking(0.5)
 
-                            Button {
-                                let impact = UIImpactFeedbackGenerator(style: .light)
-                                impact.impactOccurred()
-                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                                    selectedColorTarget = target
-                                }
-                            } label: {
-                                HStack(spacing: 3) {
-                                    Circle()
-                                        .fill(currentTargetColor)
-                                        .frame(width: 6, height: 6)
-                                        .shadow(color: currentTargetColor.opacity(0.8), radius: 2)
+                        HStack(spacing: 5) {
+                            ForEach(ESPColorTarget.allCases) { target in
+                                let isSelected = (selectedColorTarget == target)
+                                let targetColor = cheatState.getColor(for: target)
 
-                                    Text(target.title)
-                                        .font(.system(size: 10.5, weight: isSelected ? .bold : .medium))
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.75)
-                                }
-                                .foregroundColor(isSelected ? .white : Color(white: 0.7))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 32)
-                                .background(
-                                    ZStack {
-                                        if isSelected {
-                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .fill(Color(white: 0.18))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                        .strokeBorder(currentTargetColor.opacity(0.8), lineWidth: 1)
-                                                )
-                                                .shadow(color: currentTargetColor.opacity(0.3), radius: 4)
-                                        } else {
-                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                                .fill(Color.white.opacity(0.04))
-                                        }
+                                Button {
+                                    let impact = UIImpactFeedbackGenerator(style: .light)
+                                    impact.impactOccurred()
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        selectedColorTarget = target
                                     }
-                                )
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Circle()
+                                            .fill(targetColor)
+                                            .frame(width: 7, height: 7)
+                                            .shadow(color: targetColor.opacity(0.9), radius: 2)
+
+                                        Text(target.shortTitle)
+                                            .font(.system(size: 10.5, weight: isSelected ? .bold : .medium))
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.7)
+                                    }
+                                    .foregroundColor(isSelected ? .white : Color(white: 0.7))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 32)
+                                    .background(
+                                        ZStack {
+                                            if isSelected {
+                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                    .fill(Color(white: 0.16))
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                            .strokeBorder(targetColor.opacity(0.9), lineWidth: 1.2)
+                                                    )
+                                                    .shadow(color: targetColor.opacity(0.35), radius: 5)
+                                            } else {
+                                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                    .fill(Color.white.opacity(0.04))
+                                            }
+                                        }
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
 
-                    // Tappable Color Item -> Opens Popup Picker (7 Preset Colors)
-                    let activeCol = cheatState.getColor(for: cheatState.getColorId(for: selectedColorTarget))
+                    // 2. Bảng màu bên cạnh nhấn vào sẽ hiện popup bảng màu RGB (kéo hoặc nhấn chọn màu)
                     Button {
-                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
                         impact.impactOccurred()
                         showColorPickerPopup = true
                     } label: {
-                        HStack(spacing: 10) {
+                        HStack(spacing: 12) {
+                            // Left: Target Icon Badge
                             ZStack {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(activeCol.color.opacity(0.20))
-                                    .frame(width: 32, height: 32)
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(currentTargetColor.opacity(0.18))
+                                    .frame(width: 44, height: 44)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .strokeBorder(activeCol.color.opacity(0.6), lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .strokeBorder(currentTargetColor.opacity(0.7), lineWidth: 1)
                                     )
 
                                 Image(systemName: selectedColorTarget.icon)
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(activeCol.color)
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(currentTargetColor)
                             }
 
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Mục áp dụng: \(selectedColorTarget.title)")
-                                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(CyberTheme.textMuted)
+                            // Middle: Target Title & Hex / RGB
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Text(selectedColorTarget.title)
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(.white)
 
-                                Text("\(activeCol.name) • \(activeCol.hex)")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(activeCol.color)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
+                                    Text(cheatState.getHex(for: selectedColorTarget))
+                                        .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                        .foregroundColor(currentTargetColor)
+                                }
+
+                                let rgb = cheatState.getRGB(for: selectedColorTarget)
+                                Text("RGB(\(Int(rgb.r)), \(Int(rgb.g)), \(Int(rgb.b))) • Dày \(String(format: "%.1f", currentTargetThickness)) px")
+                                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
                             }
 
                             Spacer()
 
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(CyberTheme.textMuted)
+                            // Right: Bảng màu bên cạnh nhấn vào sẽ hiện popup
+                            HStack(spacing: 6) {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(currentTargetColor)
+                                    .frame(width: 26, height: 26)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .strokeBorder(Color.white.opacity(0.7), lineWidth: 1)
+                                    )
+                                    .shadow(color: currentTargetColor.opacity(0.8), radius: 5)
+
+                                VStack(alignment: .trailing, spacing: 1) {
+                                    HStack(spacing: 3) {
+                                        Text("BẢNG MÀU")
+                                            .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 9, weight: .bold))
+                                    }
+                                    .foregroundColor(CyberTheme.cyberCyan)
+
+                                    Text("RGB Popup")
+                                        .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
+                                        .foregroundColor(CyberTheme.textMuted)
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(CyberTheme.cyberCyan.opacity(0.3), lineWidth: 0.8)
+                            )
                         }
-                        .padding(8)
+                        .padding(10)
                         .background(Color.black.opacity(0.35))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(currentTargetColor.opacity(0.3), lineWidth: 1)
+                        )
                     }
                     .buttonStyle(.plain)
 
                     Divider().background(CyberTheme.divider)
 
-                    // Line Thickness Slider
-                    VStack(spacing: 4) {
+                    // 3. Tùy chỉnh độ dày riêng cho từng loại ESP
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Độ Dày Nét Vẽ ESP")
-                                .font(.system(size: 12.5, weight: .medium))
+                            Image(systemName: "line.horizontal.3")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(CyberTheme.cyberCyan)
+
+                            Text("ĐỘ DÀY NÉT VẼ CHO \(selectedColorTarget.title.uppercased())")
+                                .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                 .foregroundColor(CyberTheme.textSecondary)
+
                             Spacer()
-                            Text(String(format: "%.1f px", cheatState.espLineThickness))
-                                .font(.system(size: 13, weight: .bold, design: .monospaced))
-                                .foregroundColor(.white)
+
+                            Text(String(format: "%.1f px", currentTargetThickness))
+                                .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                                .foregroundColor(currentTargetColor)
                         }
+
                         CyberSlider(
-                            value: $cheatState.espLineThickness,
+                            value: Binding<Double>(
+                                get: { cheatState.getThickness(for: selectedColorTarget) },
+                                set: { cheatState.setThickness($0, for: selectedColorTarget) }
+                            ),
                             range: 1.0...8.0,
                             step: 0.5,
-                            activeColor: activeCol.color
+                            activeColor: currentTargetColor
                         )
+
+                        // Quick preset thickness pills
+                        HStack(spacing: 6) {
+                            ForEach([1.5, 2.0, 3.0, 5.0, 8.0], id: \.self) { th in
+                                let isSel = abs(currentTargetThickness - th) < 0.2
+                                Button {
+                                    let impact = UIImpactFeedbackGenerator(style: .light)
+                                    impact.impactOccurred()
+                                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                                        cheatState.setThickness(th, for: selectedColorTarget)
+                                    }
+                                } label: {
+                                    Text(String(format: "%.1f px", th))
+                                        .font(.system(size: 10, weight: isSel ? .bold : .medium, design: .monospaced))
+                                        .foregroundColor(isSel ? .white : CyberTheme.textMuted)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                .fill(isSel ? currentTargetColor.opacity(0.85) : Color.white.opacity(0.06))
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Spacer()
+                        }
                     }
                 }
             }
