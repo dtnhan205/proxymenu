@@ -26,6 +26,7 @@ struct RootView: View {
             case .unlocked:
                 ContentView()
                     .environmentObject(store)
+                    .environmentObject(appState)
                     .transition(.opacity)
             case .checking:
                 checkingView

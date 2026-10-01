@@ -1398,6 +1398,7 @@ struct ESPColorPickerPopup: View {
 struct ContentView: View {
     @StateObject private var cheatState = CheatMenuState.shared
     @ObservedObject private var licenseStore = LicenseStore.shared
+    @EnvironmentObject private var appState: AppState
 
     @State private var selectedTab: CheatTab = .aim
     @State private var isInjecting: Bool = false
@@ -1608,6 +1609,58 @@ struct ContentView: View {
             }
 
             Spacer(minLength: 4)
+
+            // Dynamic Engine Badge (Kernel Exploit / MHA-C2)
+            Button {
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
+                if appState.kernelExploitApplicable && !appState.kernelExploitRunning && !appState.exploitStatus.isSuccess {
+                    appState.runKernelExploitIfNeeded()
+                    showToast("Đang kích hoạt Kernel Exploit...")
+                } else if appState.exploitStatus.isSuccess {
+                    showToast("Kernel Exploit: R/W Active")
+                } else {
+                    showToast("Chế độ: MHA-C2 Active")
+                }
+            } label: {
+                HStack(spacing: 3.5) {
+                    if appState.kernelExploitRunning {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: CyberTheme.mechaGold))
+                            .scaleEffect(0.5)
+                        Text("KEXP...")
+                            .font(.system(size: 8.5, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.mechaGold)
+                    } else if appState.exploitStatus.isSuccess {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 7.5, weight: .bold))
+                            .foregroundColor(CyberTheme.matrixGreen)
+                        Text("KEXPLOIT")
+                            .font(.system(size: 8.5, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.matrixGreen)
+                    } else {
+                        Image(systemName: "shield.checkered")
+                            .font(.system(size: 7.5, weight: .bold))
+                            .foregroundColor(CyberTheme.cyberCyan)
+                        Text("MHA-C2")
+                            .font(.system(size: 8.5, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.cyberCyan)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3.5)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().strokeBorder(
+                        appState.kernelExploitRunning ? CyberTheme.mechaGold.opacity(0.5) :
+                        (appState.exploitStatus.isSuccess ? CyberTheme.matrixGreen.opacity(0.5) : CyberTheme.cyberCyan.opacity(0.5)),
+                        lineWidth: 0.8
+                    )
+                )
+            }
+            .buttonStyle(.plain)
+            .fixedSize()
 
             // Status Indicator Dot & Badge
             HStack(spacing: 4) {
@@ -3027,15 +3080,26 @@ struct ContentView: View {
                 SettingsInfoRow(
                     icon: "lock.open.trianglebadge.exclamationmark.fill",
                     label: "Kernel Exploit",
-                    value: "KFD / Opa334 Sẵn Sàng",
+                    value: kernelExploitStatusTitle,
+                    valueColor: kernelExploitStatusColor,
+                    copyAction: (appState.kernelExploitApplicable && !appState.kernelExploitRunning && !appState.exploitStatus.isSuccess) ? {
+                        appState.runKernelExploitIfNeeded()
+                        showToast("Bắt đầu chạy Kernel Exploit...")
+                    } : nil
+                )
+                Divider().background(CyberTheme.divider)
+                SettingsInfoRow(
+                    icon: "shield.checkered",
+                    label: "MHA-C2 Engine",
+                    value: "🟢 MobileHouseArrest Active",
                     valueColor: CyberTheme.matrixGreen
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "folder.badge.gearshape",
-                    label: "Quyền Sandbox",
-                    value: "Container Documents R/W Active",
-                    valueColor: CyberTheme.matrixGreen
+                    label: "Cơ Chế Can Thiệp",
+                    value: appState.exploitStatus.isSuccess ? "Bundle + Data Sandbox Escape" : "MHA-C2 Documents Injection",
+                    valueColor: CyberTheme.cyberCyan
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
@@ -3099,6 +3163,22 @@ struct ContentView: View {
     // MARK: - Actions
     private func handleInjectCheat() {
         guard !isInjecting else { return }
+
+        // Block if Kernel Exploit is actively executing to avoid race condition/crash
+        if appState.kernelExploitRunning {
+            injectionAlertText = "⏳ Hệ thống đang chạy Kernel Exploit ngầm, vui lòng đợi giây lát rồi thử lại..."
+            showInjectionAlert = true
+            return
+        }
+
+        // Auto trigger Kernel Exploit if applicable and not yet tried
+        if appState.kernelExploitApplicable && !appState.exploitStatus.isSuccess && !appState.exploitStatus.isFailed {
+            appState.runKernelExploitIfNeeded()
+            injectionAlertText = "⚡ Đang kích hoạt quyền hệ thống (Kernel Exploit). Vui lòng thử lại sau vài giây..."
+            showInjectionAlert = true
+            return
+        }
+
         isInjecting = true
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
@@ -3173,6 +3253,34 @@ struct ContentView: View {
             patch: v.patch,
             build: AppInfo.osBuild
         )
+    }
+
+    private var kernelExploitStatusTitle: String {
+        if appState.kernelExploitRunning {
+            return "Đang chạy ngầm..."
+        } else if appState.exploitStatus.isSuccess {
+            return "⚡ Hoạt Động (Kernel R/W)"
+        } else if case .failed = appState.exploitStatus {
+            return "Thất bại (-1) → Đã chuyển MHA-C2"
+        } else if appState.kernelExploitApplicable {
+            return "Chưa kích hoạt (Nhấn để chạy)"
+        } else {
+            return "Không áp dụng (Dùng MHA-C2)"
+        }
+    }
+
+    private var kernelExploitStatusColor: Color {
+        if appState.kernelExploitRunning {
+            return CyberTheme.mechaGold
+        } else if appState.exploitStatus.isSuccess {
+            return CyberTheme.matrixGreen
+        } else if case .failed = appState.exploitStatus {
+            return CyberTheme.cyberCyan
+        } else if appState.kernelExploitApplicable {
+            return CyberTheme.mechaGold
+        } else {
+            return CyberTheme.textMuted
+        }
     }
 
     private func logColor(for text: String) -> Color {

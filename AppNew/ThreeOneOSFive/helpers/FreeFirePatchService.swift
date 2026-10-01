@@ -30,34 +30,61 @@ enum FreeFirePatchService {
         }
     }
 
-    /// Fast cached container path resolver to prevent freezing main thread during slider drag
-    static func getOrResolveContainerPath(bundleID: String) -> String? {
-        if let cached = cachedContainerPaths[bundleID] {
-            return cached.isEmpty ? nil : cached
-        }
-        let udKey = "cheat.cachedContainerPath." + bundleID
-        if let saved = UserDefaults.standard.string(forKey: udKey), !saved.isEmpty {
-            cachedContainerPaths[bundleID] = saved
-            return saved
-        }
-        if let resolved = ContainerStore.resolveAppContainerPath(bundleID: bundleID) {
-            cachedContainerPaths[bundleID] = resolved
-            UserDefaults.standard.set(resolved, forKey: udKey)
-            return resolved
-        } else {
-            // Negative caching for session to avoid repeating slow IPC lookup
-            cachedContainerPaths[bundleID] = ""
+    /// Scan /var/containers/Bundle/Application/ for FreeFire.app / FreeFireMAX.app
+    /// Succeeds when Sandbox Escape (Kernel Exploit) is active.
+    static func findBundleAppURL(target: FreeFireTarget) -> URL? {
+        let bundleBase = "/var/containers/Bundle/Application"
+        guard let bundleUUIDs = try? FileManager.default.contentsOfDirectory(atPath: bundleBase) else {
             return nil
         }
+        for uuid in bundleUUIDs {
+            let bundleDir = "\(bundleBase)/\(uuid)"
+            guard let contents = try? FileManager.default.contentsOfDirectory(atPath: bundleDir) else { continue }
+            for item in contents where item.hasSuffix(".app") {
+                let appPath = "\(bundleDir)/\(item)"
+                let infoPlist = "\(appPath)/Info.plist"
+                if let plistData = FileManager.default.contents(atPath: infoPlist),
+                   let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+                   let bid = plist["CFBundleIdentifier"] as? String,
+                   bid == target.rawValue {
+                    return URL(fileURLWithPath: appPath, isDirectory: true)
+                }
+            }
+        }
+        return nil
     }
 
-    /// Check if Assembly-CSharp-patch.bytes is injected in the specified game container
-    static func isInjected(target: FreeFireTarget = selectedTarget) -> Bool {
-        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) else {
-            return false
+    /// Container path resolver using MHA-C2 with fallback to Kernel Exploit metadata scan
+    static func getOrResolveContainerPath(bundleID: String) -> String? {
+        if let cached = cachedContainerPaths[bundleID], !cached.isEmpty {
+            if FileManager.default.fileExists(atPath: cached) {
+                return cached
+            }
+            cachedContainerPaths.removeValue(forKey: bundleID)
         }
-        let altPath = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents/Assembly-CSharp-patch.bytes").path
-        return FileManager.default.fileExists(atPath: altPath)
+        if let resolved = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
+           ContainerStore.isApplicationContainerPath(resolved) {
+            cachedContainerPaths[bundleID] = resolved
+            return resolved
+        }
+        return nil
+    }
+
+    /// Check if Assembly-CSharp-patch.bytes is injected in the specified game container (Data or Bundle)
+    static func isInjected(target: FreeFireTarget = selectedTarget) -> Bool {
+        if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) {
+            let altPath = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents/Assembly-CSharp-patch.bytes").path
+            if FileManager.default.fileExists(atPath: altPath) {
+                return true
+            }
+        }
+        if let appURL = findBundleAppURL(target: target) {
+            let p = appURL.appendingPathComponent("Data/Raw/Assembly-CSharp-patch.bytes").path
+            if FileManager.default.fileExists(atPath: p) {
+                return true
+            }
+        }
+        return false
     }
 
     /// Load patch data: first checks in-memory embedded decrypted bytes (anti-rip),
@@ -170,10 +197,25 @@ enum FreeFirePatchService {
         }
 
         let encryptedData = encryptConfigData(jsonData)
-
         var syncedTargets: [String] = []
 
-        // Multi-channel 2: Direct file writes to all discovered container locations
+        // Multi-tier 0: BUNDLE container (Kernel Exploit - Highest Priority)
+        for t in FreeFireTarget.allCases {
+            if let appURL = findBundleAppURL(target: t) {
+                let dataRaw = appURL.appendingPathComponent("Data/Raw/menu_config.json")
+                let dataDir = appURL.appendingPathComponent("Data/menu_config.json")
+                let appRoot = appURL.appendingPathComponent("menu_config.json")
+                for u in [dataRaw, dataDir, appRoot] {
+                    let folder = u.deletingLastPathComponent()
+                    if !FileManager.default.fileExists(atPath: folder.path) {
+                        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    }
+                    try? encryptedData.write(to: u, options: .atomic)
+                }
+            }
+        }
+
+        // Multi-tier 1: DATA container Documents, Caches, tmp (MHA-C2)
         for t in FreeFireTarget.allCases {
             guard let containerPath = getOrResolveContainerPath(bundleID: t.rawValue) else { continue }
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
@@ -181,28 +223,34 @@ enum FreeFirePatchService {
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
             let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
-            let targetDirs = [docsURL, cachesURL, tmpURL]
-            for dir in targetDirs {
+            for dir in [docsURL, cachesURL, tmpURL] {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let cfgFile = dir.appendingPathComponent("menu_config.json")
-                try? encryptedData.write(to: cfgFile)
+                try? encryptedData.write(to: cfgFile, options: .atomic)
             }
             syncedTargets.append(t.displayName)
         }
 
-        // Multi-channel 3: Shared / Downloads locations
+        // Multi-tier 2: App Group (group.com.proxyvip.shared)
+        if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
+            let agCfg = agURL.appendingPathComponent("menu_config.json")
+            try? encryptedData.write(to: agCfg, options: .atomic)
+        }
+
+        // Multi-tier 3: Shared / Downloads locations
         let commonPaths = [
             "/var/mobile/Downloads/menu_config.json",
             "/tmp/menu_config.json",
             "/private/var/tmp/menu_config.json"
         ]
         for p in commonPaths {
-            try? encryptedData.write(to: URL(fileURLWithPath: p))
+            try? encryptedData.write(to: URL(fileURLWithPath: p), options: .atomic)
         }
 
+        // Multi-tier 4: Proxy Documents
         if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let proxyCfg = proxyDocs.appendingPathComponent("menu_config.json")
-            try? encryptedData.write(to: proxyCfg)
+            try? encryptedData.write(to: proxyCfg, options: .atomic)
         }
 
         if forceLog {
@@ -223,7 +271,7 @@ enum FreeFirePatchService {
         return EmbeddedPatchData.loadLocalConfigBytes()
     }
 
-    /// Inject patch file and initial config into the selected game
+    /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
         guard let patchData = loadPatchData(), !patchData.isEmpty else {
             AppLog.shared.append("[INJECT] ❌ Không thể giải mã dữ liệu patch từ bộ nhớ nhị phân!")
@@ -234,9 +282,80 @@ enum FreeFirePatchService {
             )
         }
 
-        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue),
-              ContainerStore.isApplicationContainerPath(containerPath) else {
-            AppLog.shared.append("[INJECT] ❌ Không tìm thấy container của \(target.displayName)")
+        let localData = localConfigSourceData()
+        let payload = makeConfigPayload(state: CheatMenuState.shared)
+        let jsonData = (try? JSONSerialization.data(withJSONObject: payload, options: [])) ?? Data()
+        let encryptedConfig = encryptConfigData(jsonData)
+
+        var didInjectAny = false
+
+        // --- TIER 0: BUNDLE CONTAINER (Kernel Exploit - Highest Priority) ---
+        if let appURL = findBundleAppURL(target: target) {
+            let dataRawURL = appURL.appendingPathComponent("Data/Raw", isDirectory: true)
+            let dataURL = appURL.appendingPathComponent("Data", isDirectory: true)
+
+            for dir in [dataRawURL, dataURL, appURL] {
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let patchURL = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
+                let cfgURL = dir.appendingPathComponent("menu_config.json")
+                let localURL = dir.appendingPathComponent("localConfig.json")
+
+                if (try? patchData.write(to: patchURL, options: .atomic)) != nil {
+                    didInjectAny = true
+                }
+                try? encryptedConfig.write(to: cfgURL, options: .atomic)
+                try? localData.write(to: localURL, options: .atomic)
+            }
+            AppLog.shared.append("[INJECT] ⚡ Kernel Exploit: Đã ghi module vào Bundle Container (\(appURL.lastPathComponent)/Data/Raw)")
+        }
+
+        // --- TIER 1: DATA CONTAINER (MHA-C2 - ContainerStore) ---
+        if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue),
+           ContainerStore.isApplicationContainerPath(containerPath) {
+            let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+            let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
+            let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
+
+            for dir in [docsURL, cachesURL, tmpURL] {
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let patchFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
+                let cfgFile = dir.appendingPathComponent("menu_config.json")
+                let localFile = dir.appendingPathComponent("localConfig.json")
+
+                if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
+                    didInjectAny = true
+                }
+                try? encryptedConfig.write(to: cfgFile, options: .atomic)
+                try? localData.write(to: localFile, options: .atomic)
+            }
+            AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents/ (\(target.displayName))")
+        }
+
+        // --- TIER 2: APP GROUP (group.com.proxyvip.shared) ---
+        if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
+            try? patchData.write(to: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
+            try? encryptedConfig.write(to: agURL.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? localData.write(to: agURL.appendingPathComponent("localConfig.json"), options: .atomic)
+        }
+
+        // --- TIER 3: DOWNLOADS (/var/mobile/Downloads/) ---
+        let dlPatch = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
+        let dlCfg = URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json")
+        let dlLocal = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
+        try? patchData.write(to: dlPatch, options: .atomic)
+        try? encryptedConfig.write(to: dlCfg, options: .atomic)
+        try? localData.write(to: dlLocal, options: .atomic)
+
+        // --- TIER 4: PROXY DOCUMENTS ---
+        if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? patchData.write(to: proxyDocs.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
+            try? encryptedConfig.write(to: proxyDocs.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? localData.write(to: proxyDocs.appendingPathComponent("localConfig.json"), options: .atomic)
+        }
+
+        guard didInjectAny else {
+            AppLog.shared.append("[INJECT] ❌ Không thể can thiệp container của \(target.displayName) qua cả MHA-C2 và Kernel Exploit")
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 404,
@@ -244,65 +363,65 @@ enum FreeFirePatchService {
             )
         }
 
-        let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
-        let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-
-        try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
-
-        // 1. Write Assembly-CSharp-patch.bytes directly into Documents/
-        let targetPatch = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
-        try patchData.write(to: targetPatch)
-
-        // 2. Write localConfig.json directly into Documents/ (enables IFix testCodePatch)
-        let localData = localConfigSourceData()
-        let targetLocal = docsURL.appendingPathComponent("localConfig.json")
-        try? localData.write(to: targetLocal)
-
-        // 3. Write menu_config.json
-        syncConfig(target: target, forceLog: true)
-
-        AppLog.shared.append("[INJECT] ✅ Đã Inject thành công (Assembly-CSharp-patch.bytes & localConfig.json) vào \(target.displayName)")
+        AppLog.shared.append("[INJECT] ✅ Hoàn tất nạp module cheat vào \(target.displayName)")
     }
 
-    /// Uninject: delete the patch bytes and config from game container
+    /// Uninject: delete the patch bytes and config from all tiers
     static func uninject(target: FreeFireTarget = selectedTarget) {
-        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) else {
-            AppLog.shared.append("[UNINJECT] ⚠️ Không tìm thấy container \(target.displayName)")
-            return
-        }
-
-        let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
-        let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-
-        let pathsToDelete = [
-            docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
-            docsURL.appendingPathComponent("menu_config.json"),
-            docsURL.appendingPathComponent("localConfig.json")
-        ]
-
-        for p in pathsToDelete {
-            if FileManager.default.fileExists(atPath: p.path) {
-                try? FileManager.default.removeItem(at: p)
+        // Tier 0: Bundle Container
+        if let appURL = findBundleAppURL(target: target) {
+            let files = [
+                appURL.appendingPathComponent("Data/Raw/Assembly-CSharp-patch.bytes"),
+                appURL.appendingPathComponent("Data/Raw/menu_config.json"),
+                appURL.appendingPathComponent("Data/Raw/localConfig.json"),
+                appURL.appendingPathComponent("Data/Assembly-CSharp-patch.bytes"),
+                appURL.appendingPathComponent("Data/menu_config.json"),
+                appURL.appendingPathComponent("Data/localConfig.json"),
+                appURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
+                appURL.appendingPathComponent("menu_config.json"),
+                appURL.appendingPathComponent("localConfig.json")
+            ]
+            for f in files {
+                try? FileManager.default.removeItem(at: f)
             }
         }
 
-        // Also clean up any legacy IFix folder/files if they existed
-        let ifixURL = docsURL.appendingPathComponent("IFix", isDirectory: true)
-        try? FileManager.default.removeItem(at: ifixURL.appendingPathComponent("Assembly-CSharp-patch.bytes"))
-        try? FileManager.default.removeItem(at: ifixURL.appendingPathComponent("localConfig.json"))
-        try? FileManager.default.removeItem(at: ifixURL)
-
-        // Also clean up download config
-        let dlFiles = [
-            URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json"),
-            URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
-        ]
-        for dl in dlFiles {
-            if FileManager.default.fileExists(atPath: dl.path) {
-                try? FileManager.default.removeItem(at: dl)
+        // Tier 1: Data Container Documents, Caches, tmp
+        if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) {
+            let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+            let dirs = [
+                containerURL.appendingPathComponent("Documents", isDirectory: true),
+                containerURL.appendingPathComponent("Library/Caches", isDirectory: true),
+                containerURL.appendingPathComponent("tmp", isDirectory: true)
+            ]
+            for dir in dirs {
+                let pathsToDelete = [
+                    dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
+                    dir.appendingPathComponent("menu_config.json"),
+                    dir.appendingPathComponent("localConfig.json")
+                ]
+                for p in pathsToDelete {
+                    try? FileManager.default.removeItem(at: p)
+                }
             }
+
+            // Clean legacy IFix if exists
+            let ifixURL = containerURL.appendingPathComponent("Documents/IFix", isDirectory: true)
+            try? FileManager.default.removeItem(at: ifixURL)
         }
 
-        AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & localConfig.json khỏi \(target.displayName)")
+        // Tier 2: App Group
+        if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
+            try? FileManager.default.removeItem(at: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"))
+            try? FileManager.default.removeItem(at: agURL.appendingPathComponent("menu_config.json"))
+            try? FileManager.default.removeItem(at: agURL.appendingPathComponent("localConfig.json"))
+        }
+
+        // Tier 3: Downloads
+        for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json"] {
+            try? FileManager.default.removeItem(atPath: "/var/mobile/Downloads/\(f)")
+        }
+
+        AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config khỏi \(target.displayName)")
     }
 }
