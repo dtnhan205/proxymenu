@@ -1,22 +1,25 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Cheat Tab Enum (Menu & Settings)
+// MARK: - Cheat Tab Enum (AIM, ESP, MISC)
 enum CheatTab: Int, CaseIterable {
-    case menu = 0
-    case settings = 1
+    case aim = 0
+    case esp = 1
+    case misc = 2
 
     var title: String {
         switch self {
-        case .menu: return "MENU"
-        case .settings: return "SETTINGS"
+        case .aim: return "AIM"
+        case .esp: return "ESP"
+        case .misc: return "MISC"
         }
     }
 
     var icon: String {
         switch self {
-        case .menu: return "house.fill"
-        case .settings: return "gearshape.fill"
+        case .aim: return "scope"
+        case .esp: return "eye.fill"
+        case .misc: return "slider.horizontal.3"
         }
     }
 }
@@ -55,7 +58,6 @@ enum ESPColorTarget: Int, CaseIterable, Identifiable {
     case all = 0
     case box = 1
     case line = 2
-    case skeleton = 3
 
     var id: Int { rawValue }
 
@@ -64,7 +66,6 @@ enum ESPColorTarget: Int, CaseIterable, Identifiable {
         case .all: return "Tất Cả"
         case .box: return "Khung Box"
         case .line: return "Tia Line"
-        case .skeleton: return "Khung Xương"
         }
     }
 
@@ -73,7 +74,6 @@ enum ESPColorTarget: Int, CaseIterable, Identifiable {
         case .all: return "paintpalette.fill"
         case .box: return "shippingbox.fill"
         case .line: return "line.diagonal"
-        case .skeleton: return "figure.stand"
         }
     }
 }
@@ -323,7 +323,6 @@ final class CheatMenuState: ObservableObject {
         case .all: return espSelectedColorId
         case .box: return boxColorId
         case .line: return lineColorId
-        case .skeleton: return skeletonColorId
         }
     }
 
@@ -333,7 +332,6 @@ final class CheatMenuState: ObservableObject {
             espSelectedColorId = id
             boxColorId = id
             lineColorId = id
-            skeletonColorId = id
             AppLog.shared.append("[ESP] Đổi màu toàn bộ: \(getColor(for: id).name)")
         case .box:
             boxColorId = id
@@ -341,9 +339,6 @@ final class CheatMenuState: ObservableObject {
         case .line:
             lineColorId = id
             AppLog.shared.append("[ESP] Đổi màu Tia Line: \(getColor(for: id).name)")
-        case .skeleton:
-            skeletonColorId = id
-            AppLog.shared.append("[ESP] Đổi màu Khung Xương: \(getColor(for: id).name)")
         }
     }
 
@@ -899,7 +894,7 @@ struct ContentView: View {
     @ObservedObject private var licenseStore = LicenseStore.shared
     @ObservedObject private var appLog = AppLog.shared
 
-    @State private var selectedTab: CheatTab = .menu
+    @State private var selectedTab: CheatTab = .aim
     @State private var isInjecting: Bool = false
     @State private var isInjected: Bool = FreeFirePatchService.isInjected()
     @State private var selectedTarget: FreeFireTarget = FreeFirePatchService.selectedTarget
@@ -908,7 +903,6 @@ struct ContentView: View {
     @State private var toastMessage: String? = nil
     @State private var showFullKey: Bool = false
     @State private var showLogModal: Bool = false
-    @State private var showAdvancedESP: Bool = false
     @State private var selectedColorTarget: ESPColorTarget = .all
     @State private var showColorPickerPopup: Bool = false
 
@@ -963,35 +957,34 @@ struct ContentView: View {
                 // Top Header Bar
                 topHeaderBar
 
-                // Segmented Tab Switcher [ MENU | SETTINGS ]
+                // Segmented Tab Switcher [ AIM | ESP | MISC ]
                 topTabBar
                     .padding(.top, 8)
                     .padding(.bottom, 8)
 
-                if selectedTab == .menu {
-                    // Game Target Selector (Side-by-side cards)
-                    gameTargetSelector
-                }
+                // Game Target Selector (Side-by-side cards)
+                gameTargetSelector
 
                 // Tab Content Views
-                if selectedTab == .menu {
-                    menuContent
-                } else {
-                    settingsContent
+                switch selectedTab {
+                case .aim:
+                    aimTabContent
+                case .esp:
+                    espTabContent
+                case .misc:
+                    miscTabContent
                 }
             }
             .frame(maxWidth: 414)
             .frame(maxWidth: .infinity, alignment: .center)
 
-            // Floating Action HUD (Only in Menu Tab)
-            if selectedTab == .menu {
-                VStack {
-                    Spacer()
-                    bottomActionBar
-                }
-                .frame(maxWidth: .infinity)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
+            // Floating Action HUD (Visible across all tabs)
+            VStack {
+                Spacer()
+                bottomActionBar
             }
+            .frame(maxWidth: .infinity)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
 
             // Quick Toast Notification
             if let msg = toastMessage {
@@ -1129,7 +1122,7 @@ struct ContentView: View {
         .padding(.top, 6)
     }
 
-    // MARK: - Top Tab Switcher [ MENU | SETTINGS ]
+    // MARK: - Top Tab Switcher [ AIM | ESP | MISC ]
     private var topTabBar: some View {
         HStack(spacing: 6) {
             ForEach(CheatTab.allCases, id: \.self) { tab in
@@ -1285,24 +1278,30 @@ struct ContentView: View {
         .padding(.bottom, 6)
     }
 
-    // MARK: - Menu Tab Content
-    private var menuContent: some View {
+    // MARK: - AIM Tab Content
+    private var aimTabContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 // AIM PROTOCOL Section
                 aimingSection
 
+                // Extra Bottom Padding for floating HUD
+                Spacer().frame(height: 120)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+        }
+    }
+
+    // MARK: - ESP Tab Content
+    private var espTabContent: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 18) {
                 // ESP MATRIX Section
                 espSection
 
-                // COMBAT MODS Section (Buff Damage, Fast Fire, No Recoil, Fast Medkit)
-                combatSection
-
-                // SURVIVAL & MOVEMENT Section (Cam Xa + Slider, Speed Run, Fast Parachute)
-                movementSection
-
                 // Extra Bottom Padding for floating HUD
-                Spacer().frame(height: 110)
+                Spacer().frame(height: 120)
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
@@ -1419,8 +1418,8 @@ struct ContentView: View {
             }
             .animation(.spring(response: 0.28, dampingFraction: 0.8), value: cheatState.aimSilent)
 
-            // Card 2: Aim Bot & Target Selection (Neck / Head) + Aim Line
-            CyberCard(glowColor: (cheatState.aimBot || cheatState.aimLine) ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
+            // Card 2: Aim Bot & Target Selection (Neck / Head)
+            CyberCard(glowColor: cheatState.aimBot ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
                 // Aim Bot Row
                 CyberRowView(
                     iconName: "target",
@@ -1526,17 +1525,6 @@ struct ContentView: View {
                     .padding(.bottom, 6)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-
-                Divider().background(CyberTheme.divider)
-
-                // Aim Line Row
-                CyberRowView(
-                    iconName: "pencil.line",
-                    title: "Aim Line (Tia Dẫn Tâm)",
-                    subtitle: "Vạch định vị từ nòng súng đến kẻ địch",
-                    isOn: $cheatState.aimLine,
-                    activeColor: CyberTheme.crimsonNeon
-                )
             }
         }
     }
@@ -1551,7 +1539,7 @@ struct ContentView: View {
                 accentColor: CyberTheme.cyberCyan
             )
 
-            // Card 1: Main ESP Features
+            // Card 1: Main ESP Features (Box, Line, Thanh Máu, Name, Khoảng Cách)
             CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.12)) {
                 // Box ESP (With active color dot)
                 CyberRowView(
@@ -1581,101 +1569,35 @@ struct ContentView: View {
                 CyberRowView(
                     iconName: "cross.case.fill",
                     title: "Thanh Máu (Health Bar)",
-                    subtitle: "Hiển thị máu đối thủ",
+                    subtitle: "Hiển thị lượng máu đối thủ",
                     isOn: $cheatState.healthBar,
                     activeColor: CyberTheme.cyberCyan
                 )
 
                 Divider().background(CyberTheme.divider)
 
-                // Advanced ESP Expandable Toggle
-                Button {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                        showAdvancedESP.toggle()
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(CyberTheme.cyberCyan)
+                // Name Tag
+                CyberRowView(
+                    iconName: "tag.fill",
+                    title: "Tên Kẻ Địch (Name Tag)",
+                    subtitle: "Nhận diện nickname của mục tiêu",
+                    isOn: $cheatState.nameTag,
+                    activeColor: CyberTheme.cyberCyan
+                )
 
-                        Text("Tùy Chọn ESP Mở Rộng")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(Color.white)
+                Divider().background(CyberTheme.divider)
 
-                        Spacer()
-
-                        Image(systemName: showAdvancedESP ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(CyberTheme.textMuted)
-                    }
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
-
-                if showAdvancedESP {
-                    VStack(spacing: 8) {
-                        Divider().background(CyberTheme.divider)
-
-                        // Name Tag
-                        CyberRowView(
-                            iconName: "tag.fill",
-                            title: "Tên Kẻ Địch (Name Tag)",
-                            subtitle: "Nhận diện nickname của mục tiêu",
-                            isOn: $cheatState.nameTag,
-                            activeColor: CyberTheme.cyberCyan
-                        )
-
-                        Divider().background(CyberTheme.divider)
-
-                        // Distance Tag
-                        CyberRowView(
-                            iconName: "ruler.fill",
-                            title: "Khoảng Cách (Distance Tag)",
-                            subtitle: "Đo cự ly chính xác theo mét",
-                            isOn: $cheatState.distanceTag,
-                            activeColor: CyberTheme.mechaGold
-                        )
-
-                        Divider().background(CyberTheme.divider)
-
-                        // Skeleton ESP (With active color dot)
-                        CyberRowView(
-                            iconName: "figure.stand",
-                            title: "Khung Xương (Skeleton ESP)",
-                            subtitle: "Mô phỏng khớp xương & cử động",
-                            isOn: $cheatState.skeletonESP,
-                            activeColor: cheatState.getColor(for: cheatState.skeletonColorId).color,
-                            tagColor: cheatState.getColor(for: cheatState.skeletonColorId).color
-                        )
-
-                        Divider().background(CyberTheme.divider)
-
-                        // ESP Count
-                        CyberRowView(
-                            iconName: "number",
-                            title: "Đếm Số Lượng Địch (ESP Count)",
-                            subtitle: "Cảnh báo số lượng quân địch trong 250m",
-                            isOn: $cheatState.espCount,
-                            activeColor: CyberTheme.mechaGold
-                        )
-
-                        Divider().background(CyberTheme.divider)
-
-                        // 360 Alert
-                        CyberRowView(
-                            iconName: "exclamationmark.triangle.fill",
-                            title: "Cảnh Báo Địch Sau Lưng (360° Alert)",
-                            subtitle: "Radar cảnh báo nguy hiểm xung quanh",
-                            isOn: $cheatState.espAlert,
-                            activeColor: CyberTheme.crimsonNeon
-                        )
-                    }
-                    .padding(.top, 4)
-                }
+                // Distance Tag
+                CyberRowView(
+                    iconName: "ruler.fill",
+                    title: "Khoảng Cách (Distance Tag)",
+                    subtitle: "Đo cự ly chính xác theo mét",
+                    isOn: $cheatState.distanceTag,
+                    activeColor: CyberTheme.mechaGold
+                )
             }
 
-            // Card 2: Dedicated Rich Color Matrix Customizer (Box, Line, Skeleton, All)
+            // Card 2: Dedicated Rich Color Matrix Customizer (Box, Line, All)
             CyberCard(glowColor: cheatState.getColor(for: cheatState.getColorId(for: selectedColorTarget)).color.opacity(0.15)) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
@@ -2131,26 +2053,33 @@ struct ContentView: View {
         )
     }
 
-    // MARK: - SETTINGS Tab Content
-    private var settingsContent: some View {
+    // MARK: - MISC Tab Content (Combat, Movement, Settings & Utilities)
+    private var miscTabContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
-                // Card 1: App Info & Engine Core
-                appCoreCard
+                // 1. COMBAT MODS (Buff Damage, Fast Fire, No Recoil, Fast Medkit)
+                combatSection
 
-                // Card 2: License Key & Remaining Expiration
+                // 2. SURVIVAL & MOVEMENT (Cam Xa + Slider, Speed Run, Fast Parachute)
+                movementSection
+
+                // 3. GIẤY PHÉP & BẢN QUYỀN
                 licenseSettingsCard
 
-                // Card 3: Device Hardware & Model Specs
-                deviceHardwareCard
-
-                // Card 4: Compatibility & Kernel Status
-                systemCompatibilityCard
-
-                // Card 5: Utilities & Log Terminal Action
+                // 4. TIỆN ÍCH & NHẬT KÝ
                 utilitiesCard
 
-                Spacer().frame(height: 40)
+                // 5. THÔNG TIN ỨNG DỤNG
+                appCoreCard
+
+                // 6. THÔNG TIN THIẾT BỊ
+                deviceHardwareCard
+
+                // 7. KHẢ NĂNG HỖ TRỢ & HỆ THỐNG
+                systemCompatibilityCard
+
+                // Extra Bottom Padding for floating HUD
+                Spacer().frame(height: 120)
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
