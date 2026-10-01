@@ -387,7 +387,7 @@ namespace ProjectEspPatch
                             int packedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
                             self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, -AuxStateMarker - (float)packedAux);
 
-                            if (nFov >= 30 && nFov <= 400)
+                            if (nFov >= 30 && nFov <= 500)
                             {
                                 driverPos.z = (float)nFov;
                                 driverObject.transform.position = driverPos;

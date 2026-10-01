@@ -456,6 +456,7 @@ struct CyberCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             content()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(15)
         .background(
             ZStack {
@@ -488,6 +489,8 @@ struct CyberCard<Content: View>: View {
                     )
             }
         )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .clipped()
         .shadow(color: Color.black.opacity(0.55), radius: 8, x: 0, y: 4)
         .shadow(color: glowColor, radius: 10, x: 0, y: 0)
     }
@@ -516,12 +519,16 @@ struct CyberSectionHeader: View {
                     .font(.system(size: 13, weight: .heavy, design: .monospaced))
                     .foregroundColor(.white)
                     .tracking(1.2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(subtitle)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(CyberTheme.textMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             // Futuristic Waveform Bars
             HStack(spacing: 3) {
@@ -631,6 +638,8 @@ struct CyberRowView: View {
                     Text(title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
                     if let tColor = tagColor, isOn {
                         Circle()
@@ -644,9 +653,11 @@ struct CyberRowView: View {
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(CyberTheme.textMuted)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             // Custom 3D Toggle
             Toggle("", isOn: $isOn)
@@ -908,10 +919,12 @@ struct ContentView: View {
             CyberTheme.bgVoid
                 .ignoresSafeArea()
 
-            // 2. High-Tech Cyber Wallpaper (Clean, no Naruto/anime)
+            // 2. High-Tech Cyber Wallpaper (Clamped & Clipped to screen bounds)
             Image("Background")
                 .resizable()
                 .scaledToFill()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
                 .ignoresSafeArea()
                 .opacity(0.85)
 
@@ -941,6 +954,8 @@ struct ContentView: View {
                     Spacer()
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
             .ignoresSafeArea()
             .allowsHitTesting(false)
 
@@ -966,6 +981,7 @@ struct ContentView: View {
                     settingsContent
                 }
             }
+            .frame(maxWidth: .infinity)
 
             // Floating Action HUD (Only in Menu Tab)
             if selectedTab == .menu {
@@ -973,6 +989,7 @@ struct ContentView: View {
                     Spacer()
                     bottomActionBar
                 }
+                .frame(maxWidth: .infinity)
                 .ignoresSafeArea(.keyboard, edges: .bottom)
             }
 
@@ -995,10 +1012,13 @@ struct ContentView: View {
                     .shadow(color: Color.black.opacity(0.6), radius: 8)
                     .padding(.bottom, 95)
                 }
+                .frame(maxWidth: .infinity)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .zIndex(100)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
         .preferredColorScheme(.dark)
         .onAppear {
             isInjected = FreeFirePatchService.isInjected(target: selectedTarget)
@@ -1015,13 +1035,13 @@ struct ContentView: View {
 
     // MARK: - Top Header Bar (INNOVA CHEAT + PRO VIP + READY)
     private var topHeaderBar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             // Glowing Crosshair Emblem
             ZStack {
                 // Outer subtle glowing ring
                 Circle()
                     .strokeBorder(CyberTheme.crimsonNeon.opacity(0.6), lineWidth: 1.5)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 38, height: 38)
                     .shadow(color: CyberTheme.crimsonNeon.opacity(0.8), radius: 6)
 
                 // Inner gradient disc
@@ -1033,73 +1053,79 @@ struct ContentView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 32, height: 32)
+                    .frame(width: 30, height: 30)
                     .overlay(
                         Circle().strokeBorder(Color.white.opacity(0.3), lineWidth: 0.8)
                     )
 
                 Image(systemName: "scope")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundColor(.white)
             }
+            .fixedSize()
 
             // Title & Subtitle
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 0) {
-                    Text("INNOVA")
-                        .font(.system(size: 19, weight: .heavy, design: .monospaced))
+                    Text("INNOVA ")
+                        .font(.system(size: 17, weight: .heavy, design: .monospaced))
                         .foregroundColor(.white)
                         .tracking(1.0)
 
                     Text("CHEAT")
-                        .font(.system(size: 19, weight: .heavy, design: .monospaced))
+                        .font(.system(size: 17, weight: .heavy, design: .monospaced))
                         .foregroundColor(CyberTheme.crimsonNeon)
                         .tracking(1.0)
                         .shadow(color: CyberTheme.crimsonNeon.opacity(0.6), radius: 6)
                 }
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     // VIP Badge
-                    HStack(spacing: 3) {
+                    HStack(spacing: 2) {
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 7.5, weight: .bold))
+                            .font(.system(size: 7, weight: .bold))
                             .foregroundColor(CyberTheme.crimsonNeon)
                         Text("VIP PRO")
-                            .font(.system(size: 8.5, weight: .heavy, design: .monospaced))
+                            .font(.system(size: 8, weight: .heavy, design: .monospaced))
                             .foregroundColor(CyberTheme.crimsonNeon)
                     }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2.5)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
                     .background(CyberTheme.crimsonNeon.opacity(0.14))
                     .clipShape(Capsule())
                     .overlay(Capsule().strokeBorder(CyberTheme.crimsonNeon.opacity(0.3), lineWidth: 0.8))
 
-                    Text("INTERNAL ENGINE • FREE FIRE BYPASS")
-                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                    Text("INTERNAL ENGINE • BYPASS")
+                        .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
                         .foregroundColor(CyberTheme.textMuted)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
             // Status Indicator Dot & Badge
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Circle()
                     .fill(isInjected ? CyberTheme.matrixGreen : CyberTheme.matrixGreen)
-                    .frame(width: 7, height: 7)
+                    .frame(width: 6, height: 6)
                     .shadow(color: CyberTheme.matrixGreen.opacity(0.85), radius: 4)
 
                 Text(isInjected ? "INJECTED" : "READY")
-                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
                     .foregroundColor(isInjected ? CyberTheme.matrixGreen : CyberTheme.matrixGreen)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4.5)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
             .background(Color.white.opacity(0.06))
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8))
+            .fixedSize()
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
         .padding(.top, 6)
     }
@@ -1156,6 +1182,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(4)
         .background(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
@@ -1170,7 +1197,7 @@ struct ContentView: View {
 
     // MARK: - Game Target Selector (Side-by-side Cards)
     private var gameTargetSelector: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             ForEach(FreeFireTarget.allCases) { target in
                 let isSelected = (selectedTarget == target)
                 Button {
@@ -1180,7 +1207,7 @@ struct ContentView: View {
                     FreeFirePatchService.selectedTarget = target
                     isInjected = FreeFirePatchService.isInjected(target: target)
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: 8) {
                         // Flame badge
                         ZStack {
                             Circle()
@@ -1189,40 +1216,44 @@ struct ContentView: View {
                                     LinearGradient(colors: [CyberTheme.crimsonNeon, CyberTheme.crimsonDark], startPoint: .topLeading, endPoint: .bottomTrailing) :
                                     LinearGradient(colors: [Color.white.opacity(0.08), Color.white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing)
                                 )
-                                .frame(width: 32, height: 32)
+                                .frame(width: 28, height: 28)
                                 .shadow(color: isSelected ? CyberTheme.crimsonNeon.opacity(0.5) : Color.clear, radius: 4)
 
                             Image(systemName: "flame.fill")
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(isSelected ? .white : Color(white: 0.55))
                         }
+                        .fixedSize()
 
                         // Title & Subtitle
                         VStack(alignment: .leading, spacing: 2) {
                             Text(target.displayName)
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.system(size: 12.5, weight: .bold))
                                 .foregroundColor(.white)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.8)
 
-                            Text(target == .freeFireTH ? "Chế độ chơi chính" : "Tối ưu hiệu suất hơn")
-                                .font(.system(size: 10, weight: .medium))
+                            Text(target == .freeFireTH ? "Bản chính" : "Bản tối ưu")
+                                .font(.system(size: 9.5, weight: .medium))
                                 .foregroundColor(CyberTheme.textMuted)
                                 .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                         }
 
-                        Spacer()
+                        Spacer(minLength: 2)
 
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundColor(isSelected ? CyberTheme.crimsonNeon : CyberTheme.textMuted)
+                            .fixedSize()
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
+                    .frame(height: 50)
                     .background(
                         ZStack {
                             if isSelected {
-                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .fill(
                                         LinearGradient(
                                             colors: [
@@ -1234,15 +1265,15 @@ struct ContentView: View {
                                         )
                                     )
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                                             .strokeBorder(CyberTheme.crimsonNeon.opacity(0.85), lineWidth: 1)
                                     )
                                     .shadow(color: CyberTheme.crimsonNeon.opacity(0.30), radius: 6)
                             } else {
-                                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .fill(Color(red: 0.08, green: 0.08, blue: 0.10).opacity(0.85))
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
                                             .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                                     )
                             }
@@ -1252,13 +1283,14 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 16)
         .padding(.bottom, 6)
     }
 
     // MARK: - Menu Tab Content
     private var menuContent: some View {
-        ScrollView(showsIndicators: true) {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 // AIM PROTOCOL Section
                 aimingSection
@@ -1266,15 +1298,20 @@ struct ContentView: View {
                 // ESP MATRIX Section
                 espSection
 
-                // COMBAT MODS Section
+                // COMBAT MODS Section (Buff Damage, Fast Fire, No Recoil, Fast Medkit)
                 combatSection
 
+                // SURVIVAL & MOVEMENT Section (Cam Xa + Slider, Speed Run, Fast Parachute)
+                movementSection
+
                 // Extra Bottom Padding for floating HUD
-                Spacer().frame(height: 100)
+                Spacer().frame(height: 110)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - AIM PROTOCOL Section (With Neck & Head options when Aimbot is on)
@@ -1298,60 +1335,63 @@ struct ContentView: View {
                     activeColor: CyberTheme.crimsonNeon
                 )
 
-                // Sub-controls (Silent FOV & Headshot Rate)
-                VStack(spacing: 12) {
-                    // Silent FOV
-                    VStack(spacing: 4) {
-                        HStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .fill(CyberTheme.crimsonNeon.opacity(0.18))
-                                    .frame(width: 22, height: 22)
-                                Image(systemName: "scope")
-                                    .font(.system(size: 11, weight: .bold))
+                // Sub-controls (Silent FOV & Headshot Rate) — only when Aim Silent is enabled
+                if cheatState.aimSilent {
+                    VStack(spacing: 12) {
+                        // Silent FOV
+                        VStack(spacing: 4) {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .fill(CyberTheme.crimsonNeon.opacity(0.18))
+                                        .frame(width: 22, height: 22)
+                                    Image(systemName: "scope")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(CyberTheme.crimsonNeon)
+                                }
+
+                                Text("Góc Quét (Silent FOV)")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(CyberTheme.textSecondary)
+
+                                Spacer()
+
+                                Text("\(Int(cheatState.silentFOV))°")
+                                    .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.crimsonNeon)
                             }
-
-                            Text("Góc Quét (Silent FOV)")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(CyberTheme.textSecondary)
-
-                            Spacer()
-
-                            Text("\(Int(cheatState.silentFOV))°")
-                                .font(.system(size: 14, weight: .heavy, design: .monospaced))
-                                .foregroundColor(CyberTheme.crimsonNeon)
+                            CyberSlider(value: $cheatState.silentFOV, range: 30...500, step: 1, activeColor: CyberTheme.crimsonNeon)
                         }
-                        CyberSlider(value: $cheatState.silentFOV, range: 0...180, step: 1, activeColor: CyberTheme.crimsonNeon)
-                    }
 
-                    // Headshot Rate
-                    VStack(spacing: 4) {
-                        HStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .fill(CyberTheme.mechaGold.opacity(0.18))
-                                    .frame(width: 22, height: 22)
-                                Image(systemName: "target")
-                                    .font(.system(size: 11, weight: .bold))
+                        // Headshot Rate
+                        VStack(spacing: 4) {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .fill(CyberTheme.mechaGold.opacity(0.18))
+                                        .frame(width: 22, height: 22)
+                                    Image(systemName: "target")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(CyberTheme.mechaGold)
+                                }
+
+                                Text("Tỉ Lệ Trúng Đầu (Headshot)")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(CyberTheme.textSecondary)
+
+                                Spacer()
+
+                                Text("\(Int(cheatState.headshotRate))%")
+                                    .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.mechaGold)
                             }
-
-                            Text("Tỉ Lệ Trúng Đầu (Headshot)")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(CyberTheme.textSecondary)
-
-                            Spacer()
-
-                            Text("\(Int(cheatState.headshotRate))%")
-                                .font(.system(size: 14, weight: .heavy, design: .monospaced))
-                                .foregroundColor(CyberTheme.mechaGold)
+                            CyberSlider(value: $cheatState.headshotRate, range: 0...100, step: 1, activeColor: CyberTheme.mechaGold)
                         }
-                        CyberSlider(value: $cheatState.headshotRate, range: 0...100, step: 1, activeColor: CyberTheme.mechaGold)
                     }
+                    .padding(.top, 4)
+                    .padding(.bottom, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                .padding(.top, 4)
-                .padding(.bottom, 4)
             }
 
             // Card 2: Aim Bot & Target Selection (Neck / Head) + Aim Line
@@ -1402,21 +1442,26 @@ struct ContentView: View {
 
                                         VStack(alignment: .leading, spacing: 1) {
                                             Text(target.displayName)
-                                                .font(.system(size: 12.5, weight: isSelected ? .bold : .medium))
+                                                .font(.system(size: 12, weight: isSelected ? .bold : .medium))
                                                 .foregroundColor(isSelected ? .white : Color(white: 0.8))
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.8)
                                             Text(target.subtitle)
-                                                .font(.system(size: 9.5, weight: .regular))
+                                                .font(.system(size: 9, weight: .regular))
                                                 .foregroundColor(isSelected ? Color.white.opacity(0.85) : CyberTheme.textMuted)
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.75)
                                         }
-                                        Spacer()
+                                        Spacer(minLength: 2)
 
                                         if isSelected {
                                             Image(systemName: "checkmark.circle.fill")
-                                                .font(.system(size: 13, weight: .bold))
+                                                .font(.system(size: 12, weight: .bold))
                                                 .foregroundColor(.white)
                                         }
                                     }
-                                    .padding(.horizontal, 10)
+                                    .padding(.horizontal, 8)
+                                    .frame(maxWidth: .infinity)
                                     .frame(height: 42)
                                     .background(
                                         ZStack {
@@ -1626,7 +1671,7 @@ struct ContentView: View {
                     }
 
                     // Target Element Tabs [ Tất Cả | Khung Box | Tia Line | Khung Xương ]
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         ForEach(ESPColorTarget.allCases) { target in
                             let isSelected = (selectedColorTarget == target)
                             let currentTargetColor = cheatState.getColor(for: cheatState.getColorId(for: target)).color
@@ -1638,15 +1683,16 @@ struct ContentView: View {
                                     selectedColorTarget = target
                                 }
                             } label: {
-                                HStack(spacing: 4) {
+                                HStack(spacing: 3) {
                                     Circle()
                                         .fill(currentTargetColor)
-                                        .frame(width: 7, height: 7)
+                                        .frame(width: 6, height: 6)
                                         .shadow(color: currentTargetColor.opacity(0.8), radius: 2)
 
                                     Text(target.title)
-                                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                        .font(.system(size: 10.5, weight: isSelected ? .bold : .medium))
                                         .lineLimit(1)
+                                        .minimumScaleFactor(0.75)
                                 }
                                 .foregroundColor(isSelected ? .white : Color(white: 0.7))
                                 .frame(maxWidth: .infinity)
@@ -1749,24 +1795,35 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - COMBAT MODS Section
+    // MARK: - COMBAT MODS Section (Buff Damage, Fast Fire, No Recoil, Fast Medkit)
     private var combatSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
-                title: "COMBAT MODS",
-                subtitle: "Hỗ trợ giao tranh & tối ưu vũ khí",
+                title: "COMBAT & WEAPON MODS",
+                subtitle: "Tối ưu hóa vũ khí & gia tăng sát thương",
                 icon: "shield.righthalf.filled",
                 accentColor: CyberTheme.crimsonFlame
             )
 
-            CyberCard(glowColor: CyberTheme.crimsonFlame.opacity(0.10)) {
-                // Fast Medkit
+            CyberCard(glowColor: (cheatState.buffDamage || cheatState.fastFire || cheatState.noRecoil || cheatState.fastMedkit) ? CyberTheme.crimsonFlame.opacity(0.12) : Color.clear) {
+                // Buff Dame
                 CyberRowView(
-                    iconName: "cross.case.fill",
-                    title: "Bơm Máu Siêu Tốc (Fast Medkit)",
-                    subtitle: "Tăng tốc độ hồi phục sinh lực tức thì",
-                    isOn: $cheatState.fastMedkit,
-                    activeColor: CyberTheme.matrixGreen
+                    iconName: "flame.fill",
+                    title: "Tăng Sát Thương (Buff Dame)",
+                    subtitle: "Cường hóa chỉ số dame khi bắn trúng",
+                    isOn: $cheatState.buffDamage,
+                    activeColor: CyberTheme.crimsonNeon
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Fast Fire
+                CyberRowView(
+                    iconName: "bolt.fill",
+                    title: "Bắn Siêu Tốc (Fast Fire)",
+                    subtitle: "Tăng tốc độ nhả đạn của súng liên thanh",
+                    isOn: $cheatState.fastFire,
+                    activeColor: CyberTheme.mechaGold
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -1778,6 +1835,98 @@ struct ContentView: View {
                     subtitle: "Khử rung lắc nòng súng khi xả đạn liên tục",
                     isOn: $cheatState.noRecoil,
                     activeColor: CyberTheme.crimsonNeon
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Fast Medkit
+                CyberRowView(
+                    iconName: "cross.case.fill",
+                    title: "Bơm Máu Siêu Tốc (Fast Medkit)",
+                    subtitle: "Tăng tốc độ hồi phục sinh lực tức thì",
+                    isOn: $cheatState.fastMedkit,
+                    activeColor: CyberTheme.matrixGreen
+                )
+            }
+        }
+    }
+
+    // MARK: - SURVIVAL & MOVEMENT Section (Cam Xa + Slider, Speed Run, Nhảy Dù Siêu Tốc)
+    private var movementSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            CyberSectionHeader(
+                title: "SURVIVAL & MOVEMENT",
+                subtitle: "Góc nhìn bao quát & di chuyển thần tốc",
+                icon: "figure.run",
+                accentColor: CyberTheme.cyberCyan
+            )
+
+            CyberCard(glowColor: (cheatState.wideView || cheatState.speedRun || cheatState.fastParachute) ? CyberTheme.cyberCyan.opacity(0.12) : Color.clear) {
+                // Cam Xa (Wide View) Row
+                CyberRowView(
+                    iconName: "camera.viewfinder",
+                    title: "Góc Nhìn Rộng (Cam Xa)",
+                    subtitle: "Mở rộng góc quan sát toàn cảnh chiến trường",
+                    isOn: $cheatState.wideView,
+                    activeColor: CyberTheme.cyberCyan
+                )
+
+                // Horizontal Slider for Cam Xa (FOV / Distance from 60° to 120°)
+                if cheatState.wideView {
+                    VStack(spacing: 5) {
+                        HStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(CyberTheme.cyberCyan.opacity(0.18))
+                                    .frame(width: 22, height: 22)
+                                Image(systemName: "viewfinder")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(CyberTheme.cyberCyan)
+                            }
+
+                            Text("Khoảng Cách Cam (FOV)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(CyberTheme.textSecondary)
+
+                            Spacer()
+
+                            Text("\(Int(cheatState.camDistance))°")
+                                .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                                .foregroundColor(CyberTheme.cyberCyan)
+                        }
+
+                        CyberSlider(
+                            value: $cheatState.camDistance,
+                            range: 60...120,
+                            step: 1,
+                            activeColor: CyberTheme.cyberCyan
+                        )
+                    }
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                Divider().background(CyberTheme.divider)
+
+                // Speed Run
+                CyberRowView(
+                    iconName: "figure.run",
+                    title: "Tăng Tốc Chạy (Speed Run)",
+                    subtitle: "Di chuyển thần tốc, né đạn linh hoạt",
+                    isOn: $cheatState.speedRun,
+                    activeColor: CyberTheme.matrixGreen
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Fast Parachute
+                CyberRowView(
+                    iconName: "wind",
+                    title: "Nhảy Dù Siêu Tốc (Fast Parachute)",
+                    subtitle: "Rơi tự do và tiếp đất cực nhanh",
+                    isOn: $cheatState.fastParachute,
+                    activeColor: CyberTheme.mechaGold
                 )
             }
         }
@@ -1806,6 +1955,7 @@ struct ContentView: View {
                                 .font(.system(size: 16, weight: .heavy))
                                 .foregroundColor(.white)
                         }
+                        .fixedSize()
 
                         // Label
                         VStack(alignment: .leading, spacing: 2) {
@@ -1815,7 +1965,7 @@ struct ContentView: View {
                                     .foregroundColor(.white)
                             } else {
                                 Text(isInjected ? "UNINJECT (\(selectedTarget.displayName.uppercased()))" : "INJECT (\(selectedTarget.displayName.uppercased()))")
-                                    .font(.system(size: 14, weight: .heavy, design: .monospaced))
+                                    .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
                                     .tracking(0.5)
                                     .lineLimit(1)
@@ -1829,9 +1979,9 @@ struct ContentView: View {
                             }
                         }
 
-                        Spacer()
+                        Spacer(minLength: 4)
                     }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 14)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
                     .background(
@@ -1889,7 +2039,7 @@ struct ContentView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: 52, height: 52)
+                            .frame(width: 50, height: 50)
                             .overlay(
                                 Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
                             )
@@ -1901,7 +2051,9 @@ struct ContentView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .fixedSize()
             }
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 16)
             .padding(.top, 8)
 
@@ -1921,6 +2073,8 @@ struct ContentView: View {
                     .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
                     .foregroundColor(Color.white.opacity(0.45))
                     .tracking(2.0)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
                 Rectangle()
                     .fill(
@@ -1932,10 +2086,12 @@ struct ContentView: View {
                     )
                     .frame(height: 1)
             }
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 24)
             .padding(.top, 4)
             .padding(.bottom, 6)
         }
+        .frame(maxWidth: .infinity)
         .background(
             LinearGradient(
                 colors: [
@@ -1951,7 +2107,7 @@ struct ContentView: View {
 
     // MARK: - SETTINGS Tab Content
     private var settingsContent: some View {
-        ScrollView(showsIndicators: true) {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 // Card 1: App Info & Engine Core
                 appCoreCard
@@ -1968,11 +2124,13 @@ struct ContentView: View {
                 // Card 5: Utilities & Log Terminal Action
                 utilitiesCard
 
-                Spacer().frame(height: 35)
+                Spacer().frame(height: 40)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - App Core Card
