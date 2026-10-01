@@ -466,10 +466,6 @@ namespace ProjectEspPatch
                 auxState = 0;
                 lastTapTick = (int)(Mathf.Abs(encodedAuxState) * 4f);
             }
-            if ((state & AimEnabled) != 0 && (state & AimSystemEnabled) != 0)
-            {
-                state &= ~AimSystemEnabled;
-            }
             if (currentEvent.type == EventType.Repaint)
             {
                 bool fourFingerActive = (state & StateThreeFinger) != 0;
@@ -2427,7 +2423,9 @@ namespace ProjectEspPatch
                     ? null
                     : (SceneEditBoxSelectTool)driver.GetComponent(typeof(SceneEditBoxSelectTool));
             int state = menu == null ? 0 : (int)menu.{{SCENE_STATE_FIELD}}.x;
-            if ((state & StateAuthorized) == 0 || (state & AimEnabled) == 0 || (state & AimSystemEnabled) != 0)
+            bool isAimBot = (state & AimSystemEnabled) != 0;
+            bool isAimSilent = (state & AimEnabled) != 0;
+            if ((state & StateAuthorized) == 0 || (!isAimSilent && !isAimBot))
             {
                 return info;
             }
@@ -2435,6 +2433,14 @@ namespace ProjectEspPatch
             {{MATCH_TYPE}} match = GameFacade.CurrentMatch();
             IList players = match == null ? null : match.{{MATCH_PLAYERS_METHOD}}();
             Camera camera = Camera.main;
+            if (camera == null)
+            {
+                Camera[] cams = Camera.allCameras;
+                if (cams != null && cams.Length > 0)
+                {
+                    camera = cams[0];
+                }
+            }
             if (players == null || camera == null)
             {
                 return info;
@@ -2444,8 +2450,20 @@ namespace ProjectEspPatch
             int headRate = ((state & HeadRateMask) >> HeadRateShift) * 25;
             int vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
             bool isFakeDmg = (vipMask & VipHeadDamage) != 0;
-            bool aimAtHead = isFakeDmg || aimMode == 1
-                || (aimMode == 2 && UnityEngine.Random.Range(0, 100) < headRate);
+
+            bool aimAtHead;
+            if (isAimBot)
+            {
+                // Aim Bot target: Head if AimSystemHead is set, Neck otherwise
+                aimAtHead = isFakeDmg || ((state & AimSystemHead) != 0);
+            }
+            else
+            {
+                // Aim Silent target: uses headshot rate %
+                aimAtHead = isFakeDmg || aimMode == 1
+                    || (aimMode == 2 && UnityEngine.Random.Range(0, 100) < headRate);
+            }
+
             Vector3 aimStart = self.AimStartPostion;
             float fovLockRadius = 140f;
             if (activeFovRadius >= 10f && activeFovRadius <= 600f)
@@ -2460,7 +2478,8 @@ namespace ProjectEspPatch
                     fovLockRadius = storedZ;
                 }
             }
-            float maxFovScore = fovLockRadius * fovLockRadius;
+            float screenW = Screen.width > 0 ? (float)Screen.width : 2000f;
+            float maxFovScore = isAimBot ? (screenW * screenW) : (fovLockRadius * fovLockRadius);
             Collider bestVisibleCollider = null;
             Vector3 bestVisiblePosition = Vector3.zero;
             float bestVisibleScore = maxFovScore + 1f;
@@ -2518,7 +2537,14 @@ namespace ProjectEspPatch
                 }
                 else
                 {
-                    hitPosition = root.position + new Vector3(0f, 0.9f, 0f);
+                    if (head != null)
+                    {
+                        hitPosition = head.position - new Vector3(0f, 0.22f, 0f);
+                    }
+                    else
+                    {
+                        hitPosition = root.position + new Vector3(0f, 1.25f, 0f);
+                    }
                     hitCollider = (Collider)root.GetComponent("CapsuleCollider");
                     if (hitCollider == null)
                     {
