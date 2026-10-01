@@ -21,7 +21,64 @@ enum CheatTab: Int, CaseIterable {
     }
 }
 
-// MARK: - ESP Color Definition
+// MARK: - AimBot Target Enum (Head vs Neck)
+enum AimBotTarget: String, CaseIterable, Identifiable {
+    case head = "head"
+    case neck = "neck"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .head: return "Đầu (Head)"
+        case .neck: return "Cổ (Neck)"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .head: return "Headshot tối đa"
+        case .neck: return "Tự nhiên, an toàn"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .head: return "target"
+        case .neck: return "person.crop.circle"
+        }
+    }
+}
+
+// MARK: - ESP Color Target (Toàn bộ hoặc từng bộ phận)
+enum ESPColorTarget: Int, CaseIterable, Identifiable {
+    case all = 0
+    case box = 1
+    case line = 2
+    case skeleton = 3
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .all: return "Tất Cả"
+        case .box: return "Khung Box"
+        case .line: return "Tia Line"
+        case .skeleton: return "Khung Xương"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .all: return "paintpalette.fill"
+        case .box: return "shippingbox.fill"
+        case .line: return "line.diagonal"
+        case .skeleton: return "figure.stand"
+        }
+    }
+}
+
+// MARK: - ESP Color Definition (10 Colors Palette)
 struct CheatColorOption: Identifiable, Hashable {
     let id: Int
     let name: String
@@ -71,6 +128,13 @@ final class CheatMenuState: ObservableObject {
         didSet {
             UserDefaults.standard.set(aimBot, forKey: "cheat.aimBot")
             AppLog.shared.append("[AIM] Aim Bot: \(aimBot ? "ENABLED" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var aimBotTarget: AimBotTarget {
+        didSet {
+            UserDefaults.standard.set(aimBotTarget.rawValue, forKey: "cheat.aimBotTarget")
+            AppLog.shared.append("[AIM] Aim Target: \(aimBotTarget.displayName)")
             syncIfInjected()
         }
     }
@@ -139,17 +203,35 @@ final class CheatMenuState: ObservableObject {
             syncIfInjected()
         }
     }
+
+    // ESP Colors for specific elements
     @Published var espColorEnabled: Bool {
         didSet {
             UserDefaults.standard.set(espColorEnabled, forKey: "cheat.espColorEnabled")
-            AppLog.shared.append("[ESP] ESP Color: \(espColorEnabled ? "ENABLED" : "DISABLED")")
             syncIfInjected()
         }
     }
     @Published var espSelectedColorId: Int {
         didSet {
             UserDefaults.standard.set(espSelectedColorId, forKey: "cheat.espSelectedColorId")
-            AppLog.shared.append("[ESP] Color selected: \(selectedColor.name)")
+            syncIfInjected()
+        }
+    }
+    @Published var boxColorId: Int {
+        didSet {
+            UserDefaults.standard.set(boxColorId, forKey: "cheat.boxColorId")
+            syncIfInjected()
+        }
+    }
+    @Published var lineColorId: Int {
+        didSet {
+            UserDefaults.standard.set(lineColorId, forKey: "cheat.lineColorId")
+            syncIfInjected()
+        }
+    }
+    @Published var skeletonColorId: Int {
+        didSet {
+            UserDefaults.standard.set(skeletonColorId, forKey: "cheat.skeletonColorId")
             syncIfInjected()
         }
     }
@@ -176,18 +258,55 @@ final class CheatMenuState: ObservableObject {
         }
     }
 
-    // Available ESP Colors (Clean non-Naruto names)
+    // 10 Rich, Vibrant Gaming Color Palette
     let colorOptions: [CheatColorOption] = [
-        CheatColorOption(id: 0, name: "Xanh Lá (Matrix Green)", color: Color(red: 0.05, green: 0.92, blue: 0.42), hex: "#0DE061"),
-        CheatColorOption(id: 1, name: "Đỏ Neon (Crimson Red)", color: Color(red: 1.00, green: 0.16, blue: 0.24), hex: "#FF293E"),
-        CheatColorOption(id: 2, name: "Xanh Cyan (Electric Blue)", color: Color(red: 0.00, green: 0.90, blue: 1.00), hex: "#00E5FF"),
+        CheatColorOption(id: 0, name: "Đỏ Neon (Crimson Red)", color: Color(red: 1.00, green: 0.16, blue: 0.24), hex: "#FF293E"),
+        CheatColorOption(id: 1, name: "Xanh Cyan (Electric Blue)", color: Color(red: 0.00, green: 0.90, blue: 1.00), hex: "#00E5FF"),
+        CheatColorOption(id: 2, name: "Xanh Lá (Matrix Green)", color: Color(red: 0.05, green: 0.92, blue: 0.42), hex: "#0DE061"),
         CheatColorOption(id: 3, name: "Vàng Kim (Cyber Gold)", color: Color(red: 1.00, green: 0.82, blue: 0.12), hex: "#FFD11F"),
-        CheatColorOption(id: 4, name: "Tím Neon (Neon Purple)", color: Color(red: 0.78, green: 0.35, blue: 1.00), hex: "#C759FF"),
-        CheatColorOption(id: 5, name: "Trắng Băng (Ice White)", color: Color.white, hex: "#FFFFFF")
+        CheatColorOption(id: 4, name: "Cam Lửa (Flame Orange)", color: Color(red: 1.00, green: 0.48, blue: 0.00), hex: "#FF7A00"),
+        CheatColorOption(id: 5, name: "Tím Neon (Neon Purple)", color: Color(red: 0.62, green: 0.00, blue: 1.00), hex: "#9D00FF"),
+        CheatColorOption(id: 6, name: "Hồng Neon (Cyber Pink)", color: Color(red: 1.00, green: 0.18, blue: 0.58), hex: "#FF1493"),
+        CheatColorOption(id: 7, name: "Xanh Dương (Deep Azure)", color: Color(red: 0.12, green: 0.47, blue: 1.00), hex: "#1E78FF"),
+        CheatColorOption(id: 8, name: "Xanh Ngọc (Emerald / Mint)", color: Color(red: 0.00, green: 1.00, blue: 0.64), hex: "#00FFA3"),
+        CheatColorOption(id: 9, name: "Trắng Băng (Ice White)", color: Color.white, hex: "#FFFFFF")
     ]
 
+    func getColor(for id: Int) -> CheatColorOption {
+        colorOptions.first(where: { $0.id == id }) ?? colorOptions[0]
+    }
+
     var selectedColor: CheatColorOption {
-        colorOptions.first(where: { $0.id == espSelectedColorId }) ?? colorOptions[0]
+        getColor(for: espSelectedColorId)
+    }
+
+    func getColorId(for target: ESPColorTarget) -> Int {
+        switch target {
+        case .all: return espSelectedColorId
+        case .box: return boxColorId
+        case .line: return lineColorId
+        case .skeleton: return skeletonColorId
+        }
+    }
+
+    func setColorId(_ id: Int, for target: ESPColorTarget) {
+        switch target {
+        case .all:
+            espSelectedColorId = id
+            boxColorId = id
+            lineColorId = id
+            skeletonColorId = id
+            AppLog.shared.append("[ESP] Đổi màu toàn bộ: \(getColor(for: id).name)")
+        case .box:
+            boxColorId = id
+            AppLog.shared.append("[ESP] Đổi màu Khung Box: \(getColor(for: id).name)")
+        case .line:
+            lineColorId = id
+            AppLog.shared.append("[ESP] Đổi màu Tia Line: \(getColor(for: id).name)")
+        case .skeleton:
+            skeletonColorId = id
+            AppLog.shared.append("[ESP] Đổi màu Khung Xương: \(getColor(for: id).name)")
+        }
     }
 
     init() {
@@ -196,6 +315,8 @@ final class CheatMenuState: ObservableObject {
         self.silentFOV = ud.object(forKey: "cheat.silentFOV") as? Double ?? 180.0
         self.headshotRate = ud.object(forKey: "cheat.headshotRate") as? Double ?? 100.0
         self.aimBot = ud.object(forKey: "cheat.aimBot") as? Bool ?? false
+        let targetStr = ud.string(forKey: "cheat.aimBotTarget") ?? "head"
+        self.aimBotTarget = AimBotTarget(rawValue: targetStr) ?? .head
         self.aimLine = ud.object(forKey: "cheat.aimLine") as? Bool ?? false
 
         self.boxESP = ud.object(forKey: "cheat.boxESP") as? Bool ?? true
@@ -207,7 +328,11 @@ final class CheatMenuState: ObservableObject {
         self.espCount = ud.object(forKey: "cheat.espCount") as? Bool ?? false
         self.espAlert = ud.object(forKey: "cheat.espAlert") as? Bool ?? false
         self.espColorEnabled = ud.object(forKey: "cheat.espColorEnabled") as? Bool ?? true
+
         self.espSelectedColorId = ud.object(forKey: "cheat.espSelectedColorId") as? Int ?? 1
+        self.boxColorId = ud.object(forKey: "cheat.boxColorId") as? Int ?? 1
+        self.lineColorId = ud.object(forKey: "cheat.lineColorId") as? Int ?? 1
+        self.skeletonColorId = ud.object(forKey: "cheat.skeletonColorId") as? Int ?? 5
         self.espLineThickness = ud.object(forKey: "cheat.espLineThickness") as? Double ?? 2.5
 
         self.fastMedkit = ud.object(forKey: "cheat.fastMedkit") as? Bool ?? false
@@ -219,6 +344,7 @@ final class CheatMenuState: ObservableObject {
         silentFOV = 180.0
         headshotRate = 100.0
         aimBot = false
+        aimBotTarget = .head
         aimLine = false
 
         boxESP = true
@@ -231,6 +357,9 @@ final class CheatMenuState: ObservableObject {
         espAlert = false
         espColorEnabled = true
         espSelectedColorId = 1
+        boxColorId = 1
+        lineColorId = 1
+        skeletonColorId = 5
         espLineThickness = 2.5
 
         fastMedkit = false
@@ -419,6 +548,7 @@ struct CyberRowView: View {
     let subtitle: String
     @Binding var isOn: Bool
     var activeColor: Color = CyberTheme.crimsonNeon
+    var tagColor: Color? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -445,9 +575,18 @@ struct CyberRowView: View {
 
             // Title & Subtitle
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    if let tColor = tagColor, isOn {
+                        Circle()
+                            .fill(tColor)
+                            .frame(width: 8, height: 8)
+                            .shadow(color: tColor.opacity(0.8), radius: 3)
+                    }
+                }
 
                 Text(subtitle)
                     .font(.system(size: 11, weight: .regular))
@@ -615,6 +754,7 @@ struct ContentView: View {
     @State private var showFullKey: Bool = false
     @State private var showLogModal: Bool = false
     @State private var showAdvancedESP: Bool = false
+    @State private var selectedColorTarget: ESPColorTarget = .all
 
     var body: some View {
         ZStack {
@@ -991,7 +1131,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - AIM PROTOCOL Section
+    // MARK: - AIM PROTOCOL Section (With Neck & Head options when Aimbot is on)
     private var aimingSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
@@ -1068,16 +1208,108 @@ struct ContentView: View {
                 .padding(.bottom, 4)
             }
 
-            // Card 2: Aim Bot & Aim Line (Separate card directly below)
-            CyberCard(glowColor: (cheatState.aimBot || cheatState.aimLine) ? CyberTheme.cyberCyan.opacity(0.10) : Color.clear) {
+            // Card 2: Aim Bot & Target Selection (Neck / Head) + Aim Line
+            CyberCard(glowColor: (cheatState.aimBot || cheatState.aimLine) ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
                 // Aim Bot Row
                 CyberRowView(
                     iconName: "target",
                     title: "Aim Bot (Tự Động)",
-                    subtitle: "Hút tâm trực tiếp vào đầu / cổ địch",
+                    subtitle: "Hút tâm trực tiếp vào đối thủ",
                     isOn: $cheatState.aimBot,
                     activeColor: CyberTheme.crimsonNeon
                 )
+
+                // 2 Options: Neck & Head (Shown when Aimbot is turned ON)
+                if cheatState.aimBot {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "scope")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(CyberTheme.crimsonNeon)
+                            Text("VỊ TRÍ HÚT TÂM (AIM TARGET)")
+                                .font(.system(size: 10.5, weight: .heavy, design: .monospaced))
+                                .foregroundColor(CyberTheme.crimsonNeon)
+                                .tracking(1.0)
+                            Spacer()
+                        }
+                        .padding(.top, 2)
+
+                        HStack(spacing: 8) {
+                            ForEach(AimBotTarget.allCases) { target in
+                                let isSelected = (cheatState.aimBotTarget == target)
+                                Button {
+                                    let impact = UIImpactFeedbackGenerator(style: .medium)
+                                    impact.impactOccurred()
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
+                                        cheatState.aimBotTarget = target
+                                    }
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        ZStack {
+                                            Circle()
+                                                .fill(isSelected ? Color.white.opacity(0.20) : Color.white.opacity(0.06))
+                                                .frame(width: 24, height: 24)
+                                            Image(systemName: target.icon)
+                                                .font(.system(size: 11, weight: .bold))
+                                                .foregroundColor(isSelected ? .white : CyberTheme.textMuted)
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(target.displayName)
+                                                .font(.system(size: 12.5, weight: isSelected ? .bold : .medium))
+                                                .foregroundColor(isSelected ? .white : Color(white: 0.8))
+                                            Text(target.subtitle)
+                                                .font(.system(size: 9.5, weight: .regular))
+                                                .foregroundColor(isSelected ? Color.white.opacity(0.85) : CyberTheme.textMuted)
+                                        }
+                                        Spacer()
+
+                                        if isSelected {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 13, weight: .bold))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 42)
+                                    .background(
+                                        ZStack {
+                                            if isSelected {
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .fill(
+                                                        LinearGradient(
+                                                            colors: [
+                                                                CyberTheme.crimsonNeon,
+                                                                CyberTheme.crimsonDark
+                                                            ],
+                                                            startPoint: .topLeading,
+                                                            endPoint: .bottomTrailing
+                                                        )
+                                                    )
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                                                    )
+                                                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.4), radius: 6)
+                                            } else {
+                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .fill(Color.white.opacity(0.05))
+                                                    .overlay(
+                                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                                                    )
+                                            }
+                                        }
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(.top, 2)
+                    .padding(.bottom, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
 
                 Divider().background(CyberTheme.divider)
 
@@ -1093,7 +1325,7 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - ESP MATRIX Section
+    // MARK: - ESP MATRIX Section (With Separate Color Pickers for Box, Line, Skeleton, All)
     private var espSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
@@ -1103,25 +1335,28 @@ struct ContentView: View {
                 accentColor: CyberTheme.cyberCyan
             )
 
+            // Card 1: Main ESP Features
             CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.12)) {
-                // Box ESP
+                // Box ESP (With active color dot)
                 CyberRowView(
                     iconName: "shippingbox.fill",
                     title: "Khung 2D (Box ESP)",
                     subtitle: "Hộp nhận diện bao quanh đối thủ",
                     isOn: $cheatState.boxESP,
-                    activeColor: CyberTheme.cyberCyan
+                    activeColor: cheatState.getColor(for: cheatState.boxColorId).color,
+                    tagColor: cheatState.getColor(for: cheatState.boxColorId).color
                 )
 
                 Divider().background(CyberTheme.divider)
 
-                // Line ESP
+                // Line ESP (With active color dot)
                 CyberRowView(
                     iconName: "line.diagonal",
                     title: "Tia Chỉ Hướng (Line ESP)",
                     subtitle: "Tia định vị từ đỉnh màn hình xuống địch",
                     isOn: $cheatState.lineESP,
-                    activeColor: CyberTheme.cyberCyan
+                    activeColor: cheatState.getColor(for: cheatState.lineColorId).color,
+                    tagColor: cheatState.getColor(for: cheatState.lineColorId).color
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -1188,13 +1423,14 @@ struct ContentView: View {
 
                         Divider().background(CyberTheme.divider)
 
-                        // Skeleton ESP
+                        // Skeleton ESP (With active color dot)
                         CyberRowView(
                             iconName: "figure.stand",
                             title: "Khung Xương (Skeleton ESP)",
                             subtitle: "Mô phỏng khớp xương & cử động",
                             isOn: $cheatState.skeletonESP,
-                            activeColor: CyberTheme.electricPurple
+                            activeColor: cheatState.getColor(for: cheatState.skeletonColorId).color,
+                            tagColor: cheatState.getColor(for: cheatState.skeletonColorId).color
                         )
 
                         Divider().background(CyberTheme.divider)
@@ -1218,76 +1454,173 @@ struct ContentView: View {
                             isOn: $cheatState.espAlert,
                             activeColor: CyberTheme.crimsonNeon
                         )
-
-                        Divider().background(CyberTheme.divider)
-
-                        // ESP Color Selector
-                        VStack(spacing: 8) {
-                            HStack {
-                                Text("Màu Sắc ESP")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(CyberTheme.textSecondary)
-                                Spacer()
-                            }
-
-                            Menu {
-                                ForEach(cheatState.colorOptions) { option in
-                                    Button {
-                                        cheatState.espSelectedColorId = option.id
-                                    } label: {
-                                        HStack {
-                                            Text(option.name)
-                                            if option.id == cheatState.espSelectedColorId {
-                                                Image(systemName: "checkmark")
-                                            }
-                                        }
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Circle()
-                                        .fill(cheatState.selectedColor.color)
-                                        .frame(width: 14, height: 14)
-                                        .shadow(color: cheatState.selectedColor.color.opacity(0.8), radius: 4)
-
-                                    Text(cheatState.selectedColor.name)
-                                        .font(.system(size: 13.5, weight: .semibold))
-                                        .foregroundColor(.white)
-
-                                    Spacer()
-
-                                    Image(systemName: "chevron.up.chevron.down")
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(CyberTheme.textMuted)
-                                }
-                                .padding(.horizontal, 14)
-                                .frame(height: 40)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(Color(white: 0.12))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                                )
-                            }
-
-                            // Line Thickness Slider
-                            VStack(spacing: 4) {
-                                HStack {
-                                    Text("Độ Dày Nét Vẽ ESP")
-                                        .font(.system(size: 12.5, weight: .medium))
-                                        .foregroundColor(CyberTheme.textSecondary)
-                                    Spacer()
-                                    Text(String(format: "%.1f px", cheatState.espLineThickness))
-                                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                                        .foregroundColor(.white)
-                                }
-                                CyberSlider(value: $cheatState.espLineThickness, range: 1.0...8.0, step: 0.5, activeColor: cheatState.selectedColor.color)
-                            }
-                        }
                     }
                     .padding(.top, 4)
+                }
+            }
+
+            // Card 2: Dedicated Rich Color Matrix Customizer (Box, Line, Skeleton, All)
+            CyberCard(glowColor: cheatState.getColor(for: cheatState.getColorId(for: selectedColorTarget)).color.opacity(0.15)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "paintpalette.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(CyberTheme.cyberCyan)
+
+                        Text("BẢNG MÀU ESP TÙY BIẾN")
+                            .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                            .foregroundColor(.white)
+                            .tracking(1.0)
+
+                        Spacer()
+
+                        Text("10 Gam Màu")
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundColor(CyberTheme.textMuted)
+                    }
+
+                    // Target Element Tabs [ Tất Cả | Khung Box | Tia Line | Khung Xương ]
+                    HStack(spacing: 6) {
+                        ForEach(ESPColorTarget.allCases) { target in
+                            let isSelected = (selectedColorTarget == target)
+                            let currentTargetColor = cheatState.getColor(for: cheatState.getColorId(for: target)).color
+
+                            Button {
+                                let impact = UIImpactFeedbackGenerator(style: .light)
+                                impact.impactOccurred()
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                    selectedColorTarget = target
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(currentTargetColor)
+                                        .frame(width: 7, height: 7)
+                                        .shadow(color: currentTargetColor.opacity(0.8), radius: 2)
+
+                                    Text(target.title)
+                                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                        .lineLimit(1)
+                                }
+                                .foregroundColor(isSelected ? .white : Color(white: 0.7))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 32)
+                                .background(
+                                    ZStack {
+                                        if isSelected {
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(Color(white: 0.18))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                        .strokeBorder(currentTargetColor.opacity(0.8), lineWidth: 1)
+                                                )
+                                                .shadow(color: currentTargetColor.opacity(0.3), radius: 4)
+                                        } else {
+                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                .fill(Color.white.opacity(0.04))
+                                        }
+                                    }
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    // Currently Selected Component & Active Color Info Banner
+                    let activeCol = cheatState.getColor(for: cheatState.getColorId(for: selectedColorTarget))
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(activeCol.color.opacity(0.20))
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .strokeBorder(activeCol.color.opacity(0.6), lineWidth: 1)
+                                )
+
+                            Image(systemName: selectedColorTarget.icon)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(activeCol.color)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Mục áp dụng: \(selectedColorTarget.title)")
+                                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                                .foregroundColor(CyberTheme.textMuted)
+
+                            Text("\(activeCol.name) • \(activeCol.hex)")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(activeCol.color)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.35))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    // 10 Color Swatches Grid (2 rows x 5 items)
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
+                        ForEach(cheatState.colorOptions) { option in
+                            let isPicked = (cheatState.getColorId(for: selectedColorTarget) == option.id)
+
+                            Button {
+                                let impact = UIImpactFeedbackGenerator(style: .medium)
+                                impact.impactOccurred()
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                                    cheatState.setColorId(option.id, for: selectedColorTarget)
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [option.color, option.color.opacity(0.8)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .frame(width: 36, height: 36)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(isPicked ? Color.white : Color.white.opacity(0.2), lineWidth: isPicked ? 2.5 : 1)
+                                        )
+                                        .shadow(color: option.color.opacity(isPicked ? 0.8 : 0.25), radius: isPicked ? 8 : 2)
+
+                                    if isPicked {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .heavy))
+                                            .foregroundColor(.white)
+                                            .shadow(color: Color.black.opacity(0.6), radius: 2)
+                                    }
+                                }
+                                .frame(height: 40)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    Divider().background(CyberTheme.divider)
+
+                    // Line Thickness Slider
+                    VStack(spacing: 4) {
+                        HStack {
+                            Text("Độ Dày Nét Vẽ ESP")
+                                .font(.system(size: 12.5, weight: .medium))
+                                .foregroundColor(CyberTheme.textSecondary)
+                            Spacer()
+                            Text(String(format: "%.1f px", cheatState.espLineThickness))
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+                        CyberSlider(
+                            value: $cheatState.espLineThickness,
+                            range: 1.0...8.0,
+                            step: 0.5,
+                            activeColor: activeCol.color
+                        )
+                    }
                 }
             }
         }

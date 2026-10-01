@@ -282,10 +282,12 @@ namespace ProjectEspPatch
                             int nFov = 70;
                             int nHead = 2;
                             int nCol = 0;
+                            int nTarget = 1; // 1 = Head, 0 = Neck
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
-                                "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color"
+                                "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color",
+                                "aim_target"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -317,6 +319,7 @@ namespace ProjectEspPatch
                                                 else if (k == 8) nFov = parsedVal;
                                                 else if (k == 9) nHead = parsedVal;
                                                 else if (k == 10) nCol = parsedVal;
+                                                else if (k == 11) nTarget = parsedVal;
                                             }
                                         }
                                     }
@@ -334,7 +337,12 @@ namespace ProjectEspPatch
 
                             int newAim = 0;
                             if (nSilent != 0) newAim |= AimEnabled | (2 << AimModeShift);
-                            if (nBot != 0) newAim |= AimSystemEnabled;
+                            if (nBot != 0)
+                            {
+                                newAim |= AimSystemEnabled;
+                                if (nTarget == 1) newAim |= AimSystemHead;
+                                else newAim &= ~AimSystemHead;
+                            }
                             if (nRecoil != 0) newAim |= NoRecoil;
                             if (nHead < 0) nHead = 0;
                             if (nHead > 4) nHead = 4;
@@ -349,12 +357,16 @@ namespace ProjectEspPatch
                                 driverObject.transform.position = driverPos;
                             }
 
-                            int cR = 13, cG = 224, cB = 97;
-                            if (nCol == 1) { cR = 255; cG = 61; cB = 61; }
-                            else if (nCol == 2) { cR = 0; cG = 229; cB = 255; }
-                            else if (nCol == 3) { cR = 255; cG = 225; cB = 26; }
-                            else if (nCol == 4) { cR = 199; cG = 89; cB = 255; }
-                            else if (nCol == 5) { cR = 255; cG = 255; cB = 255; }
+                            int cR = 255, cG = 41, cB = 62; // 0: Đỏ Neon
+                            if (nCol == 1) { cR = 0; cG = 229; cB = 255; }       // Xanh Cyan
+                            else if (nCol == 2) { cR = 13; cG = 224; cB = 97; }   // Xanh Lá
+                            else if (nCol == 3) { cR = 255; cG = 209; cB = 31; }  // Vàng Kim
+                            else if (nCol == 4) { cR = 255; cG = 122; cB = 0; }   // Cam Lửa
+                            else if (nCol == 5) { cR = 157; cG = 0; cB = 255; }   // Tím Neon
+                            else if (nCol == 6) { cR = 255; cG = 20; cB = 147; }  // Hồng Neon
+                            else if (nCol == 7) { cR = 30; cG = 120; cB = 255; }  // Xanh Dương
+                            else if (nCol == 8) { cR = 0; cG = 255; cB = 163; }   // Xanh Ngọc
+                            else if (nCol == 9) { cR = 255; cG = 255; cB = 255; } // Trắng Băng
 
                             modalState = new Vector3(0f, (float)(1 | (1 << 19) | ((cR & 255) << 3) | ((cG & 255) << 11)), (float)((cB & 255) << 4));
                             driverObject.transform.localScale = modalState;

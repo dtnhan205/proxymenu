@@ -88,10 +88,15 @@ enum FreeFirePatchService {
             "skeleton_esp": state.skeletonESP ? 1 : 0,
             "aim_silent": state.aimSilent ? 1 : 0,
             "aim_bot": state.aimBot ? 1 : 0,
+            "aim_target": state.aimBotTarget == .head ? 1 : 0,
+            "aim_bot_target": state.aimBotTarget.rawValue,
             "no_recoil": state.noRecoil ? 1 : 0,
             "aim_fov": Int(state.silentFOV),
             "headshot_rate": rateIndex,
             "color": state.espSelectedColorId,
+            "box_color": state.boxColorId,
+            "line_color": state.lineColorId,
+            "skeleton_color": state.skeletonColorId,
             "line_bottom": 0
         ]
     }
