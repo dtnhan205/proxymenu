@@ -1118,46 +1118,61 @@ namespace ProjectEspPatch
                     bool isWide = (vipMask & VipWideView) != 0;
                     bool camWideApplied = driverObject != null && driverObject.transform.localEulerAngles.x > 0.5f;
                     CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
-                    if (camMgr != null)
+                    Camera cam = Camera.main;
+                    if (isWide)
                     {
-                        if (isWide)
+                        float targetFov = customCamFov >= 50f ? customCamFov : 88f;
+                        if (localPlayer.GetSightingState())
                         {
-                            if (localPlayer.GetSightingState())
+                            if (camMgr != null) camMgr.ReSetFov();
+                        }
+                        else
+                        {
+                            if (camMgr != null) camMgr.SetFov(targetFov);
+                            if (cam != null) cam.fieldOfView = targetFov;
+                            Camera[] allCams = Camera.allCameras;
+                            if (allCams != null)
                             {
-                                if (camWideApplied)
+                                for (int ci = 0; ci < allCams.Length; ci++)
                                 {
-                                    camMgr.ReSetFov();
-                                    if (driverObject != null)
+                                    Camera c = allCams[ci];
+                                    if (c != null && !c.name.Contains("UI"))
                                     {
-                                        driverObject.transform.localEulerAngles = new Vector3(
-                                            0f,
-                                            driverObject.transform.localEulerAngles.y,
-                                            0f);
+                                        c.fieldOfView = targetFov;
                                     }
                                 }
                             }
-                            else
+                        }
+                        if (driverObject != null)
+                        {
+                            driverObject.transform.localEulerAngles = new Vector3(
+                                1f,
+                                driverObject.transform.localEulerAngles.y,
+                                0f);
+                        }
+                    }
+                    else if (camWideApplied)
+                    {
+                        if (camMgr != null) camMgr.ReSetFov();
+                        if (cam != null && cam.fieldOfView > 65f) cam.fieldOfView = 60f;
+                        Camera[] allCams = Camera.allCameras;
+                        if (allCams != null)
+                        {
+                            for (int ci = 0; ci < allCams.Length; ci++)
                             {
-                                camMgr.SetFov(customCamFov > 50f ? customCamFov : 88f);
-                                if (!camWideApplied && driverObject != null)
+                                Camera c = allCams[ci];
+                                if (c != null && !c.name.Contains("UI") && c.fieldOfView > 65f)
                                 {
-                                    driverObject.transform.localEulerAngles = new Vector3(
-                                        1f,
-                                        driverObject.transform.localEulerAngles.y,
-                                        0f);
+                                    c.fieldOfView = 60f;
                                 }
                             }
                         }
-                        else if (camWideApplied)
+                        if (driverObject != null)
                         {
-                            camMgr.ReSetFov();
-                            if (driverObject != null)
-                            {
-                                driverObject.transform.localEulerAngles = new Vector3(
-                                    0f,
-                                    driverObject.transform.localEulerAngles.y,
-                                    0f);
-                            }
+                            driverObject.transform.localEulerAngles = new Vector3(
+                                0f,
+                                driverObject.transform.localEulerAngles.y,
+                                0f);
                         }
                     }
 
@@ -1172,6 +1187,7 @@ namespace ProjectEspPatch
                             attributes.SetSpecialRunSpeedScaleByKeyAndValue(
                                 PlayerAttributes.{{SPEED_TYPE}}.BuffSystem,
                                 SpeedRunningKey, 3f);
+                            attributes.BuffWeaponMoveSpeedScale = 2.5f;
                             auxState |= AuxSpeedRunningApplied;
                         }
                         else if (speedRunningApplied)
@@ -1179,7 +1195,46 @@ namespace ProjectEspPatch
                             attributes.RemoveSpecialRunSpeedScaleByKey(
                                 PlayerAttributes.{{SPEED_TYPE}}.BuffSystem,
                                 SpeedRunningKey);
+                            attributes.BuffWeaponMoveSpeedScale = 1.0f;
                             auxState &= ~AuxSpeedRunningApplied;
+                        }
+
+                        // Fast Fire (Xả đạn siêu tốc)
+                        if ((vipMask & VipFastFire) != 0)
+                        {
+                            attributes.FireIntervalScale = 0.35f;
+                        }
+                        else if (attributes.FireIntervalScale < 0.9f)
+                        {
+                            attributes.FireIntervalScale = 1.0f;
+                        }
+
+                        // Buff Damage (Tăng sát thương đầu, thân, vũ khí cực đại)
+                        if ((vipMask & VipHeadDamage) != 0)
+                        {
+                            attributes.HeadDamageIncreaseScale = 10000.0f;
+                            attributes.BuffWeaponDamageScale = 10000.0f;
+                            attributes.DamageAdditionScale = 10000.0f;
+                            attributes.ExecuteDamageScale = 10000.0f;
+                        }
+                        else if (attributes.HeadDamageIncreaseScale > 10.0f)
+                        {
+                            attributes.HeadDamageIncreaseScale = 0f;
+                            attributes.BuffWeaponDamageScale = 0f;
+                            attributes.DamageAdditionScale = 0f;
+                            attributes.ExecuteDamageScale = 0f;
+                        }
+
+                        // Đạn thẳng / No Recoil
+                        if ((state & NoRecoil) != 0)
+                        {
+                            attributes.SkillScatterRate = -1f;
+                            attributes.SkillScatterRateSighting = -1f;
+                        }
+                        else if (attributes.SkillScatterRate < -0.5f)
+                        {
+                            attributes.SkillScatterRate = 0f;
+                            attributes.SkillScatterRateSighting = 0f;
                         }
                     }
 
@@ -2472,9 +2527,54 @@ namespace ProjectEspPatch
                     ? null
                     : (SceneEditBoxSelectTool)driver.GetComponent(typeof(SceneEditBoxSelectTool));
             int state = menu == null ? 0 : (int)menu.{{SCENE_STATE_FIELD}}.x;
+            if ((state & StateAuthorized) == 0)
+            {
+                return info;
+            }
+
+            int vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
+            PlayerAttributes myAttributes = self.Attributes;
+            if (myAttributes != null)
+            {
+                if ((state & NoRecoil) != 0)
+                {
+                    myAttributes.SkillScatterRate = -1f;
+                    myAttributes.SkillScatterRateSighting = -1f;
+                }
+                else if (myAttributes.SkillScatterRate < -0.5f)
+                {
+                    myAttributes.SkillScatterRate = 0f;
+                    myAttributes.SkillScatterRateSighting = 0f;
+                }
+
+                if ((vipMask & VipFastFire) != 0)
+                {
+                    myAttributes.FireIntervalScale = 0.35f;
+                }
+                else if (myAttributes.FireIntervalScale < 0.9f)
+                {
+                    myAttributes.FireIntervalScale = 1.0f;
+                }
+
+                if ((vipMask & VipHeadDamage) != 0)
+                {
+                    myAttributes.HeadDamageIncreaseScale = 10000.0f;
+                    myAttributes.BuffWeaponDamageScale = 10000.0f;
+                    myAttributes.DamageAdditionScale = 10000.0f;
+                    myAttributes.ExecuteDamageScale = 10000.0f;
+                }
+                else if (myAttributes.HeadDamageIncreaseScale > 10.0f)
+                {
+                    myAttributes.HeadDamageIncreaseScale = 0f;
+                    myAttributes.BuffWeaponDamageScale = 0f;
+                    myAttributes.DamageAdditionScale = 0f;
+                    myAttributes.ExecuteDamageScale = 0f;
+                }
+            }
+
             bool isAimBot = (state & AimSystemEnabled) != 0;
             bool isAimSilent = (state & AimEnabled) != 0;
-            if ((state & StateAuthorized) == 0 || (!isAimSilent && !isAimBot))
+            if (!isAimSilent && !isAimBot)
             {
                 return info;
             }
@@ -2497,7 +2597,7 @@ namespace ProjectEspPatch
 
             int aimMode = (state & AimModeMask) >> AimModeShift;
             int headRate = ((state & HeadRateMask) >> HeadRateShift) * 25;
-            int vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
+            vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
             bool isFakeDmg = (vipMask & VipHeadDamage) != 0;
 
             bool aimAtHead;
@@ -2702,52 +2802,12 @@ namespace ProjectEspPatch
                 info.{{AIM_FLAG_B_FIELD}} = false;
                 info.{{AIM_SHORT_FIELD}} = (short)0;
             }
-                PlayerAttributes myAttributes = self.Attributes;
-                if (myAttributes != null)
-                {
-                    if ((state & NoRecoil) != 0)
-                    {
-                        myAttributes.SkillScatterRate = -1f;
-                        myAttributes.SkillScatterRateSighting = -1f;
-                    }
-                    else if (myAttributes.SkillScatterRate < -0.5f)
-                    {
-                        myAttributes.SkillScatterRate = 0f;
-                        myAttributes.SkillScatterRateSighting = 0f;
-                    }
-
-                    vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
-                    if ((vipMask & VipFastFire) != 0)
-                    {
-                        myAttributes.FireIntervalScale = 0.5f;
-                    }
-                    else if (myAttributes.FireIntervalScale < 0.9f)
-                    {
-                        myAttributes.FireIntervalScale = 1.0f;
-                    }
-
-
-                    if ((vipMask & VipHeadDamage) != 0)
-                    {
-                        myAttributes.HeadDamageIncreaseScale = 10000.0f;
-                        myAttributes.BuffWeaponDamageScale = 10000.0f;
-                        myAttributes.DamageAdditionScale = 10000.0f;
-                        myAttributes.ExecuteDamageScale = 10000.0f;
-                    }
-                    else if (myAttributes.HeadDamageIncreaseScale > 10.0f)
-                    {
-                        myAttributes.HeadDamageIncreaseScale = 0f;
-                        myAttributes.BuffWeaponDamageScale = 0f;
-                        myAttributes.DamageAdditionScale = 0f;
-                        myAttributes.ExecuteDamageScale = 0f;
-                    }
-                }
-                return info;
-            }
-            catch (Exception)
-            {
-                return info;
-            }
+            return info;
+        }
+        catch (Exception)
+        {
+            return info;
+        }
         }
 
         public static bool AimSystem(Player self)
