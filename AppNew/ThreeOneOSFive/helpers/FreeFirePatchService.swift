@@ -39,28 +39,33 @@ enum FreeFirePatchService {
         return FileManager.default.fileExists(atPath: ifixPath) || FileManager.default.fileExists(atPath: altPath)
     }
 
-    /// Locate the patch bytes file from the app bundle or local resources
-    static func patchSourceURL() -> URL? {
-        // 1. Bundle main resource
-        if let url = Bundle.main.url(forResource: "Assembly-CSharp-patch", withExtension: "bytes") {
-            return url
+    /// Load patch data: first checks in-memory embedded decrypted bytes (anti-rip),
+    /// with fallback to external file in Downloads/Documents if developer provides one.
+    static func loadPatchData() -> Data? {
+        // 1. External override in Downloads (for quick dev testing)
+        let dl = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
+        if let data = try? Data(contentsOf: dl), !data.isEmpty {
+            return data
         }
-        // 2. Direct inside main bundle directory
-        let bundleDirect = Bundle.main.bundleURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
-        if FileManager.default.fileExists(atPath: bundleDirect.path) {
-            return bundleDirect
-        }
-        // 3. Document directory of proxy app
+        // 2. External override in proxy Documents
         if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let docFile = docs.appendingPathComponent("Assembly-CSharp-patch.bytes")
-            if FileManager.default.fileExists(atPath: docFile.path) {
-                return docFile
+            if let data = try? Data(contentsOf: docFile), !data.isEmpty {
+                return data
             }
         }
-        // 4. Shared downloads
-        let dl = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
-        if FileManager.default.fileExists(atPath: dl.path) {
-            return dl
+        // 3. Embedded encrypted Mach-O binary data (completely invisible in IPA package)
+        if let embedded = EmbeddedPatchData.loadPatchBytes(), !embedded.isEmpty {
+            return embedded
+        }
+        // 4. Legacy bundle resource fallback if present
+        if let url = Bundle.main.url(forResource: "Assembly-CSharp-patch", withExtension: "bytes"),
+           let data = try? Data(contentsOf: url), !data.isEmpty {
+            return data
+        }
+        let bundleDirect = Bundle.main.bundleURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
+        if let data = try? Data(contentsOf: bundleDirect), !data.isEmpty {
+            return data
         }
         return nil
     }
@@ -117,38 +122,26 @@ enum FreeFirePatchService {
         }
     }
 
-    /// Locate localConfig.json data from bundle, local paths, or fallback default
+    /// Locate localConfig.json data: loads from EmbeddedPatchData in memory (no file in IPA),
+    /// with fallback to external file if developer overrides.
     static func localConfigSourceData() -> Data {
-        // 1. Bundle resource
-        if let url = Bundle.main.url(forResource: "localConfig", withExtension: "json"),
-           let data = try? Data(contentsOf: url), !data.isEmpty {
+        // 1. External override in Downloads
+        let dl = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
+        if let data = try? Data(contentsOf: dl), !data.isEmpty {
             return data
         }
-        // 2. Direct inside main bundle directory
-        let bundleDirect = Bundle.main.bundleURL.appendingPathComponent("localConfig.json")
-        if let data = try? Data(contentsOf: bundleDirect), !data.isEmpty {
-            return data
-        }
-        // 3. Document directory of proxy app
-        if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let docFile = docs.appendingPathComponent("localConfig.json")
-            if let data = try? Data(contentsOf: docFile), !data.isEmpty {
-                return data
-            }
-        }
-        // 4. Default payload: {"testCodePatch":true,"resetGuest":true}
-        let fallback = "{\"testCodePatch\":true,\"resetGuest\":true}"
-        return fallback.data(using: .utf8) ?? Data()
+        // 2. Embedded in-memory payload (invisible in IPA)
+        return EmbeddedPatchData.loadLocalConfigBytes()
     }
 
     /// Inject patch file and initial config into the selected game
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
-        guard let sourceURL = patchSourceURL(), let patchData = try? Data(contentsOf: sourceURL) else {
-            AppLog.shared.append("[INJECT] ❌ Không tìm thấy Assembly-CSharp-patch.bytes trong Bundle")
+        guard let patchData = loadPatchData(), !patchData.isEmpty else {
+            AppLog.shared.append("[INJECT] ❌ Không thể giải mã dữ liệu patch từ bộ nhớ nhị phân!")
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 404,
-                userInfo: [NSLocalizedDescriptionKey: "Không tìm thấy file Assembly-CSharp-patch.bytes trong IPA!"]
+                userInfo: [NSLocalizedDescriptionKey: "Không thể giải mã dữ liệu patch nhúng trong ứng dụng!"]
             )
         }
 

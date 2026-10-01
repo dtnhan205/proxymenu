@@ -54,6 +54,21 @@ jobs:
 
           echo "AppBranding.swift OK ($(wc -c < "$BRAND_FILE") bytes)"
 
+      # Nhúng mã hóa Assembly-CSharp-patch.bytes vào mã nguồn Swift Mach-O binary
+      - name: Generate EmbeddedPatchData.swift
+        run: |
+          set -euo pipefail
+          if [ -f "tools/embed_patch.py" ]; then
+            echo "Running tools/embed_patch.py..."
+            python3 tools/embed_patch.py
+          fi
+          PATCH_SWIFT="AppNew/ThreeOneOSFive/helpers/EmbeddedPatchData.swift"
+          if [ ! -s "$PATCH_SWIFT" ]; then
+            echo "::error::EmbeddedPatchData.swift was not found or is empty"
+            exit 1
+          fi
+          echo "EmbeddedPatchData.swift OK ($(wc -c < "$PATCH_SWIFT") bytes)"
+
       # Build archive (universal iOS, không sign — dùng cho TrollStore/sideload)
       - name: Build archive
         run: |
@@ -87,12 +102,6 @@ jobs:
           fi
 
           echo "Found App bundle at: $APP_DIR"
-          # Ensure patch assets are always present in the app bundle
-          cp -f "AppNew/ThreeOneOSFive/Assembly-CSharp-patch.bytes" "$APP_DIR/" || true
-          if [ -f "AppNew/ThreeOneOSFive/localConfig.json" ]; then
-            cp -f "AppNew/ThreeOneOSFive/localConfig.json" "$APP_DIR/" || true
-          fi
-
           rm -rf build/ipa
           mkdir -p build/ipa/Payload
           cp -r "$APP_DIR" build/ipa/Payload/
@@ -106,16 +115,19 @@ jobs:
           unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Payload/.*\.app/Info.plist" \
             || { echo "::error::Invalid IPA structure - Info.plist missing"; exit 1; }
 
-          # Kiểm tra file Assembly-CSharp-patch.bytes và localConfig.json trong IPA
+          # Kiểm tra bảo mật: Đảm bảo Assembly-CSharp-patch.bytes và localConfig.json KHÔNG xuất hiện rời rạc trong IPA
           if unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Assembly-CSharp-patch.bytes"; then
-            echo "✅ Assembly-CSharp-patch.bytes embedded in IPA successfully"
+            echo "::error::Assembly-CSharp-patch.bytes is still exposed in IPA!"
+            exit 1
           else
-            echo "ℹ️ Assembly-CSharp-patch.bytes check"
+            echo "🔒 SUCCESS: Assembly-CSharp-patch.bytes is completely hidden from IPA (embedded in binary)"
           fi
+
           if unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "localConfig.json"; then
-            echo "✅ localConfig.json embedded in IPA successfully"
+            echo "::error::localConfig.json is still exposed in IPA!"
+            exit 1
           else
-            echo "ℹ️ localConfig.json check"
+            echo "🔒 SUCCESS: localConfig.json is completely hidden from IPA (embedded in binary)"
           fi
 
           IPA_SIZE=$(stat -f%z build/ipa/INNOVACHEAT.ipa 2>/dev/null || stat -c%s build/ipa/INNOVACHEAT.ipa)
