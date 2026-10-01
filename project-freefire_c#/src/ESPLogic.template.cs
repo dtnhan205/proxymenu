@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.IO;
 using COW;
@@ -330,7 +330,7 @@ namespace ProjectEspPatch
                             int nHealth = 1;
                             int nName = 1;
                             int nDist = 1;
-                            int nSilent = 1;
+                            int nSilent = 0;
                             int nBot = 0;
                             int nRecoil = 0;
                             int nFov = (int)fovRadius;
@@ -412,16 +412,24 @@ namespace ProjectEspPatch
                             if (nHealth != 0) newEsp |= EspHealth;
                             if (nName != 0) newEsp |= EspName;
                             if (nDist != 0) newEsp |= EspDistance;
-                            if (nSilent != 0) newEsp |= EspFov;
+                            if (nSilent != 0 || nBot != 0) newEsp |= EspFov;
                             if (newEsp != 0) newEsp |= EspMaster;
 
                             int newAim = 0;
-                            if (nSilent != 0) newAim |= AimEnabled | (2 << AimModeShift);
+                            // Aimbot (AimSystemEnabled) có priority cao hơn silent aim
+                            // Hai chế độ LOẠI TRỪ lẫn nhau
                             if (nBot != 0)
                             {
+                                // Bật aimbot native, tắt hoàn toàn silent aim
                                 newAim |= AimSystemEnabled;
                                 if (nTarget == 1) newAim |= AimSystemHead;
                                 else newAim &= ~AimSystemHead;
+                                // Không set AimEnabled kể cả khi nSilent == 1
+                            }
+                            else if (nSilent != 0)
+                            {
+                                // Chỉ bật silent aim khi KHÔNG có aimbot
+                                newAim |= AimEnabled | (2 << AimModeShift);
                             }
                             if (nRecoil != 0) newAim |= NoRecoil;
                             if (nHead < 0) nHead = 0;
