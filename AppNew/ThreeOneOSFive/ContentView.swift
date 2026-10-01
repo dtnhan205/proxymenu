@@ -1410,6 +1410,7 @@ struct ContentView: View {
     @State private var showLogModal: Bool = false
     @State private var selectedColorTarget: ESPColorTarget = .all
     @State private var showColorPickerPopup: Bool = false
+    @State private var showSettingsSheet: Bool = false
 
     var body: some View {
         ZStack {
@@ -1526,6 +1527,9 @@ struct ContentView: View {
         } message: {
             Text(injectionAlertText)
         }
+        .sheet(isPresented: $showSettingsSheet) {
+            settingsSheetView
+        }
         .sheet(isPresented: $showLogModal) {
             LogTerminalModalView(isPresented: $showLogModal)
         }
@@ -1622,6 +1626,25 @@ struct ContentView: View {
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8))
             .fixedSize()
+
+            // Settings Gear Button (Opens Settings Sheet)
+            Button {
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
+                showSettingsSheet = true
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 28, height: 28)
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8))
+
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(CyberTheme.cyberCyan)
+                }
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 20)
         .padding(.top, 6)
@@ -2671,7 +2694,7 @@ struct ContentView: View {
         )
     }
 
-    // MARK: - MISC Tab Content (Combat, Movement, Settings & Utilities)
+    // MARK: - MISC Tab Content (Combat & Movement Hacks Only)
     private var miscTabContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
@@ -2681,27 +2704,82 @@ struct ContentView: View {
                 // 2. SURVIVAL & MOVEMENT (Cam Xa + Slider, Speed Run, Fast Parachute)
                 movementSection
 
-                // 3. GIẤY PHÉP & BẢN QUYỀN
-                licenseSettingsCard
-
-                // 4. TIỆN ÍCH & NHẬT KÝ
-                utilitiesCard
-
-                // 5. THÔNG TIN ỨNG DỤNG
-                appCoreCard
-
-                // 6. THÔNG TIN THIẾT BỊ
-                deviceHardwareCard
-
-                // 7. KHẢ NĂNG HỖ TRỢ & HỆ THỐNG
-                systemCompatibilityCard
-
                 // Extra Bottom Padding for floating HUD
                 Spacer().frame(height: 120)
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
         }
+    }
+
+    // MARK: - Dedicated Settings Sheet View
+    private var settingsSheetView: some View {
+        NavigationView {
+            ZStack {
+                CyberTheme.bgVoid
+                    .ignoresSafeArea()
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        // 1. GIẤY PHÉP & BẢN QUYỀN
+                        licenseSettingsCard
+
+                        // 2. TIỆN ÍCH & NHẬT KÝ
+                        utilitiesCard
+
+                        // 3. THÔNG TIN ỨNG DỤNG
+                        appCoreCard
+
+                        // 4. THÔNG TIN THIẾT BỊ
+                        deviceHardwareCard
+
+                        // 5. KHẢ NĂNG HỖ TRỢ & HỆ THỐNG
+                        systemCompatibilityCard
+
+                        Spacer().frame(height: 40)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 14)
+                }
+
+                if let msg = toastMessage {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(CyberTheme.matrixGreen)
+                            Text(msg)
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color(red: 0.1, green: 0.1, blue: 0.14).opacity(0.95))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+                        .shadow(color: Color.black.opacity(0.6), radius: 8)
+                        .padding(.bottom, 20)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(100)
+                }
+            }
+            .navigationTitle("Cài Đặt Hệ Thống")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Đóng") {
+                        showSettingsSheet = false
+                    }
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(CyberTheme.cyberCyan)
+                }
+            }
+            .sheet(isPresented: $showLogModal) {
+                LogTerminalModalView(isPresented: $showLogModal)
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 
     // MARK: - App Core Card
