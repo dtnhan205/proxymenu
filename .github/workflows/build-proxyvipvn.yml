@@ -1,4 +1,4 @@
-name: Build ProxyVipVn
+name: Build INNOVACHEAT
 
 on:
   workflow_dispatch:
@@ -64,7 +64,7 @@ jobs:
             -scheme 3105 \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath build/ProxyVipVn.xcarchive \
+            -archivePath build/INNOVACHEAT.xcarchive \
             -clonedSourcePackagesDirPath build/SourcePackages \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
@@ -79,10 +79,10 @@ jobs:
         id: package
         run: |
           set -euo pipefail
-          APP_DIR=$(find build/ProxyVipVn.xcarchive/Products/Applications -name "*.app" -maxdepth 1 | head -1)
+          APP_DIR=$(find build/INNOVACHEAT.xcarchive/Products/Applications -name "*.app" -maxdepth 1 | head -1)
           if [ -z "$APP_DIR" ] || [ ! -d "$APP_DIR" ]; then
             echo "::error::App bundle not found. Available products:"
-            ls -la build/ProxyVipVn.xcarchive/Products/Applications/ || true
+            ls -la build/INNOVACHEAT.xcarchive/Products/Applications/ || true
             exit 1
           fi
 
@@ -92,42 +92,43 @@ jobs:
           cp -r "$APP_DIR" build/ipa/Payload/
 
           cd build/ipa
-          zip -qr ProxyVipVn.ipa Payload
+          zip -qr INNOVACHEAT.ipa Payload
           cd "$GITHUB_WORKSPACE"
 
           # Verify cấu trúc IPA hợp lệ
-          unzip -l build/ipa/ProxyVipVn.ipa | head -30
-          unzip -l build/ipa/ProxyVipVn.ipa | grep -q "Payload/.*\.app/Info.plist" \
+          unzip -l build/ipa/INNOVACHEAT.ipa | head -30
+          unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Payload/.*\.app/Info.plist" \
             || { echo "::error::Invalid IPA structure - Info.plist missing"; exit 1; }
 
           # Kiểm tra file Assembly-CSharp-patch.bytes trong IPA
-          if unzip -l build/ipa/ProxyVipVn.ipa | grep -q "Assembly-CSharp-patch.bytes"; then
+          if unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Assembly-CSharp-patch.bytes"; then
             echo "✅ Assembly-CSharp-patch.bytes embedded in IPA successfully"
           else
             echo "ℹ️ Assembly-CSharp-patch.bytes check"
           fi
 
-          IPA_SIZE=$(stat -f%z build/ipa/ProxyVipVn.ipa 2>/dev/null || stat -c%s build/ipa/ProxyVipVn.ipa)
+          IPA_SIZE=$(stat -f%z build/ipa/INNOVACHEAT.ipa 2>/dev/null || stat -c%s build/ipa/INNOVACHEAT.ipa)
           echo "IPA size: $IPA_SIZE bytes"
-          echo "ipa_path=build/ipa/ProxyVipVn.ipa" >> "$GITHUB_OUTPUT"
+          echo "ipa_path=build/ipa/INNOVACHEAT.ipa" >> "$GITHUB_OUTPUT"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ProxyVipVn-ipa
-          path: build/ipa/ProxyVipVn.ipa
+          name: INNOVACHEAT-ipa
+          path: build/ipa/INNOVACHEAT.ipa
           if-no-files-found: error
           retention-days: 14
 
       - name: Inspect binary
         if: always()
         run: |
-          APP_DIR=$(find build/ProxyVipVn.xcarchive/Products/Applications -name "*.app" -maxdepth 1 2>/dev/null | head -1 || true)
+          APP_DIR=$(find build/INNOVACHEAT.xcarchive/Products/Applications -name "*.app" -maxdepth 1 2>/dev/null | head -1 || true)
           if [ -n "$APP_DIR" ] && [ -d "$APP_DIR" ]; then
             echo "=== App bundle size ==="
             du -sh "$APP_DIR"
-            echo "=== Mach-O architectures ==="
-            lipo -info "$APP_DIR/ProxyVipVn" 2>/dev/null || true
-            echo "=== Linked frameworks ==="
-            otool -L "$APP_DIR/ProxyVipVn" 2>/dev/null | head -20 || true
+            EXEC_NAME=$(basename "$APP_DIR" .app)
+            echo "=== Mach-O architectures ($EXEC_NAME) ==="
+            lipo -info "$APP_DIR/$EXEC_NAME" 2>/dev/null || true
+            echo "=== Linked frameworks ($EXEC_NAME) ==="
+            otool -L "$APP_DIR/$EXEC_NAME" 2>/dev/null | head -20 || true
           fi

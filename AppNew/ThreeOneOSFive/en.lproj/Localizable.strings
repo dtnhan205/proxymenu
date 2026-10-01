@@ -260,7 +260,7 @@
 "kernel.footer_warning" = "In-memory only (not persistent). If it fails, relaunch the app before trying again.";
 "kernel.auto_run" = "Auto-run on launch";
 "kernel.failed_requires_relaunch" = "Relaunch the app before retrying.";
-"settings.supported_versions_footer" = "The ProxyIPA OB55 app was rebuilt and developed by TheNhanCheat. iOS versions not included in the list above are marked as unsupported.";
+"settings.supported_versions_footer" = "The INNOVACHEAT app was rebuilt and developed by TheNhanCheat. iOS versions not included in the list above are marked as unsupported.";
 "settings.sandbox_token" = "Sandbox Token";
 "settings.generate_token" = "Generate Token";
 "settings.token_footer" = "Available after exploit access succeeds.";

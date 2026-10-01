@@ -261,7 +261,7 @@ struct SettingsView: View {
 
     private var bundleDisplayName: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? "ProxyIPA OB55"
+            ?? "INNOVACHEAT"
     }
 
     private var appVersion: String {
