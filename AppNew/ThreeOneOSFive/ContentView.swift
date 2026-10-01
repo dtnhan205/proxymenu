@@ -109,6 +109,9 @@ final class CheatMenuState: ObservableObject {
         didSet {
             UserDefaults.standard.set(aimSilent, forKey: "cheat.aimSilent")
             AppLog.shared.append("[AIM] Aim Silent: \(aimSilent ? "ENABLED" : "DISABLED")")
+            if aimSilent && aimBot {
+                aimBot = false
+            }
             syncIfInjected()
         }
     }
@@ -128,6 +131,9 @@ final class CheatMenuState: ObservableObject {
         didSet {
             UserDefaults.standard.set(aimBot, forKey: "cheat.aimBot")
             AppLog.shared.append("[AIM] Aim Bot: \(aimBot ? "ENABLED" : "DISABLED")")
+            if aimBot && aimSilent {
+                aimSilent = false
+            }
             syncIfInjected()
         }
     }
@@ -295,7 +301,7 @@ final class CheatMenuState: ObservableObject {
         }
     }
 
-    // 10 Rich, Vibrant Gaming Color Palette
+    // 7 Rich, Vibrant Gaming Color Palette
     let colorOptions: [CheatColorOption] = [
         CheatColorOption(id: 0, name: "Đỏ Neon (Crimson Red)", color: Color(red: 1.00, green: 0.16, blue: 0.24), hex: "#FF293E"),
         CheatColorOption(id: 1, name: "Xanh Cyan (Electric Blue)", color: Color(red: 0.00, green: 0.90, blue: 1.00), hex: "#00E5FF"),
@@ -303,10 +309,7 @@ final class CheatMenuState: ObservableObject {
         CheatColorOption(id: 3, name: "Vàng Kim (Cyber Gold)", color: Color(red: 1.00, green: 0.82, blue: 0.12), hex: "#FFD11F"),
         CheatColorOption(id: 4, name: "Cam Lửa (Flame Orange)", color: Color(red: 1.00, green: 0.48, blue: 0.00), hex: "#FF7A00"),
         CheatColorOption(id: 5, name: "Tím Neon (Neon Purple)", color: Color(red: 0.62, green: 0.00, blue: 1.00), hex: "#9D00FF"),
-        CheatColorOption(id: 6, name: "Hồng Neon (Cyber Pink)", color: Color(red: 1.00, green: 0.18, blue: 0.58), hex: "#FF1493"),
-        CheatColorOption(id: 7, name: "Xanh Dương (Deep Azure)", color: Color(red: 0.12, green: 0.47, blue: 1.00), hex: "#1E78FF"),
-        CheatColorOption(id: 8, name: "Xanh Ngọc (Emerald / Mint)", color: Color(red: 0.00, green: 1.00, blue: 0.64), hex: "#00FFA3"),
-        CheatColorOption(id: 9, name: "Trắng Băng (Ice White)", color: Color.white, hex: "#FFFFFF")
+        CheatColorOption(id: 6, name: "Hồng Neon (Cyber Pink)", color: Color(red: 1.00, green: 0.18, blue: 0.58), hex: "#FF1493")
     ]
 
     func getColor(for id: Int) -> CheatColorOption {
@@ -787,6 +790,99 @@ struct SettingsInfoRow: View {
     }
 }
 
+// MARK: - ESP Color Picker Popup (7 Preset Colors)
+struct ESPColorPickerPopup: View {
+    @ObservedObject var cheatState: CheatMenuState
+    let target: ESPColorTarget
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                CyberTheme.bgVoid
+                    .ignoresSafeArea()
+
+                VStack(spacing: 16) {
+                    HStack(spacing: 10) {
+                        Image(systemName: target.icon)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(CyberTheme.cyberCyan)
+                        Text("Chọn Màu Cho: \(target.title)")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 14) {
+                        ForEach(cheatState.colorOptions) { option in
+                            let isPicked = (cheatState.getColorId(for: target) == option.id)
+
+                            Button {
+                                let impact = UIImpactFeedbackGenerator(style: .medium)
+                                impact.impactOccurred()
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                                    cheatState.setColorId(option.id, for: target)
+                                }
+                                dismiss()
+                            } label: {
+                                VStack(spacing: 6) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [option.color, option.color.opacity(0.8)],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .frame(width: 48, height: 48)
+                                            .overlay(
+                                                Circle()
+                                                    .strokeBorder(isPicked ? Color.white : Color.white.opacity(0.2), lineWidth: isPicked ? 2.5 : 1)
+                                            )
+                                            .shadow(color: option.color.opacity(isPicked ? 0.8 : 0.25), radius: isPicked ? 8 : 2)
+
+                                        if isPicked {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 16, weight: .heavy))
+                                                .foregroundColor(.white)
+                                                .shadow(color: Color.black.opacity(0.6), radius: 2)
+                                        }
+                                    }
+
+                                    Text(option.name)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundColor(isPicked ? .white : CyberTheme.textMuted)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.7)
+                                        .multilineTextAlignment(.center)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                    Spacer()
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Xong") {
+                        dismiss()
+                    }
+                    .foregroundColor(CyberTheme.cyberCyan)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
 // MARK: - Main ContentView
 struct ContentView: View {
     @StateObject private var cheatState = CheatMenuState.shared
@@ -804,6 +900,7 @@ struct ContentView: View {
     @State private var showLogModal: Bool = false
     @State private var showAdvancedESP: Bool = false
     @State private var selectedColorTarget: ESPColorTarget = .all
+    @State private var showColorPickerPopup: Bool = false
 
     var body: some View {
         ZStack {
@@ -1523,7 +1620,7 @@ struct ContentView: View {
 
                         Spacer()
 
-                        Text("10 Gam Màu")
+                        Text("7 Gam Màu")
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .foregroundColor(CyberTheme.textMuted)
                     }
@@ -1575,80 +1672,51 @@ struct ContentView: View {
                         }
                     }
 
-                    // Currently Selected Component & Active Color Info Banner
+                    // Tappable Color Item -> Opens Popup Picker (7 Preset Colors)
                     let activeCol = cheatState.getColor(for: cheatState.getColorId(for: selectedColorTarget))
-                    HStack(spacing: 10) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(activeCol.color.opacity(0.20))
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .strokeBorder(activeCol.color.opacity(0.6), lineWidth: 1)
-                                )
+                    Button {
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
+                        showColorPickerPopup = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(activeCol.color.opacity(0.20))
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .strokeBorder(activeCol.color.opacity(0.6), lineWidth: 1)
+                                    )
 
-                            Image(systemName: selectedColorTarget.icon)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(activeCol.color)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Mục áp dụng: \(selectedColorTarget.title)")
-                                .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
-                                .foregroundColor(CyberTheme.textMuted)
-
-                            Text("\(activeCol.name) • \(activeCol.hex)")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(activeCol.color)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(8)
-                    .background(Color.black.opacity(0.35))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    // 10 Color Swatches Grid (2 rows x 5 items)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 5), spacing: 8) {
-                        ForEach(cheatState.colorOptions) { option in
-                            let isPicked = (cheatState.getColorId(for: selectedColorTarget) == option.id)
-
-                            Button {
-                                let impact = UIImpactFeedbackGenerator(style: .medium)
-                                impact.impactOccurred()
-                                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
-                                    cheatState.setColorId(option.id, for: selectedColorTarget)
-                                }
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [option.color, option.color.opacity(0.8)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                        .frame(width: 36, height: 36)
-                                        .overlay(
-                                            Circle()
-                                                .strokeBorder(isPicked ? Color.white : Color.white.opacity(0.2), lineWidth: isPicked ? 2.5 : 1)
-                                        )
-                                        .shadow(color: option.color.opacity(isPicked ? 0.8 : 0.25), radius: isPicked ? 8 : 2)
-
-                                    if isPicked {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 14, weight: .heavy))
-                                            .foregroundColor(.white)
-                                            .shadow(color: Color.black.opacity(0.6), radius: 2)
-                                    }
-                                }
-                                .frame(height: 40)
+                                Image(systemName: selectedColorTarget.icon)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(activeCol.color)
                             }
-                            .buttonStyle(.plain)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Mục áp dụng: \(selectedColorTarget.title)")
+                                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
+
+                                Text("\(activeCol.name) • \(activeCol.hex)")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(activeCol.color)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(CyberTheme.textMuted)
                         }
+                        .padding(8)
+                        .background(Color.black.opacity(0.35))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    .padding(.vertical, 4)
+                    .buttonStyle(.plain)
 
                     Divider().background(CyberTheme.divider)
 
@@ -1672,6 +1740,12 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showColorPickerPopup) {
+            ESPColorPickerPopup(
+                cheatState: cheatState,
+                target: selectedColorTarget
+            )
         }
     }
 
@@ -1744,10 +1818,14 @@ struct ContentView: View {
                                     .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
                                     .tracking(0.5)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
 
                                 Text(isInjected ? "Nhấn để hủy kích hoạt chức năng" : "Bắt đầu kích hoạt chức năng")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
                             }
                         }
 
@@ -1770,8 +1848,8 @@ struct ContentView: View {
                             } else {
                                 LinearGradient(
                                     colors: [
-                                        CyberTheme.crimsonNeon,
-                                        Color(red: 0.70, green: 0.05, blue: 0.14)
+                                        CyberTheme.matrixGreen,
+                                        Color(red: 0.02, green: 0.45, blue: 0.32)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -1784,7 +1862,7 @@ struct ContentView: View {
                         ChamferedCardShape(cutSize: 12)
                             .stroke(Color.white.opacity(0.35), lineWidth: 1)
                     )
-                    .shadow(color: (isInjected ? Color.red : CyberTheme.crimsonNeon).opacity(0.65), radius: 12, y: 3)
+                    .shadow(color: (isInjected ? Color.red : CyberTheme.matrixGreen).opacity(0.65), radius: 12, y: 3)
                 }
                 .buttonStyle(.plain)
                 .disabled(isInjecting)
