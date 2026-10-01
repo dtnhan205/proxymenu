@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.IO;
 using COW;
@@ -62,15 +62,6 @@ namespace ProjectEspPatch
         private const ulong SpeedRunningKey = 4995421289296778564UL;
         private const int DefaultAimState = AimEnabled | (2 << AimModeShift)
             | (3 << HeadRateShift);
-
-        private static int cfgBoxR = -1;
-        private static int cfgBoxG = -1;
-        private static int cfgBoxB = -1;
-        private static int cfgLineR = -1;
-        private static int cfgLineG = -1;
-        private static int cfgLineB = -1;
-        private static float cfgBoxThick = 1.5f;
-        private static float cfgLineThick = 1.5f;
 
         public static bool Bootstrap(Player self)
         {
@@ -201,7 +192,7 @@ namespace ProjectEspPatch
 
             int curFrame = Time.frameCount;
 
-            // Dọn dẹp RAM / GC định kỳ 15 giây 1 lần (~900 frames ở 60fps) để giải phóng bộ nhớ, tối ưu FPS và chống tràn RAM
+            // Dá»n dáº¹p RAM / GC Ä‘á»‹nh ká»³ 15 giÃ¢y 1 láº§n (~900 frames á»Ÿ 60fps) Ä‘á»ƒ giáº£i phÃ³ng bá»™ nhá»›, tá»‘i Æ°u FPS vÃ  chá»‘ng trÃ n RAM
             float nowTime = Time.unscaledTime;
             if (nowTime - driverPos.x >= 15f || (curFrame % 900 == 1 && nowTime - driverPos.x >= 10f))
             {
@@ -358,15 +349,13 @@ namespace ProjectEspPatch
                             int nLineR = -1;
                             int nLineG = -1;
                             int nLineB = -1;
-                            int nBoxThick = -1;
-                            int nLineThick = -1;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
                                 "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color",
                                 "aim_target", "buff_damage", "fast_fire", "wide_view", "cam_distance",
                                 "speed_run", "fast_parachute", "box_r", "box_g", "box_b",
-                                "line_r", "line_g", "line_b", "box_thickness", "line_thickness"
+                                "line_r", "line_g", "line_b"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -411,8 +400,6 @@ namespace ProjectEspPatch
                                                 else if (k == 21) nLineR = parsedVal;
                                                 else if (k == 22) nLineG = parsedVal;
                                                 else if (k == 23) nLineB = parsedVal;
-                                                else if (k == 24) nBoxThick = parsedVal;
-                                                else if (k == 25) nLineThick = parsedVal;
                                             }
                                         }
                                     }
@@ -475,51 +462,29 @@ namespace ProjectEspPatch
                                 driverObject.transform.position = driverPos;
                             }
 
-                            int cR = 255, cG = 41, cB = 62; // 0: Đỏ Neon
+                            int cR = 255, cG = 41, cB = 62; // 0: Äá» Neon
+                            // Priority: box_r/g/b > line_r/g/b > color preset
                             if (nBoxR >= 0 && nBoxG >= 0 && nBoxB >= 0)
                             {
                                 cR = nBoxR;
                                 cG = nBoxG;
                                 cB = nBoxB;
                             }
+                            else if (nLineR >= 0 && nLineG >= 0 && nLineB >= 0)
+                            {
+                                cR = nLineR;
+                                cG = nLineG;
+                                cB = nLineB;
+                            }
                             else if (nCol == 1) { cR = 0; cG = 229; cB = 255; }       // Xanh Cyan
-                            else if (nCol == 2) { cR = 13; cG = 224; cB = 97; }   // Xanh Lá
-                            else if (nCol == 3) { cR = 255; cG = 209; cB = 31; }  // Vàng Kim
-                            else if (nCol == 4) { cR = 255; cG = 122; cB = 0; }   // Cam Lửa
-                            else if (nCol == 5) { cR = 157; cG = 0; cB = 255; }   // Tím Neon
-                            else if (nCol == 6) { cR = 255; cG = 20; cB = 147; }  // Hồng Neon
-                            else if (nCol == 7) { cR = 30; cG = 120; cB = 255; }  // Xanh Dương
-                            else if (nCol == 8) { cR = 0; cG = 255; cB = 163; }   // Xanh Ngọc
-                            else if (nCol == 9) { cR = 255; cG = 255; cB = 255; } // Trắng Băng
-
-                            if (nBoxR >= 0 && nBoxG >= 0 && nBoxB >= 0)
-                            {
-                                cfgBoxR = nBoxR;
-                                cfgBoxG = nBoxG;
-                                cfgBoxB = nBoxB;
-                            }
-                            else if (nCol >= 0)
-                            {
-                                cfgBoxR = cR;
-                                cfgBoxG = cG;
-                                cfgBoxB = cB;
-                            }
-
-                            if (nLineR >= 0 && nLineG >= 0 && nLineB >= 0)
-                            {
-                                cfgLineR = nLineR;
-                                cfgLineG = nLineG;
-                                cfgLineB = nLineB;
-                            }
-                            else if (nCol >= 0)
-                            {
-                                cfgLineR = cR;
-                                cfgLineG = cG;
-                                cfgLineB = cB;
-                            }
-
-                            if (nBoxThick > 0) cfgBoxThick = (float)nBoxThick;
-                            if (nLineThick > 0) cfgLineThick = (float)nLineThick;
+                            else if (nCol == 2) { cR = 13; cG = 224; cB = 97; }   // Xanh LÃ¡
+                            else if (nCol == 3) { cR = 255; cG = 209; cB = 31; }  // VÃ ng Kim
+                            else if (nCol == 4) { cR = 255; cG = 122; cB = 0; }   // Cam Lá»­a
+                            else if (nCol == 5) { cR = 157; cG = 0; cB = 255; }   // TÃ­m Neon
+                            else if (nCol == 6) { cR = 255; cG = 20; cB = 147; }  // Há»“ng Neon
+                            else if (nCol == 7) { cR = 30; cG = 120; cB = 255; }  // Xanh DÆ°Æ¡ng
+                            else if (nCol == 8) { cR = 0; cG = 255; cB = 163; }   // Xanh Ngá»c
+                            else if (nCol == 9) { cR = 255; cG = 255; cB = 255; } // Tráº¯ng BÄƒng
 
                             modalState = new Vector3(0f, (float)(1 | (1 << 19) | ((cR & 255) << 3) | ((cG & 255) << 11)), (float)((vipMask & 15) | ((cB & 255) << 4)));
                             driverObject.transform.localScale = modalState;
@@ -1224,7 +1189,7 @@ namespace ProjectEspPatch
                             auxState &= ~AuxSpeedRunningApplied;
                         }
 
-                        // Fast Fire (Xả đạn siêu tốc)
+                        // Fast Fire (Xáº£ Ä‘áº¡n siÃªu tá»‘c)
                         if ((vipMask & VipFastFire) != 0)
                         {
                             attributes.FireIntervalScale = 0.35f;
@@ -1234,7 +1199,7 @@ namespace ProjectEspPatch
                             attributes.FireIntervalScale = 1.0f;
                         }
 
-                        // Buff Damage (Tăng sát thương đầu, thân, vũ khí cực đại)
+                        // Buff Damage (TÄƒng sÃ¡t thÆ°Æ¡ng Ä‘áº§u, thÃ¢n, vÅ© khÃ­ cá»±c Ä‘áº¡i)
                         if ((vipMask & VipHeadDamage) != 0)
                         {
                             attributes.HeadDamageIncreaseScale = 10000.0f;
@@ -1250,7 +1215,7 @@ namespace ProjectEspPatch
                             attributes.ExecuteDamageScale = 0f;
                         }
 
-                        // Đạn thẳng / No Recoil
+                        // Äáº¡n tháº³ng / No Recoil
                         if ((state & NoRecoil) != 0)
                         {
                             attributes.SkillScatterRate = -1f;
@@ -1492,15 +1457,7 @@ namespace ProjectEspPatch
                                 {
                                     continue;
                                 }
-                                Color boxColor = (cfgBoxR >= 0 && cfgBoxG >= 0 && cfgBoxB >= 0)
-                                    ? new Color((float)cfgBoxR / 255f, (float)cfgBoxG / 255f, (float)cfgBoxB / 255f, 0.95f)
-                                    : new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
-                                float finalBoxThick = cfgBoxThick > 0.5f ? cfgBoxThick : thickness;
-
-                                Color lineColor = (cfgLineR >= 0 && cfgLineG >= 0 && cfgLineB >= 0)
-                                    ? new Color((float)cfgLineR / 255f, (float)cfgLineG / 255f, (float)cfgLineB / 255f, 0.95f)
-                                    : new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
-                                float finalLineThick = cfgLineThick > 0.5f ? cfgLineThick : thickness;
+                                Color espColor = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
 
                                 float rainbowTime = Time.unscaledTime * 1.5f;
                                 if ((mask & EspBox) != 0)
@@ -1513,7 +1470,7 @@ namespace ProjectEspPatch
                                         float stepW = width / (float)hSteps;
                                         float stepH = height / (float)vSteps;
 
-                                        // Cạnh trên (u: 0.00 -> 0.25)
+                                        // Cáº¡nh trÃªn (u: 0.00 -> 0.25)
                                         for (int i = 0; i < hSteps; i++)
                                         {
                                             float u = 0.25f * ((float)i / (float)hSteps);
@@ -1525,10 +1482,10 @@ namespace ProjectEspPatch
                                             float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
                                             float a = 0.45f + 0.55f * (1f - trail);
                                             GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left + (float)i * stepW, top, stepW + 0.5f, finalBoxThick), pixel);
+                                            GUI.DrawTexture(new Rect(left + (float)i * stepW, top, stepW + 0.5f, thickness), pixel);
                                         }
 
-                                        // Cạnh phải (u: 0.25 -> 0.50)
+                                        // Cáº¡nh pháº£i (u: 0.25 -> 0.50)
                                         for (int i = 0; i < vSteps; i++)
                                         {
                                             float u = 0.25f + 0.25f * ((float)i / (float)vSteps);
@@ -1540,10 +1497,10 @@ namespace ProjectEspPatch
                                             float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
                                             float a = 0.45f + 0.55f * (1f - trail);
                                             GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left + width - finalBoxThick, top + (float)i * stepH, finalBoxThick, stepH + 0.5f), pixel);
+                                            GUI.DrawTexture(new Rect(left + width - thickness, top + (float)i * stepH, thickness, stepH + 0.5f), pixel);
                                         }
 
-                                        // Cạnh dưới (u: 0.50 -> 0.75)
+                                        // Cáº¡nh dÆ°á»›i (u: 0.50 -> 0.75)
                                         for (int i = 0; i < hSteps; i++)
                                         {
                                             float u = 0.50f + 0.25f * ((float)i / (float)hSteps);
@@ -1555,10 +1512,10 @@ namespace ProjectEspPatch
                                             float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
                                             float a = 0.45f + 0.55f * (1f - trail);
                                             GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left + width - (float)(i + 1) * stepW, top + height - finalBoxThick, stepW + 0.5f, finalBoxThick), pixel);
+                                            GUI.DrawTexture(new Rect(left + width - (float)(i + 1) * stepW, top + height - thickness, stepW + 0.5f, thickness), pixel);
                                         }
 
-                                        // Cạnh trái (u: 0.75 -> 1.00)
+                                        // Cáº¡nh trÃ¡i (u: 0.75 -> 1.00)
                                         for (int i = 0; i < vSteps; i++)
                                         {
                                             float u = 0.75f + 0.25f * ((float)i / (float)vSteps);
@@ -1570,16 +1527,16 @@ namespace ProjectEspPatch
                                             float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
                                             float a = 0.45f + 0.55f * (1f - trail);
                                             GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left, top + height - (float)(i + 1) * stepH, finalBoxThick, stepH + 0.5f), pixel);
+                                            GUI.DrawTexture(new Rect(left, top + height - (float)(i + 1) * stepH, thickness, stepH + 0.5f), pixel);
                                         }
                                     }
                                     else
                                     {
-                                        GUI.color = boxColor;
-                                        GUI.DrawTexture(new Rect(left, top, width, finalBoxThick), pixel);
-                                        GUI.DrawTexture(new Rect(left, top + height - finalBoxThick, width, finalBoxThick), pixel);
-                                        GUI.DrawTexture(new Rect(left, top, finalBoxThick, height), pixel);
-                                        GUI.DrawTexture(new Rect(left + width - finalBoxThick, top, finalBoxThick, height), pixel);
+                                        GUI.color = espColor;
+                                        GUI.DrawTexture(new Rect(left, top, width, thickness), pixel);
+                                        GUI.DrawTexture(new Rect(left, top + height - thickness, width, thickness), pixel);
+                                        GUI.DrawTexture(new Rect(left, top, thickness, height), pixel);
+                                        GUI.DrawTexture(new Rect(left + width - thickness, top, thickness, height), pixel);
                                     }
                                 }
 
@@ -1619,7 +1576,7 @@ namespace ProjectEspPatch
                                             float waveAlpha = 0.6f + 0.4f * (1f - wave);
                                             float la = Mathf.Clamp01(baseAlpha * waveAlpha);
 
-                                            float segThick = finalLineThick * (0.75f + 0.45f * normT);
+                                            float segThick = thickness * (0.75f + 0.45f * normT);
 
                                             GUI.color = new Color(lr, lg, lb, la);
                                             GUI.DrawTexture(new Rect(
@@ -1629,8 +1586,8 @@ namespace ProjectEspPatch
                                     }
                                     else
                                     {
-                                        GUI.color = lineColor;
-                                        GUI.DrawTexture(new Rect(0f, -finalLineThick * 0.5f, tracerLength, finalLineThick), pixel);
+                                        GUI.color = espColor;
+                                        GUI.DrawTexture(new Rect(0f, -thickness * 0.5f, tracerLength, thickness), pixel);
                                     }
                                     GUI.matrix = Matrix4x4.identity;
                                 }
@@ -1777,23 +1734,23 @@ namespace ProjectEspPatch
                     {
                         GUI.matrix = Matrix4x4.identity;
 
-                        // 1. Thân menu: Obsidian Cyber Dark (Chassis công nghệ tương lai)
+                        // 1. ThÃ¢n menu: Obsidian Cyber Dark (Chassis cÃ´ng nghá»‡ tÆ°Æ¡ng lai)
                         GUI.color = new Color(0.035f, 0.040f, 0.058f, 0.97f);
                         GUI.DrawTexture(panelRect, pixel);
 
-                        // 2. Viền phát sáng Neon Cam Chakra Cửu Vĩ (Kurama Flame 2px)
+                        // 2. Viá»n phÃ¡t sÃ¡ng Neon Cam Chakra Cá»­u VÄ© (Kurama Flame 2px)
                         GUI.color = new Color(1.0f, 0.46f, 0.05f, 0.95f);
                         GUI.DrawTexture(new Rect(panelX, panelY, panelWidth, 2f), pixel);
                         GUI.DrawTexture(new Rect(panelX, panelY + panelHeight - 2f, panelWidth, 2f), pixel);
                         GUI.DrawTexture(new Rect(panelX, panelY, 2f, panelHeight), pixel);
                         GUI.DrawTexture(new Rect(panelX + panelWidth - 2f, panelY, 2f, panelHeight), pixel);
 
-                        // 3. Viền ánh sáng phụ Cyber Cyan Rasengan (1px bên trong)
+                        // 3. Viá»n Ã¡nh sÃ¡ng phá»¥ Cyber Cyan Rasengan (1px bÃªn trong)
                         GUI.color = new Color(0.0f, 0.92f, 1.0f, 0.45f);
                         GUI.DrawTexture(new Rect(panelX + 2f, panelY + 2f, panelWidth - 4f, 1f), pixel);
                         GUI.DrawTexture(new Rect(panelX + 2f, panelY + panelHeight - 3f, panelWidth - 4f, 1f), pixel);
 
-                        // 4. Góc vát công nghệ (Corner Tech HUD Brackets - 4 góc nhẫn giả Cyberpunk)
+                        // 4. GÃ³c vÃ¡t cÃ´ng nghá»‡ (Corner Tech HUD Brackets - 4 gÃ³c nháº«n giáº£ Cyberpunk)
                         GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
                         GUI.DrawTexture(new Rect(panelX - 1f, panelY - 1f, 16f, 3f), pixel);
                         GUI.DrawTexture(new Rect(panelX - 1f, panelY - 1f, 3f, 16f), pixel);
@@ -1804,30 +1761,30 @@ namespace ProjectEspPatch
                         GUI.DrawTexture(new Rect(panelX + panelWidth - 15f, panelY + panelHeight - 2f, 16f, 3f), pixel);
                         GUI.DrawTexture(new Rect(panelX + panelWidth - 2f, panelY + panelHeight - 15f, 3f, 16f), pixel);
 
-                        // 5. Thanh tiêu đề Header
+                        // 5. Thanh tiÃªu Ä‘á» Header
                         GUI.color = new Color(0.075f, 0.085f, 0.125f, 1f);
                         GUI.DrawTexture(headerRect, pixel);
 
-                        // Đường dải phát sáng ngăn cách Header và Body
+                        // ÄÆ°á»ng dáº£i phÃ¡t sÃ¡ng ngÄƒn cÃ¡ch Header vÃ  Body
                         GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
                         GUI.DrawTexture(new Rect(panelX, panelY + headerHeight - 1f, panelWidth, 2f), pixel);
                         GUI.color = new Color(1.0f, 0.82f, 0.2f, 0.5f);
                         GUI.DrawTexture(new Rect(panelX, panelY + headerHeight + 1f, panelWidth, 1f), pixel);
 
-                        // Tiêu đề PROXY VIP VN V5
+                        // TiÃªu Ä‘á» PROXY VIP VN V5
                         GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
                         float titleWidth = Mathf.Clamp(panelWidth - 40f, 240f, 420f);
                         GUI.Label(new Rect(
                             panelX + panelWidth * 0.5f - titleWidth * 0.5f,
-                            panelY + 8f, titleWidth, 22f), "★  PROXY VIP VN V5  ★");
+                            panelY + 8f, titleWidth, 22f), "â˜…  PROXY VIP VN V5  â˜…");
 
                         GUI.color = new Color(1.0f, 0.82f, 0.2f, 0.95f);
                         float subTitleWidth = Mathf.Clamp(panelWidth - 60f, 220f, 380f);
                         GUI.Label(new Rect(
                             panelX + panelWidth * 0.5f - subTitleWidth * 0.5f,
-                            panelY + 30f, subTitleWidth, 18f), "● MOD MENU FREE FIRE OB55 ●");
+                            panelY + 30f, subTitleWidth, 18f), "â— MOD MENU FREE FIRE OB55 â—");
 
-                        // Nút đóng menu màu đỏ VIP
+                        // NÃºt Ä‘Ã³ng menu mÃ u Ä‘á» VIP
                         GUI.color = new Color(0.85f, 0.12f, 0.18f, 1f);
                         GUI.DrawTexture(closeRect, pixel);
                         GUI.color = new Color(1.0f, 0.40f, 0.50f, 0.7f);
@@ -1835,7 +1792,7 @@ namespace ProjectEspPatch
                         GUI.color = Color.white;
                         GUI.Label(new Rect(
                             closeRect.x + closeRect.width * 0.5f - 7f,
-                            closeRect.y + closeRect.height * 0.5f - 10f, 20f, 20f), "✕");
+                            closeRect.y + closeRect.height * 0.5f - 10f, 20f, 20f), "âœ•");
 
                         for (int row = 0; row < rowCount; row++)
                         {
@@ -1853,8 +1810,8 @@ namespace ProjectEspPatch
                                 if (row == 6)
                                 {
                                     rowBit = 0;
-                                    string originStr = isBottomTracer ? "ĐÁY MÀN HÌNH" : "ĐỈNH MÀN HÌNH";
-                                    rowLabel = "📍 Gốc Dây ESP: " + originStr + "  [Chọn]";
+                                    string originStr = isBottomTracer ? "ÄÃY MÃ€N HÃŒNH" : "Äá»ˆNH MÃ€N HÃŒNH";
+                                    rowLabel = "ðŸ“ Gá»‘c DÃ¢y ESP: " + originStr + "  [Chá»n]";
                                 }
                                 else
                                 {
@@ -1863,11 +1820,11 @@ namespace ProjectEspPatch
                                         : (row == 2 ? EspTracer
                                         : (row == 3 ? EspHealth
                                         : (row == 4 ? EspName : EspDistance))));
-                                    rowLabel = row == 0 ? "◈ Bật ESP Tổng (Hiện Địch)"
-                                        : (row == 1 ? "▣ ESP Khung (Hộp 2D)"
-                                        : (row == 2 ? "⌁ ESP Dây (Dây Nối Tâm)"
-                                        : (row == 3 ? "♥ ESP Máu (Thanh Máu)"
-                                        : (row == 4 ? "👤 ESP Tên Người Chơi" : "◎ ESP Khoảng Cách (Mét)"))));
+                                    rowLabel = row == 0 ? "â—ˆ Báº­t ESP Tá»•ng (Hiá»‡n Äá»‹ch)"
+                                        : (row == 1 ? "â–£ ESP Khung (Há»™p 2D)"
+                                        : (row == 2 ? "âŒ ESP DÃ¢y (DÃ¢y Ná»‘i TÃ¢m)"
+                                        : (row == 3 ? "â™¥ ESP MÃ¡u (Thanh MÃ¡u)"
+                                        : (row == 4 ? "ðŸ‘¤ ESP TÃªn NgÆ°á»i ChÆ¡i" : "â—Ž ESP Khoáº£ng CÃ¡ch (MÃ©t)"))));
                                 }
                             }
                             else if (activeTab == 1)
@@ -1875,57 +1832,57 @@ namespace ProjectEspPatch
                                 if (row == 0)
                                 {
                                     rowBit = AimEnabled;
-                                    rowLabel = "⚡ Silent Aim (Đạn Đuổi / Bẻ Hướng)";
+                                    rowLabel = "âš¡ Silent Aim (Äáº¡n Äuá»•i / Báº» HÆ°á»›ng)";
                                 }
                                 else if (row == 1)
                                 {
                                     rowBit = AimSystemEnabled;
-                                    rowLabel = "🎯 Tự Động Kéo Tâm (Auto Aim)";
+                                    rowLabel = "ðŸŽ¯ Tá»± Äá»™ng KÃ©o TÃ¢m (Auto Aim)";
                                 }
                                 else if ((state & AimEnabled) != 0)
                                 {
                                     if (row == 2)
                                     {
-                                        string modeStr = aimMode == 0 ? "NGỰC / THÂN"
-                                            : (aimMode == 1 ? "ĐẦU (Headshot)" : "ĐA ĐIỂM (Random)");
-                                        rowLabel = "🎯 Vị Trí Găm Tâm: " + modeStr + "  [Chọn]";
+                                        string modeStr = aimMode == 0 ? "NGá»°C / THÃ‚N"
+                                            : (aimMode == 1 ? "Äáº¦U (Headshot)" : "ÄA ÄIá»‚M (Random)");
+                                        rowLabel = "ðŸŽ¯ Vá»‹ TrÃ­ GÄƒm TÃ¢m: " + modeStr + "  [Chá»n]";
                                     }
                                     else if (row == 3)
                                     {
                                         string rateStr = headRateIndex == 0 ? "0%"
                                             : (headRateIndex == 1 ? "25%"
                                             : (headRateIndex == 2 ? "50%"
-                                            : (headRateIndex == 3 ? "75%" : "100% (Full Đỏ)")));
-                                        rowLabel = "⚡ Tỷ Lệ Trúng Đầu: " + rateStr + "  [Chọn]";
+                                            : (headRateIndex == 3 ? "75%" : "100% (Full Äá»)")));
+                                        rowLabel = "âš¡ Tá»· Lá»‡ TrÃºng Äáº§u: " + rateStr + "  [Chá»n]";
                                     }
                                     else if (row == 4)
                                     {
                                         rowBit = EspFov;
-                                        rowLabel = "🌀 Vòng Tròn Ngắm (Vòng FOV)";
+                                        rowLabel = "ðŸŒ€ VÃ²ng TrÃ²n Ngáº¯m (VÃ²ng FOV)";
                                     }
                                     else if (row == 5)
                                     {
-                                        string fovDesc = fovRadius < 85f ? "Siêu Kín"
-                                            : (fovRadius < 125f ? "Kín Đáo"
-                                            : (fovRadius < 170f ? "Chuẩn"
-                                            : (fovRadius < 250f ? "Rộng" : "Cực Đại")));
-                                        rowLabel = "📐 Cỡ Vòng FOV: " + Mathf.RoundToInt(fovRadius) + "px (" + fovDesc + ")  [Kéo Trượt]";
+                                        string fovDesc = fovRadius < 85f ? "SiÃªu KÃ­n"
+                                            : (fovRadius < 125f ? "KÃ­n ÄÃ¡o"
+                                            : (fovRadius < 170f ? "Chuáº©n"
+                                            : (fovRadius < 250f ? "Rá»™ng" : "Cá»±c Äáº¡i")));
+                                        rowLabel = "ðŸ“ Cá»¡ VÃ²ng FOV: " + Mathf.RoundToInt(fovRadius) + "px (" + fovDesc + ")  [KÃ©o TrÆ°á»£t]";
                                     }
                                     else if (row == 6)
                                     {
                                         string colorStr = isRainbow
-                                            ? "🌈 Cầu Vồng RGB (7 Màu Động)"
+                                            ? "ðŸŒˆ Cáº§u Vá»“ng RGB (7 MÃ u Äá»™ng)"
                                             : ("#" + customR.ToString("X2") + customG.ToString("X2") + customB.ToString("X2")
                                                 + " [R:" + customR + " G:" + customG + " B:" + customB + "]");
-                                        rowLabel = "🎨 Bảng Màu FOV: " + colorStr + "  [Đổi Màu]";
+                                        rowLabel = "ðŸŽ¨ Báº£ng MÃ u FOV: " + colorStr + "  [Äá»•i MÃ u]";
                                     }
                                 }
                                 else if ((state & AimSystemEnabled) != 0)
                                 {
                                     if (row == 2)
                                     {
-                                        string targetStr = (state & AimSystemHead) != 0 ? "ĐẦU (Headshot)" : "CỔ (Tự Nhiên)";
-                                        rowLabel = "🎯 Vị Trí Kéo Tâm: " + targetStr + "  [Chọn]";
+                                        string targetStr = (state & AimSystemHead) != 0 ? "Äáº¦U (Headshot)" : "Cá»” (Tá»± NhiÃªn)";
+                                        rowLabel = "ðŸŽ¯ Vá»‹ TrÃ­ KÃ©o TÃ¢m: " + targetStr + "  [Chá»n]";
                                     }
                                 }
                             }
@@ -1934,22 +1891,22 @@ namespace ProjectEspPatch
                                 if (row == 0)
                                 {
                                     rowBit = VipFastFire;
-                                    rowLabel = "⚡ Xả Đạn Siêu Tốc (Fast Fire Rate)";
+                                    rowLabel = "âš¡ Xáº£ Äáº¡n SiÃªu Tá»‘c (Fast Fire Rate)";
                                 }
                                 else if (row == 1)
                                 {
                                     rowBit = NoRecoil;
-                                    rowLabel = "🔥 Đạn Thẳng 100% (No Recoil / lỗi dame cao)";
+                                    rowLabel = "ðŸ”¥ Äáº¡n Tháº³ng 100% (No Recoil / lá»—i dame cao)";
                                 }
                                 else if (row == 2)
                                 {
                                     rowBit = VipHeadDamage;
-                                    rowLabel = "💥 Tăng Sát Thương + Máu Ảo 999999 (Fake Dmg)";
+                                    rowLabel = "ðŸ’¥ TÄƒng SÃ¡t ThÆ°Æ¡ng + MÃ¡u áº¢o 999999 (Fake Dmg)";
                                 }
                                 else if (row == 3)
                                 {
                                     rowBit = VipWideView;
-                                    rowLabel = "📱 Góc Nhìn Rộng iPad / Cam Xa (FOV 88°)";
+                                    rowLabel = "ðŸ“± GÃ³c NhÃ¬n Rá»™ng iPad / Cam Xa (FOV 88Â°)";
                                 }
                             }
                             else
@@ -1957,16 +1914,16 @@ namespace ProjectEspPatch
                                 if (row == 0)
                                 {
                                     rowBit = -AuxFastParachute;
-                                    rowLabel = "🌪 Nhảy Dù Siêu Tốc (Rơi Nhanh)";
+                                    rowLabel = "ðŸŒª Nháº£y DÃ¹ SiÃªu Tá»‘c (RÆ¡i Nhanh)";
                                 }
                                 else if (row == 1)
                                 {
                                     rowBit = -AuxSpeedRunning;
-                                    rowLabel = "⚡ Tăng Tốc Chạy x3 (Gia Tốc)";
+                                    rowLabel = "âš¡ TÄƒng Tá»‘c Cháº¡y x3 (Gia Tá»‘c)";
                                 }
                                 else
                                 {
-                                    rowLabel = row == 2 ? "↺ Khôi Phục Cài Đặt Mặc Định" : "✖ Đóng Menu (Ẩn Giao Diện)";
+                                    rowLabel = row == 2 ? "â†º KhÃ´i Phá»¥c CÃ i Äáº·t Máº·c Äá»‹nh" : "âœ– ÄÃ³ng Menu (áº¨n Giao Diá»‡n)";
                                 }
                             }
                             bool showToggle = rowBit != 0;
@@ -1995,24 +1952,24 @@ namespace ProjectEspPatch
                                 }
                             }
 
-                            // Nền hàng chức năng
+                            // Ná»n hÃ ng chá»©c nÄƒng
                             GUI.color = new Color(0.062f, 0.072f, 0.105f, 0.94f);
                             GUI.DrawTexture(rowRect, pixel);
 
-                            // Viền mỏng xung quanh hàng
+                            // Viá»n má»ng xung quanh hÃ ng
                             GUI.color = new Color(0.16f, 0.20f, 0.28f, 0.6f);
                             GUI.DrawTexture(new Rect(rowRect.x, rowRect.y, rowRect.width, 1f), pixel);
                             GUI.DrawTexture(new Rect(rowRect.x, rowRect.y + rowRect.height - 1f, rowRect.width, 1f), pixel);
                             GUI.DrawTexture(new Rect(rowRect.x, rowRect.y, 1f, rowRect.height), pixel);
                             GUI.DrawTexture(new Rect(rowRect.x + rowRect.width - 1f, rowRect.y, 1f, rowRect.height), pixel);
 
-                            // Dải đèn led chỉ báo trạng thái bên trái
+                            // Dáº£i Ä‘Ã¨n led chá»‰ bÃ¡o tráº¡ng thÃ¡i bÃªn trÃ¡i
                             GUI.color = isRowActive
                                 ? new Color(1.0f, 0.48f, 0.05f, 1f)
                                 : new Color(0.0f, 0.85f, 1.0f, 0.35f);
                             GUI.DrawTexture(new Rect(rowRect.x, rowRect.y + 2f, 4f, rowRect.height - 4f), pixel);
 
-                            // Nhãn chữ
+                            // NhÃ£n chá»¯
                             GUI.color = isRowActive
                                 ? new Color(1.0f, 0.95f, 0.88f, 1f)
                                 : new Color(0.70f, 0.76f, 0.84f, 1f);
@@ -2068,13 +2025,13 @@ namespace ProjectEspPatch
                                     rowRect.x + rowRect.width - tW - 16f,
                                     tY, tW, tH);
 
-                                // Nền track công tắc
+                                // Ná»n track cÃ´ng táº¯c
                                 GUI.color = enabled
                                     ? new Color(0.25f, 0.12f, 0.02f, 0.95f)
                                     : new Color(0.10f, 0.12f, 0.16f, 0.95f);
                                 GUI.DrawTexture(track, pixel);
 
-                                // Viền track công tắc phát sáng
+                                // Viá»n track cÃ´ng táº¯c phÃ¡t sÃ¡ng
                                 GUI.color = enabled
                                     ? new Color(1.0f, 0.48f, 0.05f, 1f)
                                     : new Color(0.24f, 0.28f, 0.36f, 1f);
@@ -2083,14 +2040,14 @@ namespace ProjectEspPatch
                                 GUI.DrawTexture(new Rect(track.x, track.y, 1.2f, track.height), pixel);
                                 GUI.DrawTexture(new Rect(track.x + track.width - 1.2f, track.y, 1.2f, track.height), pixel);
 
-                                // Chữ ON / OFF nhỏ
+                                // Chá»¯ ON / OFF nhá»
                                 GUI.color = enabled
                                     ? new Color(1.0f, 0.65f, 0.1f, 0.9f)
                                     : new Color(0.40f, 0.45f, 0.55f, 0.7f);
                                 float textX = enabled ? track.x + 9f : track.x + 35f;
                                 GUI.Label(new Rect(textX, track.y + 7f, 26f, 18f), enabled ? "ON" : "OFF");
 
-                                // Nút gạt năng lượng (Cyber Core Node)
+                                // NÃºt gáº¡t nÄƒng lÆ°á»£ng (Cyber Core Node)
                                 float knobX = enabled ? track.x + track.width - 29f : track.x + 4f;
                                 GUI.color = enabled
                                     ? new Color(1.0f, 0.92f, 0.60f, 1f)
@@ -2099,7 +2056,7 @@ namespace ProjectEspPatch
                             }
                         }
 
-                        // 4 TAB chuyển đổi
+                        // 4 TAB chuyá»ƒn Ä‘á»•i
                         // Tab 0: ESP
                         GUI.color = activeTab == 0
                             ? new Color(0.10f, 0.18f, 0.28f, 1f)
@@ -2115,7 +2072,7 @@ namespace ProjectEspPatch
                             : new Color(0.60f, 0.68f, 0.78f, 1f);
                         GUI.Label(new Rect(
                             espTab.x + espTab.width * 0.5f - 45f,
-                            espTab.y + (footerHeight - 24f) * 0.5f, 90f, 24f), "👁 ESP");
+                            espTab.y + (footerHeight - 24f) * 0.5f, 90f, 24f), "ðŸ‘ ESP");
 
                         // Tab 1: AIM
                         GUI.color = activeTab == 1
@@ -2132,7 +2089,7 @@ namespace ProjectEspPatch
                             : new Color(0.60f, 0.68f, 0.78f, 1f);
                         GUI.Label(new Rect(
                             aimTab.x + aimTab.width * 0.5f - 45f,
-                            aimTab.y + (footerHeight - 24f) * 0.5f, 90f, 24f), "🎯 AIM");
+                            aimTab.y + (footerHeight - 24f) * 0.5f, 90f, 24f), "ðŸŽ¯ AIM");
 
                         // Tab 2: VIP
                         GUI.color = activeTab == 2
@@ -2149,9 +2106,9 @@ namespace ProjectEspPatch
                             : new Color(0.60f, 0.68f, 0.78f, 1f);
                         GUI.Label(new Rect(
                             vipTab.x + vipTab.width * 0.5f - 45f,
-                            vipTab.y + (footerHeight - 24f) * 0.5f, 90f, 24f), "👑 VIP");
+                            vipTab.y + (footerHeight - 24f) * 0.5f, 90f, 24f), "ðŸ‘‘ VIP");
 
-                        // Tab 3: CÀI ĐẶT
+                        // Tab 3: CÃ€I Äáº¶T
                         GUI.color = activeTab == 3
                             ? new Color(0.18f, 0.10f, 0.24f, 1f)
                             : new Color(0.045f, 0.055f, 0.08f, 1f);
@@ -2166,7 +2123,7 @@ namespace ProjectEspPatch
                             : new Color(0.60f, 0.68f, 0.78f, 1f);
                         GUI.Label(new Rect(
                             settingsTab.x + settingsTab.width * 0.5f - 50f,
-                            settingsTab.y + (footerHeight - 24f) * 0.5f, 100f, 24f), "⚙ CÀI ĐẶT");
+                            settingsTab.y + (footerHeight - 24f) * 0.5f, 100f, 24f), "âš™ CÃ€I Äáº¶T");
 
                         if (activeModal != ModalNone)
                         {
@@ -2181,22 +2138,22 @@ namespace ProjectEspPatch
                             Rect popupHeaderRect = new Rect(popupX, popupY, popupWidth, 42f);
                             Rect popupCloseRect = new Rect(popupX + popupWidth - 42f, popupY + 6f, 32f, 32f);
 
-                            // 1. Lớp phủ mờ tối nền
+                            // 1. Lá»›p phá»§ má» tá»‘i ná»n
                             GUI.color = new Color(0.02f, 0.03f, 0.05f, 0.82f);
                             GUI.DrawTexture(panelRect, pixel);
 
-                            // 2. Nền popup Cyberpunk
+                            // 2. Ná»n popup Cyberpunk
                             GUI.color = new Color(0.065f, 0.075f, 0.11f, 0.98f);
                             GUI.DrawTexture(popupRect, pixel);
 
-                            // 3. Viền phát sáng Neon Cam Chakra (2px)
+                            // 3. Viá»n phÃ¡t sÃ¡ng Neon Cam Chakra (2px)
                             GUI.color = new Color(1.0f, 0.48f, 0.05f, 1f);
                             GUI.DrawTexture(new Rect(popupX, popupY, popupWidth, 2f), pixel);
                             GUI.DrawTexture(new Rect(popupX, popupY + popupHeight - 2f, popupWidth, 2f), pixel);
                             GUI.DrawTexture(new Rect(popupX, popupY, 2f, popupHeight), pixel);
                             GUI.DrawTexture(new Rect(popupX + popupWidth - 2f, popupY, 2f, popupHeight), pixel);
 
-                            // 4. Góc vát công nghệ Cyberpunk (4 góc)
+                            // 4. GÃ³c vÃ¡t cÃ´ng nghá»‡ Cyberpunk (4 gÃ³c)
                             GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
                             GUI.DrawTexture(new Rect(popupX - 1f, popupY - 1f, 14f, 2.5f), pixel);
                             GUI.DrawTexture(new Rect(popupX - 1f, popupY - 1f, 2.5f, 14f), pixel);
@@ -2207,27 +2164,27 @@ namespace ProjectEspPatch
                             GUI.DrawTexture(new Rect(popupX + popupWidth - 13f, popupY + popupHeight - 1.5f, 14f, 2.5f), pixel);
                             GUI.DrawTexture(new Rect(popupX + popupWidth - 1.5f, popupY + popupHeight - 13f, 2.5f, 14f), pixel);
 
-                            // 5. Thanh tiêu đề Header
+                            // 5. Thanh tiÃªu Ä‘á» Header
                             GUI.color = new Color(0.09f, 0.10f, 0.15f, 1f);
                             GUI.DrawTexture(popupHeaderRect, pixel);
                             GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
                             GUI.DrawTexture(new Rect(popupX, popupY + 41f, popupWidth, 1.5f), pixel);
 
-                            // Tiêu đề
+                            // TiÃªu Ä‘á»
                             GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
-                            string modalTitle = activeModal == ModalAimMode ? "★  CHỌN VỊ TRÍ GĂM TÂM  ★"
-                                : (activeModal == ModalHeadRate ? "★  CHỌN TỶ LỆ TRÚNG ĐẦU  ★"
-                                : (activeModal == ModalFovSize ? "★  THANH CUỘN CỠ VÒNG FOV  ★"
-                                : (activeModal == ModalFovColor ? "★  BẢNG MÀU FOV TỰ CHỌN (CUSTOM)  ★"
-                                : (activeModal == ModalSystemTarget ? "★  CHỌN VỊ TRÍ KÉO TÂM  ★"
-                                : "★  CHỌN GỐC DÂY ESP LINE  ★"))));
+                            string modalTitle = activeModal == ModalAimMode ? "â˜…  CHá»ŒN Vá»Š TRÃ GÄ‚M TÃ‚M  â˜…"
+                                : (activeModal == ModalHeadRate ? "â˜…  CHá»ŒN Tá»¶ Lá»† TRÃšNG Äáº¦U  â˜…"
+                                : (activeModal == ModalFovSize ? "â˜…  THANH CUá»˜N Cá»  VÃ’NG FOV  â˜…"
+                                : (activeModal == ModalFovColor ? "â˜…  Báº¢NG MÃ€U FOV Tá»° CHá»ŒN (CUSTOM)  â˜…"
+                                : (activeModal == ModalSystemTarget ? "â˜…  CHá»ŒN Vá»Š TRÃ KÃ‰O TÃ‚M  â˜…"
+                                : "â˜…  CHá»ŒN Gá»C DÃ‚Y ESP LINE  â˜…"))));
                             GUI.Label(new Rect(popupX + 16f, popupY + 10f, popupWidth - 60f, 22f), modalTitle);
 
-                            // Nút đóng ✕
+                            // NÃºt Ä‘Ã³ng âœ•
                             GUI.color = new Color(0.85f, 0.12f, 0.18f, 1f);
                             GUI.DrawTexture(popupCloseRect, pixel);
                             GUI.color = Color.white;
-                            GUI.Label(new Rect(popupCloseRect.x + 10f, popupCloseRect.y + 6f, 18f, 18f), "✕");
+                            GUI.Label(new Rect(popupCloseRect.x + 10f, popupCloseRect.y + 6f, 18f, 18f), "âœ•");
 
                             if (activeModal == ModalFovColor)
                             {
@@ -2251,21 +2208,21 @@ namespace ProjectEspPatch
                                 GUI.DrawTexture(new Rect(swatchRect.x, swatchRect.y + swatchRect.height - 1.2f, swatchRect.width, 1.2f), pixel);
                                 GUI.DrawTexture(new Rect(swatchRect.x, swatchRect.y, 1.2f, swatchRect.height), pixel);
                                 GUI.DrawTexture(new Rect(swatchRect.x + swatchRect.width - 1.2f, swatchRect.y, 1.2f, swatchRect.height), pixel);
-                                // Tâm crosshair nhỏ trong swatch
+                                // TÃ¢m crosshair nhá» trong swatch
                                 float cx = swatchRect.x + swatchRect.width * 0.5f;
                                 float cy = swatchRect.y + swatchRect.height * 0.5f;
                                 GUI.color = (customR + customG + customB > 450) ? Color.black : Color.white;
                                 GUI.DrawTexture(new Rect(cx - 6f, cy - 0.75f, 12f, 1.5f), pixel);
                                 GUI.DrawTexture(new Rect(cx - 0.75f, cy - 6f, 1.5f, 12f), pixel);
 
-                                // Label mã màu / trạng thái
+                                // Label mÃ£ mÃ u / tráº¡ng thÃ¡i
                                 GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
                                 string hex = customR.ToString("X2") + customG.ToString("X2") + customB.ToString("X2");
                                 GUI.Label(new Rect(previewCard.x + 82f, previewCard.y + 7f, previewCard.width - 90f, 20f),
-                                    isRainbow ? "CHẾ ĐỘ: 🌈 CẦU VỒNG RGB 7 MÀU (ĐỘNG)" : ("MÃ MÀU: #" + hex + "  |  RGB(" + customR + ", " + customG + ", " + customB + ")"));
+                                    isRainbow ? "CHáº¾ Äá»˜: ðŸŒˆ Cáº¦U Vá»’NG RGB 7 MÃ€U (Äá»˜NG)" : ("MÃƒ MÃ€U: #" + hex + "  |  RGB(" + customR + ", " + customG + ", " + customB + ")"));
                                 GUI.color = new Color(0.70f, 0.75f, 0.85f, 0.9f);
                                 GUI.Label(new Rect(previewCard.x + 82f, previewCard.y + 27f, previewCard.width - 90f, 20f),
-                                    isRainbow ? "Vòng FOV tự xoay đổi dải 7 màu như bàn phím Gaming" : "Chạm/kéo thanh R-G-B hoặc bấm màu nhanh phía dưới");
+                                    isRainbow ? "VÃ²ng FOV tá»± xoay Ä‘á»•i dáº£i 7 mÃ u nhÆ° bÃ n phÃ­m Gaming" : "Cháº¡m/kÃ©o thanh R-G-B hoáº·c báº¥m mÃ u nhanh phÃ­a dÆ°á»›i");
 
                                 // 3 SLIDERS R - G - B
                                 for (int ch = 0; ch < 3; ch++)
@@ -2281,7 +2238,7 @@ namespace ProjectEspPatch
                                     GUI.DrawTexture(new Rect(sRowRect.x + sRowRect.width - 1f, sRowRect.y, 1f, sRowRect.height), pixel);
 
                                     int chVal = ch == 0 ? customR : (ch == 1 ? customG : customB);
-                                    string chName = ch == 0 ? "🔴 ĐỎ (R)" : (ch == 1 ? "🟢 LỤC (G)" : "🔵 LAM (B)");
+                                    string chName = ch == 0 ? "ðŸ”´ Äá»Ž (R)" : (ch == 1 ? "ðŸŸ¢ Lá»¤C (G)" : "ðŸ”µ LAM (B)");
                                     Color chColor = ch == 0 ? new Color(1.0f, 0.28f, 0.32f, 1f) : (ch == 1 ? new Color(0.25f, 1.0f, 0.4f, 1f) : new Color(0.25f, 0.72f, 1.0f, 1f));
                                     GUI.color = chColor;
                                     GUI.DrawTexture(new Rect(sRowRect.x, sRowRect.y + 2f, 4f, sRowRect.height - 4f), pixel);
@@ -2309,10 +2266,10 @@ namespace ProjectEspPatch
                                     GUI.DrawTexture(new Rect(knobRect.x + 4f, knobRect.y + 4f, 4f, 16f), pixel);
                                 }
 
-                                // BẢNG MÀU CHỌN NHANH (10 swatches)
+                                // Báº¢NG MÃ€U CHá»ŒN NHANH (10 swatches)
                                 float swStartY = popupY + 242f;
                                 GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
-                                GUI.Label(new Rect(popupX + 14f, swStartY, popupWidth - 28f, 18f), "⚡ BẢNG MÀU CHỌN NHANH & CHẾ ĐỘ CẦU VỒNG:");
+                                GUI.Label(new Rect(popupX + 14f, swStartY, popupWidth - 28f, 18f), "âš¡ Báº¢NG MÃ€U CHá»ŒN NHANH & CHáº¾ Äá»˜ Cáº¦U Vá»’NG:");
                                 float swW = (popupWidth - 28f - 4 * 6f) / 5f;
                                 float swH = 30f;
                                 for (int sw = 0; sw < 10; sw++)
@@ -2320,7 +2277,7 @@ namespace ProjectEspPatch
                                     int swRow = sw / 5;
                                     int swCol = sw % 5;
                                     Rect swRect = new Rect(popupX + 14f + (float)swCol * (swW + 6f), swStartY + 20f + (float)swRow * (swH + 5f), swW, swH);
-                                    string swName = sw == 0 ? "ĐỎ" : (sw == 1 ? "VÀNG" : (sw == 2 ? "LỤC" : (sw == 3 ? "CYAN" : (sw == 4 ? "LAM" : (sw == 5 ? "TÍM" : (sw == 6 ? "HỒNG" : (sw == 7 ? "CAM" : (sw == 8 ? "TRẮNG" : "🌈 7 MÀU"))))))));
+                                    string swName = sw == 0 ? "Äá»Ž" : (sw == 1 ? "VÃ€NG" : (sw == 2 ? "Lá»¤C" : (sw == 3 ? "CYAN" : (sw == 4 ? "LAM" : (sw == 5 ? "TÃM" : (sw == 6 ? "Há»’NG" : (sw == 7 ? "CAM" : (sw == 8 ? "TRáº®NG" : "ðŸŒˆ 7 MÃ€U"))))))));
                                     Color swC = sw == 0 ? new Color(1.0f, 0.15f, 0.2f)
                                         : (sw == 1 ? new Color(1.0f, 0.92f, 0.05f)
                                         : (sw == 2 ? new Color(0.1f, 1.0f, 0.35f)
@@ -2340,15 +2297,15 @@ namespace ProjectEspPatch
                                     GUI.DrawTexture(new Rect(swRect.x, swRect.y, 1.2f, swRect.height), pixel);
                                     GUI.DrawTexture(new Rect(swRect.x + swRect.width - 1.2f, swRect.y, 1.2f, swRect.height), pixel);
 
-                                    // Block màu nhỏ bên trái
+                                    // Block mÃ u nhá» bÃªn trÃ¡i
                                     GUI.color = swC;
                                     GUI.DrawTexture(new Rect(swRect.x + 4f, swRect.y + 4f, 12f, swH - 8f), pixel);
-                                    // Chữ tên màu
+                                    // Chá»¯ tÃªn mÃ u
                                     GUI.color = isCurrentSw ? Color.white : new Color(0.80f, 0.85f, 0.92f, 0.9f);
                                     GUI.Label(new Rect(swRect.x + 18f, swRect.y + 5f, swW - 20f, 20f), swName);
                                 }
 
-                                // NÚT ÁP DỤNG & ĐÓNG
+                                // NÃšT ÃP Dá»¤NG & ÄÃ“NG
                                 Rect applyBtn = new Rect(popupX + 14f, popupY + 352f, popupWidth - 28f, 42f);
                                 GUI.color = new Color(0.10f, 0.32f, 0.18f, 0.96f);
                                 GUI.DrawTexture(applyBtn, pixel);
@@ -2358,11 +2315,11 @@ namespace ProjectEspPatch
                                 GUI.DrawTexture(new Rect(applyBtn.x, applyBtn.y, 1.5f, applyBtn.height), pixel);
                                 GUI.DrawTexture(new Rect(applyBtn.x + applyBtn.width - 1.5f, applyBtn.y, 1.5f, applyBtn.height), pixel);
                                 GUI.color = Color.white;
-                                GUI.Label(new Rect(applyBtn.x + applyBtn.width * 0.5f - 90f, applyBtn.y + 10f, 180f, 22f), "✔  ÁP DỤNG & ĐÓNG BẢNG MÀU");
+                                GUI.Label(new Rect(applyBtn.x + applyBtn.width * 0.5f - 90f, applyBtn.y + 10f, 180f, 22f), "âœ”  ÃP Dá»¤NG & ÄÃ“NG Báº¢NG MÃ€U");
                             }
                             else if (activeModal == ModalFovSize)
                             {
-                                // THÔNG TIN KÍCH THƯỚC FOV HIỆN TẠI
+                                // THÃ”NG TIN KÃCH THÆ¯á»šC FOV HIá»†N Táº I
                                 Rect previewCard = new Rect(popupX + 14f, popupY + 48f, popupWidth - 28f, 54f);
                                 GUI.color = new Color(0.04f, 0.05f, 0.08f, 0.95f);
                                 GUI.DrawTexture(previewCard, pixel);
@@ -2372,23 +2329,23 @@ namespace ProjectEspPatch
                                 GUI.DrawTexture(new Rect(previewCard.x, previewCard.y, 1.2f, previewCard.height), pixel);
                                 GUI.DrawTexture(new Rect(previewCard.x + previewCard.width - 1.2f, previewCard.y, 1.2f, previewCard.height), pixel);
 
-                                // Dải led cam
+                                // Dáº£i led cam
                                 GUI.color = new Color(1.0f, 0.50f, 0.05f, 1f);
                                 GUI.DrawTexture(new Rect(previewCard.x, previewCard.y + 2f, 4f, previewCard.height - 4f), pixel);
 
-                                string fovDesc = fovRadius < 85f ? "Siêu Kín (Bắn Giải)"
-                                    : (fovRadius < 125f ? "Kín Đáo (Tự Nhiên)"
-                                    : (fovRadius < 170f ? "Chuẩn (Cân Bằng)"
-                                    : (fovRadius < 250f ? "Rộng (Dễ Bắn)" : "Cực Đại (Toàn Màn)")));
+                                string fovDesc = fovRadius < 85f ? "SiÃªu KÃ­n (Báº¯n Giáº£i)"
+                                    : (fovRadius < 125f ? "KÃ­n ÄÃ¡o (Tá»± NhiÃªn)"
+                                    : (fovRadius < 170f ? "Chuáº©n (CÃ¢n Báº±ng)"
+                                    : (fovRadius < 250f ? "Rá»™ng (Dá»… Báº¯n)" : "Cá»±c Äáº¡i (ToÃ n MÃ n)")));
 
                                 GUI.color = new Color(1.0f, 0.65f, 0.15f, 1f);
                                 GUI.Label(new Rect(previewCard.x + 14f, previewCard.y + 7f, previewCard.width - 20f, 20f),
-                                    "📐 BÁN KÍNH VÒNG FOV: " + Mathf.RoundToInt(fovRadius) + "px  (" + fovDesc + ")");
+                                    "ðŸ“ BÃN KÃNH VÃ’NG FOV: " + Mathf.RoundToInt(fovRadius) + "px  (" + fovDesc + ")");
                                 GUI.color = new Color(0.70f, 0.78f, 0.88f, 0.9f);
                                 GUI.Label(new Rect(previewCard.x + 14f, previewCard.y + 27f, previewCard.width - 20f, 20f),
-                                    "Kéo trượt thanh ngang hoặc bấm nút bên dưới để đổi cỡ (40px → 400px)");
+                                    "KÃ©o trÆ°á»£t thanh ngang hoáº·c báº¥m nÃºt bÃªn dÆ°á»›i Ä‘á»ƒ Ä‘á»•i cá»¡ (40px â†’ 400px)");
 
-                                // THANH CUỘN TRƯỢT NGANG (SLIDER)
+                                // THANH CUá»˜N TRÆ¯á»¢T NGANG (SLIDER)
                                 Rect sRowRect = new Rect(popupX + 14f, popupY + 110f, popupWidth - 28f, 42f);
                                 GUI.color = new Color(0.05f, 0.06f, 0.09f, 0.92f);
                                 GUI.DrawTexture(sRowRect, pixel);
@@ -2425,7 +2382,7 @@ namespace ProjectEspPatch
                                 GUI.color = new Color(0.60f, 0.68f, 0.78f, 1f);
                                 GUI.Label(new Rect(popupX + popupWidth - 62f, sRowRect.y + 11f, 50f, 22f), "400px");
 
-                                // CÁC NÚT BƯỚC NHẢY & PHÍM TẮT NHANH
+                                // CÃC NÃšT BÆ¯á»šC NHáº¢Y & PHÃM Táº®T NHANH
                                 float btnRowW = popupWidth - 28f;
                                 float stepBtnW = 46f;
                                 Rect decBtn = new Rect(popupX + 14f, popupY + 160f, stepBtnW, 34f);
@@ -2467,7 +2424,7 @@ namespace ProjectEspPatch
                                     GUI.Label(new Rect(pRect.x + 2f, pRect.y + 7f, presetW - 4f, 20f), ((int)pVal).ToString() + "px");
                                 }
 
-                                // NÚT ÁP DỤNG & ĐÓNG
+                                // NÃšT ÃP Dá»¤NG & ÄÃ“NG
                                 Rect fovApplyBtn = new Rect(popupX + 14f, popupY + 208f, popupWidth - 28f, 42f);
                                 GUI.color = new Color(0.10f, 0.32f, 0.18f, 0.96f);
                                 GUI.DrawTexture(fovApplyBtn, pixel);
@@ -2477,7 +2434,7 @@ namespace ProjectEspPatch
                                 GUI.DrawTexture(new Rect(fovApplyBtn.x, fovApplyBtn.y, 1.5f, fovApplyBtn.height), pixel);
                                 GUI.DrawTexture(new Rect(fovApplyBtn.x + fovApplyBtn.width - 1.5f, fovApplyBtn.y, 1.5f, fovApplyBtn.height), pixel);
                                 GUI.color = Color.white;
-                                GUI.Label(new Rect(fovApplyBtn.x + fovApplyBtn.width * 0.5f - 100f, fovApplyBtn.y + 10f, 200f, 22f), "✔  ÁP DỤNG & ĐÓNG THANH CUỘN");
+                                GUI.Label(new Rect(fovApplyBtn.x + fovApplyBtn.width * 0.5f - 100f, fovApplyBtn.y + 10f, 200f, 22f), "âœ”  ÃP Dá»¤NG & ÄÃ“NG THANH CUá»˜N");
                             }
                             else
                             {
@@ -2495,37 +2452,37 @@ namespace ProjectEspPatch
                                     if (activeModal == ModalAimMode)
                                     {
                                         isSelected = (aimMode == i);
-                                        optText = i == 0 ? "🎯 Ngực / Thân (An Toàn, Ổn Định)"
-                                            : (i == 1 ? "🎯 Đầu - Headshot (Hạ Địch Cực Nhanh)" : "🎯 Đa Điểm - Random (Kín Đáo, Chống Soi)");
+                                        optText = i == 0 ? "ðŸŽ¯ Ngá»±c / ThÃ¢n (An ToÃ n, á»”n Äá»‹nh)"
+                                            : (i == 1 ? "ðŸŽ¯ Äáº§u - Headshot (Háº¡ Äá»‹ch Cá»±c Nhanh)" : "ðŸŽ¯ Äa Äiá»ƒm - Random (KÃ­n ÄÃ¡o, Chá»‘ng Soi)");
                                     }
                                     else if (activeModal == ModalHeadRate)
                                     {
                                         isSelected = (headRateIndex == i);
-                                        optText = i == 0 ? "⚡ 0% (Không Headshot - Bắn Chuẩn Thân)"
-                                            : (i == 1 ? "⚡ 25% (Headshot Thấp - Rất Tự Nhiên)"
-                                            : (i == 2 ? "⚡ 50% (Headshot Vừa - Cân Bằng)"
-                                            : (i == 3 ? "⚡ 75% (Headshot Cao - Dễ Gank Team)" : "⚡ 100% (Full Đỏ - Bá Đạo)")));
+                                        optText = i == 0 ? "âš¡ 0% (KhÃ´ng Headshot - Báº¯n Chuáº©n ThÃ¢n)"
+                                            : (i == 1 ? "âš¡ 25% (Headshot Tháº¥p - Ráº¥t Tá»± NhiÃªn)"
+                                            : (i == 2 ? "âš¡ 50% (Headshot Vá»«a - CÃ¢n Báº±ng)"
+                                            : (i == 3 ? "âš¡ 75% (Headshot Cao - Dá»… Gank Team)" : "âš¡ 100% (Full Äá» - BÃ¡ Äáº¡o)")));
                                     }
                                     else if (activeModal == ModalSystemTarget)
                                     {
                                         isSelected = (i == 1 ? (state & AimSystemHead) != 0 : (state & AimSystemHead) == 0);
-                                        optText = i == 0 ? "🎯 Kéo Tâm Vào Cổ (Tự Nhiên)" : "🎯 Kéo Tâm Vào Đầu (Headshot)";
+                                        optText = i == 0 ? "ðŸŽ¯ KÃ©o TÃ¢m VÃ o Cá»• (Tá»± NhiÃªn)" : "ðŸŽ¯ KÃ©o TÃ¢m VÃ o Äáº§u (Headshot)";
                                     }
                                     else if (activeModal == ModalTracerOrigin)
                                     {
                                         isSelected = (i == 1 ? isBottomTracer : !isBottomTracer);
                                         optText = i == 0
-                                            ? "📍 Đỉnh Màn Hình (Từ Trên Xuống - Mặc Định)"
-                                            : "📍 Đáy Màn Hình (Từ Dưới Lên - Chuẩn Góc Nhìn)";
+                                            ? "ðŸ“ Äá»‰nh MÃ n HÃ¬nh (Tá»« TrÃªn Xuá»‘ng - Máº·c Äá»‹nh)"
+                                            : "ðŸ“ ÄÃ¡y MÃ n HÃ¬nh (Tá»« DÆ°á»›i LÃªn - Chuáº©n GÃ³c NhÃ¬n)";
                                     }
 
-                                    // Nền option
+                                    // Ná»n option
                                     GUI.color = isSelected
                                         ? new Color(0.14f, 0.11f, 0.08f, 0.98f)
                                         : new Color(0.06f, 0.07f, 0.10f, 0.95f);
                                     GUI.DrawTexture(optRect, pixel);
 
-                                    // Viền option
+                                    // Viá»n option
                                     GUI.color = isSelected
                                         ? new Color(1.0f, 0.52f, 0.08f, 1f)
                                         : new Color(0.18f, 0.22f, 0.30f, 0.65f);
@@ -2534,19 +2491,19 @@ namespace ProjectEspPatch
                                     GUI.DrawTexture(new Rect(optRect.x, optRect.y, 1.2f, optRect.height), pixel);
                                     GUI.DrawTexture(new Rect(optRect.x + optRect.width - 1.2f, optRect.y, 1.2f, optRect.height), pixel);
 
-                                    // Đèn led trạng thái bên trái
+                                    // ÄÃ¨n led tráº¡ng thÃ¡i bÃªn trÃ¡i
                                     GUI.color = isSelected
                                         ? new Color(1.0f, 0.48f, 0.05f, 1f)
                                         : new Color(0.0f, 0.85f, 1.0f, 0.3f);
                                     GUI.DrawTexture(new Rect(optRect.x, optRect.y + 2f, 4f, optRect.height - 4f), pixel);
 
-                                    // Ký hiệu chọn [●] hoặc [○]
+                                    // KÃ½ hiá»‡u chá»n [â—] hoáº·c [â—‹]
                                     GUI.color = isSelected
                                         ? new Color(1.0f, 0.65f, 0.2f, 1f)
                                         : new Color(0.4f, 0.48f, 0.58f, 0.8f);
-                                    GUI.Label(new Rect(optRect.x + 12f, optRect.y + 12f, 24f, 22f), isSelected ? "●" : "○");
+                                    GUI.Label(new Rect(optRect.x + 12f, optRect.y + 12f, 24f, 22f), isSelected ? "â—" : "â—‹");
 
-                                    // Nhãn chữ option
+                                    // NhÃ£n chá»¯ option
                                     GUI.color = isSelected
                                         ? new Color(1.0f, 0.94f, 0.82f, 1f)
                                         : new Color(0.80f, 0.85f, 0.92f, 0.9f);
@@ -2567,9 +2524,9 @@ namespace ProjectEspPatch
                         GUI.DrawTexture(new Rect(16f, 16f, 2f, 34f), pixel);
                         GUI.DrawTexture(new Rect(124f, 16f, 2f, 34f), pixel);
                         GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
-                        GUI.Label(new Rect(22f, 22f, 100f, 22f), "⚡ PROXY VIP");
+                        GUI.Label(new Rect(22f, 22f, 100f, 22f), "âš¡ PROXY VIP");
                     }
-                    // Màn hình chẩn đoán chưa kích hoạt đã được vẽ an toàn ở đầu Repaint
+                    // MÃ n hÃ¬nh cháº©n Ä‘oÃ¡n chÆ°a kÃ­ch hoáº¡t Ä‘Ã£ Ä‘Æ°á»£c váº½ an toÃ n á»Ÿ Ä‘áº§u Repaint
 
                 }
             }
