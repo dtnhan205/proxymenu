@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Group: ProxyApp & game IPA chia se token.json khong can jailbreak -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.proxyvip.shared</string>
+    </array>
+    <!-- Keychain shared access -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.apple.mobile.MobileHouseArrest</string>
+    </array>
+    <!-- Associated domains for deep link / web credentials -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>applinks:serveripa.proxyvip.click</string>
+    </array>
+</dict>
+</plist>

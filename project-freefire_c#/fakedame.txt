@@ -1,0 +1,175 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI FAKE DAME / SÁT THƯƠNG ẢO
+================================================================================
+
+[1] CÁC THUỘC TÍNH (PROPERTIES) CAN THIỆP TRONG COW.GamePlay.PlayerAttributes:
+--------------------------------------------------------------------------------
+1. HeadDamageIncreaseScale (float): Hệ số sát thương bắn vào đầu.
+2. BuffWeaponDamageScale   (float): Hệ số buff sát thương vũ khí.
+3. DamageAdditionScale     (float): Hệ số cộng thêm sát thương chung.
+4. ExecuteDamageScale      (float): Hệ số sát thương kết liễu / dứt điểm.
+5. SkillScatterRate        (float): Độ tỏa đạn thường (dùng cho no recoil / đạn thẳng).
+6. SkillScatterRateSighting (float): Độ tỏa đạn khi bật scope ngắm.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using COW.GamePlay;
+
+public static class FakeDamageHelper
+{
+    // Bật Fake Dame (Buff sát thương ảo cực đại)
+    public static void EnableFakeDamage(Player player)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs != null)
+        {
+            attrs.HeadDamageIncreaseScale = 10000.0f;
+            attrs.BuffWeaponDamageScale   = 10000.0f;
+            attrs.DamageAdditionScale     = 10000.0f;
+            attrs.ExecuteDamageScale      = 10000.0f;
+        }
+    }
+
+    // Tắt Fake Dame (Khôi phục mặc định)
+    public static void DisableFakeDamage(Player player)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs != null)
+        {
+            attrs.HeadDamageIncreaseScale = 0.0f;
+            attrs.BuffWeaponDamageScale   = 0.0f;
+            attrs.DamageAdditionScale     = 0.0f;
+            attrs.ExecuteDamageScale      = 0.0f;
+        }
+    }
+
+    // Bật / Tắt theo biến toggle boolean
+    public static void SetFakeDamage(Player player, bool enabled)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs == null) return;
+
+        if (enabled)
+        {
+            attrs.HeadDamageIncreaseScale = 10000.0f;
+            attrs.BuffWeaponDamageScale   = 10000.0f;
+            attrs.DamageAdditionScale     = 10000.0f;
+            attrs.ExecuteDamageScale      = 10000.0f;
+        }
+        else if (attrs.HeadDamageIncreaseScale > 10.0f)
+        {
+            attrs.HeadDamageIncreaseScale = 0.0f;
+            attrs.BuffWeaponDamageScale   = 0.0f;
+            attrs.DamageAdditionScale     = 0.0f;
+            attrs.ExecuteDamageScale      = 0.0f;
+        }
+    }
+
+    // Đạn thẳng 100% (No Recoil / Lỗi dame cao kết hợp)
+    public static void SetNoRecoil(Player player, bool enabled)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs == null) return;
+
+        if (enabled)
+        {
+            attrs.SkillScatterRate = -1.0f;
+            attrs.SkillScatterRateSighting = -1.0f;
+        }
+        else if (attrs.SkillScatterRate < -0.5f)
+        {
+            attrs.SkillScatterRate = 0.0f;
+            attrs.SkillScatterRateSighting = 0.0f;
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Trong hàm Draw (Xử lý mỗi frame trên Local Player) ---
+(Áp dụng trên localPlayer mà KHÔNG cần hook PlayerNetwork.OnUpdate, tránh gây lỗi Fakelag / đứng im cho địch):
+
+PlayerAttributes attributes = localPlayer.Attributes;
+if (attributes != null)
+{
+    // Bật / Tắt Fake Damage:
+    if ((vipMask & VipHeadDamage) != 0)
+    {
+        attributes.HeadDamageIncreaseScale = 10000.0f;
+        attributes.BuffWeaponDamageScale   = 10000.0f;
+        attributes.DamageAdditionScale     = 10000.0f;
+        attributes.ExecuteDamageScale      = 10000.0f;
+    }
+    else if (attributes.HeadDamageIncreaseScale > 10.0f)
+    {
+        attributes.HeadDamageIncreaseScale = 0f;
+        attributes.BuffWeaponDamageScale   = 0f;
+        attributes.DamageAdditionScale     = 0f;
+        attributes.ExecuteDamageScale      = 0f;
+    }
+
+    // Đạn thẳng 100% (No Recoil):
+    if (isAuth && (menuState & NoRecoil) != 0)
+    {
+        attributes.SkillScatterRate = -1f;
+        attributes.SkillScatterRateSighting = -1f;
+    }
+    else if (attributes.SkillScatterRate < -0.5f)
+    {
+        attributes.SkillScatterRate = 0f;
+        attributes.SkillScatterRateSighting = 0f;
+    }
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm SilentAim (Hook Player.get_LastAimingInfoFromWeapon) ---
+(Áp dụng mỗi lần game tính toán đường đạn và sát thương vũ khí):
+
+PlayerAttributes myAttributes = self.Attributes;
+if (myAttributes != null)
+{
+    if ((vipMask & VipHeadDamage) != 0)
+    {
+        myAttributes.HeadDamageIncreaseScale = 10000.0f;
+        myAttributes.BuffWeaponDamageScale   = 10000.0f;
+        myAttributes.DamageAdditionScale     = 10000.0f;
+        myAttributes.ExecuteDamageScale      = 10000.0f;
+    }
+    else if (myAttributes.HeadDamageIncreaseScale > 10.0f)
+    {
+        myAttributes.HeadDamageIncreaseScale = 0f;
+        myAttributes.BuffWeaponDamageScale   = 0f;
+        myAttributes.DamageAdditionScale     = 0f;
+        myAttributes.ExecuteDamageScale      = 0f;
+    }
+}
+
+
+--- C. VỊ TRÍ 3: Hook PlayerAttributes.GetScatterRate() ---
+(Ép game luôn trả về độ lệch đạn = 0 nếu đang bật No Recoil):
+
+[IFix.Patch]
+public static float ScatterRate(PlayerAttributes self)
+{
+    if (self == null) return 0f;
+    try
+    {
+        if (self.SkillScatterRate < -0.5f || self.SkillScatterRateSighting < -0.5f)
+        {
+            return 0f; // Bắn không lệch tâm, đạn tụ 1 điểm
+        }
+        return self.GetScatterRate();
+    }
+    catch (Exception)
+    {
+        return 0f;
+    }
+}
+================================================================================

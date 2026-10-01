@@ -1,0 +1,193 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI FAST FIRE / XẢ ĐẠN SIÊU TỐC
+================================================================================
+
+[1] CÁC THUỘC TÍNH (PROPERTIES) CAN THIỆP TRONG COW.GamePlay.PlayerAttributes:
+--------------------------------------------------------------------------------
+1. FireIntervalScale (float):
+   - Hệ số khoảng cách thời gian giữa các phát bắn (Fire Interval Scale).
+   - Giá trị mặc định của game là 1.0f.
+   - Giá trị càng nhỏ thì tốc độ xả đạn càng nhanh:
+     + 0.5f  = Giảm 50% thời gian chờ giữa 2 viên đạn (Tăng gấp đôi x2 tốc độ bắn).
+     + 0.33f = Tăng gấp ba x3 tốc độ bắn.
+     + 0.1f  = Tăng gấp mười x10 tốc độ bắn (Đạn xả như bão).
+
+2. FireIntervalScaleSkill (float):
+   - Hệ số khoảng cách thời gian bắn cộng thêm từ kỹ năng nhân vật (Skill buff).
+
+3. FireIntervalScaleTwo (float):
+   - Hệ số phụ thứ 2 điều chỉnh khoảng cách thời gian xả đạn.
+
+4. FireIntervalScaleIncreaseShootAndMoveSpeedSkill (float):
+   - Hệ số thời gian bắn khi đang kết hợp vừa di chuyển vừa bắn.
+
+5. MultiplyFireIntervalScaleByWeaponType(int weaponType, float scale):
+   - Hàm nhân hệ số khoảng cách bắn theo từng loại vũ khí cụ thể (AR, SMG, Shotgun, Sniper...).
+
+6. GetMultiplyFireIntervalScaleByWeaponType(int weaponType):
+   - Hàm lấy hệ số nhân khoảng cách bắn của loại vũ khí tương ứng.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using COW.GamePlay;
+
+public static class FastFireHelper
+{
+    // 1. Bật Bắn Nhanh (Mặc định x2 tốc độ xả đạn: 0.5f)
+    public static void EnableFastFire(Player player, float scale = 0.5f)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs != null)
+        {
+            attrs.FireIntervalScale = scale;
+        }
+    }
+
+    // 2. Tắt Bắn Nhanh (Khôi phục tốc độ bắn gốc 1.0f)
+    public static void DisableFastFire(Player player)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs != null)
+        {
+            attrs.FireIntervalScale = 1.0f;
+        }
+    }
+
+    // 3. Bật / Tắt theo biến toggle boolean
+    public static void SetFastFire(Player player, bool enabled, float speedScale = 0.5f)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs == null) return;
+
+        if (enabled)
+        {
+            attrs.FireIntervalScale = speedScale; // 0.5f: x2, 0.33f: x3, 0.2f: x5
+        }
+        else if (attrs.FireIntervalScale < 0.9f)
+        {
+            attrs.FireIntervalScale = 1.0f; // Trả về mặc định
+        }
+    }
+
+    // 4. Bắn Nhanh Cực Đại Toàn Diện (Super Extreme Fast Fire)
+    public static void SetSuperFastFire(Player player, bool enabled)
+    {
+        if (player == null) return;
+        PlayerAttributes attrs = player.Attributes;
+        if (attrs == null) return;
+
+        if (enabled)
+        {
+            attrs.FireIntervalScale = 0.1f; // x10 tốc độ bắn
+            attrs.FireIntervalScaleSkill = 0.1f;
+            attrs.FireIntervalScaleTwo = 0.1f;
+        }
+        else
+        {
+            attrs.FireIntervalScale = 1.0f;
+            attrs.FireIntervalScaleSkill = 1.0f;
+            attrs.FireIntervalScaleTwo = 1.0f;
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Định nghĩa hằng số cờ Bitmask & Render Menu ---
+// Khai báo hằng số bitmask VIP (dòng 53):
+private const int VipFastFire = 1;
+
+// Trong Tab VIP (activeTab == 2, dòng 1785):
+if (row == 0)
+{
+    rowBit = VipFastFire;
+    rowLabel = "⚡ Xả Đạn Siêu Tốc (Fast Fire Rate)";
+}
+
+// Xử lý Click Toggle trong OnGUI (dòng 1033):
+int vipBit = selectedRow == 0 ? VipFastFire
+    : (selectedRow == 1 ? NoRecoil
+    : (selectedRow == 2 ? VipHeadDamage
+    : (selectedRow == 3 ? VipWideView : 0)));
+vipMask ^= vipBit;
+modalState.z = (float)(((int)modalState.z & ~15) | (vipMask & 15));
+driverObject.transform.localScale = modalState;
+
+
+--- B. VỊ TRÍ 2: Trong hàm SilentAim (Hook Player.get_LastAimingInfoFromWeapon) ---
+(Áp dụng trực tiếp vào PlayerAttributes mỗi khi hệ thống vũ khí tính toán ngắm bắn):
+
+PlayerAttributes myAttributes = self.Attributes;
+if (myAttributes != null)
+{
+    vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
+    if ((vipMask & VipFastFire) != 0)
+    {
+        myAttributes.FireIntervalScale = 0.5f; // Bật: x2 tốc độ bắn
+    }
+    else if (myAttributes.FireIntervalScale < 0.9f)
+    {
+        myAttributes.FireIntervalScale = 1.0f; // Tắt: phục hồi về 100% bình thường
+    }
+}
+
+
+--- C. VỊ TRÍ 3: Mở rộng áp dụng trong hàm Draw (Mỗi frame trên Local Player) ---
+(Đảm bảo duy trì liên tục ở mọi khung hình ngay cả khi không nhắm bắn):
+
+Player localPlayer = GameFacade.CurrentLocalPlayer();
+if (localPlayer != null)
+{
+    PlayerAttributes attributes = localPlayer.Attributes;
+    if (attributes != null)
+    {
+        if ((vipMask & VipFastFire) != 0)
+        {
+            attributes.FireIntervalScale = 0.5f;
+        }
+        else if (attributes.FireIntervalScale < 0.9f)
+        {
+            attributes.FireIntervalScale = 1.0f;
+        }
+    }
+}
+
+
+[4] BẢNG TỈ LỆ THAM SỐ FIREINTERVALSCALE KHUYÊN DÙNG:
+--------------------------------------------------------------------------------
++ 1.00f: Mặc định của game (Tốc độ gốc 100%).
++ 0.75f: Nhanh hơn 33% (Kín đáo, legit, khó bị phát hiện khi spectate).
++ 0.50f: Gấp đôi tốc độ bắn (x2 Fire Rate - Mặc định trong bản patch VIP).
++ 0.33f: Gấp ba tốc độ bắn (x3 Fire Rate - Xả đạn cực nhanh).
++ 0.20f: Gấp năm tốc độ bắn (x5 Fire Rate - Đạn ra liền một dải).
++ 0.10f: Gấp mười tốc độ bắn (x10 Fire Rate - Sấy hết băng đạn tức thì).
+
+
+[5] CÁCH WEAVE / RETARGET MONO.CECIL (TRONG WeaveEsp.cs):
+--------------------------------------------------------------------------------
+Để source C# có thể truy cập `attributes.FireIntervalScale` mà không bị lỗi biên dịch,
+trong `src/WeaveEsp.cs` đã tự động tìm getter/setter bị obfuscate trong dump và tạo property:
+
+PropertyDefinition fireProp = playerAttributes.Properties.SingleOrDefault(property =>
+    property.SetMethod != null && property.SetMethod.Name == "set_FireIntervalScale");
+if (fireProp != null)
+{
+    fireProp.Name = "FireIntervalScale";
+}
+else if (!playerAttributes.Properties.Any(property => property.Name == "FireIntervalScale"))
+{
+    MethodDefinition getter = playerAttributes.Methods.Single(method =>
+        method.Name == "get_FireIntervalScale" && method.Parameters.Count == 0);
+    MethodDefinition setter = playerAttributes.Methods.Single(method =>
+        method.Name == "set_FireIntervalScale" && method.Parameters.Count == 1);
+    playerAttributes.Properties.Add(new PropertyDefinition(
+        "FireIntervalScale", PropertyAttributes.None, getter.ReturnType)
+        { GetMethod = getter, SetMethod = setter });
+}
+================================================================================
