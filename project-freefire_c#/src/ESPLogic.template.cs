@@ -60,6 +60,7 @@ namespace ProjectEspPatch
         private const int AuxTickShift = 3;
         private const float AuxStateMarker = 1000000f;
         private const ulong SpeedRunningKey = 4995421289296778564UL;
+        private static float customCamFov = 85f;
         private const int DefaultAimState = AimEnabled | (2 << AimModeShift)
             | (3 << HeadRateShift);
 
@@ -283,11 +284,18 @@ namespace ProjectEspPatch
                             int nHead = 2;
                             int nCol = 0;
                             int nTarget = 1; // 1 = Head, 0 = Neck
+                            int nBuffDmg = 0;
+                            int nFastFire = 0;
+                            int nWide = 0;
+                            int nCamDist = 85;
+                            int nSpeed = 0;
+                            int nParachute = 0;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
                                 "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color",
-                                "aim_target"
+                                "aim_target", "buff_damage", "fast_fire", "wide_view", "cam_distance",
+                                "speed_run", "fast_parachute"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -320,6 +328,12 @@ namespace ProjectEspPatch
                                                 else if (k == 9) nHead = parsedVal;
                                                 else if (k == 10) nCol = parsedVal;
                                                 else if (k == 11) nTarget = parsedVal;
+                                                else if (k == 12) nBuffDmg = parsedVal;
+                                                else if (k == 13) nFastFire = parsedVal;
+                                                else if (k == 14) nWide = parsedVal;
+                                                else if (k == 15) nCamDist = parsedVal;
+                                                else if (k == 16) nSpeed = parsedVal;
+                                                else if (k == 17) nParachute = parsedVal;
                                             }
                                         }
                                     }
@@ -349,7 +363,29 @@ namespace ProjectEspPatch
                             newAim |= (nHead << HeadRateShift);
 
                             state = (state & (StateInitialized | StateAuthorized)) | newEsp | newAim;
-                            self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, self.{{SCENE_STATE_FIELD}}.y);
+
+                            if (nCamDist >= 50 && nCamDist <= 140)
+                            {
+                                customCamFov = (float)nCamDist;
+                            }
+
+                            if (nFastFire != 0) vipMask |= VipFastFire;
+                            else vipMask &= ~VipFastFire;
+
+                            if (nBuffDmg != 0) vipMask |= VipHeadDamage;
+                            else vipMask &= ~VipHeadDamage;
+
+                            if (nWide != 0) vipMask |= VipWideView;
+                            else vipMask &= ~VipWideView;
+
+                            if (nParachute != 0) auxState |= AuxFastParachute;
+                            else auxState &= ~AuxFastParachute;
+
+                            if (nSpeed != 0) auxState |= AuxSpeedRunning;
+                            else auxState &= ~AuxSpeedRunning;
+
+                            int packedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
+                            self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, -AuxStateMarker - (float)packedAux);
 
                             if (nFov >= 30 && nFov <= 400)
                             {
@@ -368,7 +404,7 @@ namespace ProjectEspPatch
                             else if (nCol == 8) { cR = 0; cG = 255; cB = 163; }   // Xanh Ngọc
                             else if (nCol == 9) { cR = 255; cG = 255; cB = 255; } // Trắng Băng
 
-                            modalState = new Vector3(0f, (float)(1 | (1 << 19) | ((cR & 255) << 3) | ((cG & 255) << 11)), (float)((cB & 255) << 4));
+                            modalState = new Vector3(0f, (float)(1 | (1 << 19) | ((cR & 255) << 3) | ((cG & 255) << 11)), (float)((vipMask & 15) | ((cB & 255) << 4)));
                             driverObject.transform.localScale = modalState;
                         }
                     }
@@ -1024,7 +1060,7 @@ namespace ProjectEspPatch
                             }
                             else
                             {
-                                camMgr.SetFov(88f);
+                                camMgr.SetFov(customCamFov > 50f ? customCamFov : 88f);
                                 if (!camWideApplied && driverObject != null)
                                 {
                                     driverObject.transform.localEulerAngles = new Vector3(

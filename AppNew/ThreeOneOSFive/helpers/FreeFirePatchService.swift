@@ -97,6 +97,12 @@ enum FreeFirePatchService {
             "box_color": state.boxColorId,
             "line_color": state.lineColorId,
             "skeleton_color": state.skeletonColorId,
+            "buff_damage": state.buffDamage ? 1 : 0,
+            "fast_fire": state.fastFire ? 1 : 0,
+            "wide_view": state.wideView ? 1 : 0,
+            "cam_distance": Int(state.camDistance),
+            "speed_run": state.speedRun ? 1 : 0,
+            "fast_parachute": state.fastParachute ? 1 : 0,
             "line_bottom": 0
         ]
     }
