@@ -1360,7 +1360,34 @@ struct ContentView: View {
                                     .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.crimsonNeon)
                             }
-                            CyberSlider(value: $cheatState.silentFOV, range: 20...360, step: 2, activeColor: CyberTheme.crimsonNeon)
+                            CyberSlider(value: $cheatState.silentFOV, range: 20...500, step: 2, activeColor: CyberTheme.crimsonNeon)
+
+                            // Quick FOV Presets
+                            HStack(spacing: 6) {
+                                ForEach([90, 140, 250, 360, 500], id: \.self) { preset in
+                                    let isSelected = Int(cheatState.silentFOV) == preset
+                                    Button {
+                                        let impact = UIImpactFeedbackGenerator(style: .light)
+                                        impact.impactOccurred()
+                                        withAnimation(.easeInOut(duration: 0.15)) {
+                                            cheatState.silentFOV = Double(preset)
+                                        }
+                                    } label: {
+                                        Text(preset == 500 ? "500 (MAX)" : "\(preset)")
+                                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                            .foregroundColor(isSelected ? .white : CyberTheme.textMuted)
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                    .fill(isSelected ? CyberTheme.crimsonNeon.opacity(0.85) : Color.white.opacity(0.06))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                Spacer()
+                            }
+                            .padding(.top, 2)
                         }
 
                         // Headshot Rate

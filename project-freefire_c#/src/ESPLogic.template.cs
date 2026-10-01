@@ -616,7 +616,7 @@ namespace ProjectEspPatch
                 if (fovHit.Contains(pointer))
                 {
                     float pct = Mathf.Clamp01((pointer.x - fovTrack.x) / fovTrack.width);
-                    fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 360f), 40f, 400f);
+                    fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 460f), 40f, 500f);
                     activeFovRadius = fovRadius;
                     driverPos.z = fovRadius;
                     driverObject.transform.position = driverPos;
@@ -753,7 +753,7 @@ namespace ProjectEspPatch
                             if (fovHit.Contains(pointer))
                             {
                                 float pct = Mathf.Clamp01((pointer.x - fovTrack.x) / fovTrack.width);
-                                fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 360f), 40f, 400f);
+                                fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 460f), 40f, 500f);
                                 activeFovRadius = fovRadius;
                                 driverPos.z = fovRadius;
                                 driverObject.transform.position = driverPos;
@@ -767,7 +767,7 @@ namespace ProjectEspPatch
                                 Rect incBtn = new Rect(fovPopupX + 14f + btnRowW - stepBtnW, fovPopupY + 160f, stepBtnW, 34f);
                                 if (decBtn.Contains(pointer))
                                 {
-                                    fovRadius = Mathf.Clamp(fovRadius - 10f, 40f, 400f);
+                                    fovRadius = Mathf.Clamp(fovRadius - 10f, 40f, 500f);
                                     activeFovRadius = fovRadius;
                                     driverPos.z = fovRadius;
                                     driverObject.transform.position = driverPos;
@@ -775,7 +775,7 @@ namespace ProjectEspPatch
                                 }
                                 else if (incBtn.Contains(pointer))
                                 {
-                                    fovRadius = Mathf.Clamp(fovRadius + 10f, 40f, 400f);
+                                    fovRadius = Mathf.Clamp(fovRadius + 10f, 40f, 500f);
                                     activeFovRadius = fovRadius;
                                     driverPos.z = fovRadius;
                                     driverObject.transform.position = driverPos;
@@ -786,7 +786,7 @@ namespace ProjectEspPatch
                                     float presetW = (btnRowW - stepBtnW * 2f - 24f) / 5f;
                                     for (int p = 0; p < 5; p++)
                                     {
-                                        float pVal = p == 0 ? 70f : (p == 1 ? 100f : (p == 2 ? 140f : (p == 3 ? 200f : 300f)));
+                                        float pVal = p == 0 ? 90f : (p == 1 ? 140f : (p == 2 ? 250f : (p == 3 ? 360f : 500f)));
                                         Rect pRect = new Rect(fovPopupX + 14f + stepBtnW + 4f + (float)p * (presetW + 4f), fovPopupY + 160f, presetW, 34f);
                                         if (pRect.Contains(pointer))
                                         {
@@ -1833,7 +1833,7 @@ namespace ProjectEspPatch
                                 Rect miniTrack = new Rect(rowRect.x + rowRect.width - miniTrackW - 16f, miniTrackY, miniTrackW, miniTrackH);
                                 GUI.color = new Color(0.10f, 0.12f, 0.16f, 1f);
                                 GUI.DrawTexture(miniTrack, pixel);
-                                float fovRatio = Mathf.Clamp01((fovRadius - 40f) / 360f);
+                                float fovRatio = Mathf.Clamp01((fovRadius - 40f) / 460f);
                                 float miniFill = Mathf.Clamp(fovRatio * miniTrack.width, 2f, miniTrack.width);
                                 GUI.color = new Color(1.0f, 0.50f, 0.05f, 1f);
                                 GUI.DrawTexture(new Rect(miniTrack.x, miniTrack.y, miniFill, miniTrack.height), pixel);
@@ -2211,7 +2211,7 @@ namespace ProjectEspPatch
                                 Rect fovTrack = new Rect(popupX + 72f, popupY + 120f, popupWidth - 144f, 22f);
                                 GUI.color = new Color(0.12f, 0.14f, 0.18f, 1f);
                                 GUI.DrawTexture(fovTrack, pixel);
-                                float fovRatio = Mathf.Clamp01((fovRadius - 40f) / 360f);
+                                float fovRatio = Mathf.Clamp01((fovRadius - 40f) / 460f);
                                 float fillW = Mathf.Clamp(fovRatio * fovTrack.width, 3f, fovTrack.width);
                                 GUI.color = new Color(1.0f, 0.50f, 0.05f, 1f);
                                 GUI.DrawTexture(new Rect(fovTrack.x, fovTrack.y, fillW, fovTrack.height), pixel);
