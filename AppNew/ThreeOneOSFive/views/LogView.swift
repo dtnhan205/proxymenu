@@ -76,7 +76,7 @@ struct LogView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(language.text("logs.clear"), role: .destructive) { appLog.entries.removeAll() }
+                    Button(language.text("logs.clear"), role: .destructive) { appLog.clear() }
                         .disabled(appLog.entries.isEmpty)
                 }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {

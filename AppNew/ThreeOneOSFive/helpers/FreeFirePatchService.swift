@@ -209,9 +209,7 @@ enum FreeFirePatchService {
             try? encryptedData.write(to: proxyCfg)
         }
 
-        let now = CACurrentMediaTime()
-        if forceLog || (now - lastSyncLogTime > 2.0) {
-            lastSyncLogTime = now
+        if forceLog {
             let targetNames = syncedTargets.isEmpty ? target.displayName : syncedTargets.joined(separator: ", ")
             AppLog.shared.append("[CONFIG] 🔒 FOV: \(fovInt)px -> \(targetNames)")
         }

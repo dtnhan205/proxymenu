@@ -11,36 +11,119 @@ import Combine
 // ═══════════════════════════════════════════════════════
 private let IS_LOGGING_DISABLED: Bool = false
 
-// MARK: - Global logger
+// MARK: - Global logger (High-performance, throttled, deduplicated, capped to 150 items)
 class AppLog: ObservableObject {
     static let shared = AppLog()
+    static let maxCapacity: Int = 150
+
     @Published var entries: [String] = []
+
+    private let lock = NSLock()
+    private var pendingEntries: [String] = []
+    private var isFlushScheduled: Bool = false
+    private var lastMessage: String = ""
+    private var repeatCount: Int = 1
+
     func append(_ msg: String) {
-        if !IS_LOGGING_DISABLED {
-            DispatchQueue.main.async { self.entries.append(msg) }
+        if IS_LOGGING_DISABLED { return }
+
+        let trimmed = msg.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        lock.lock()
+        // Deduplicate consecutive identical messages to prevent flood
+        if trimmed == lastMessage {
+            repeatCount += 1
+            let repeatedText = "\(trimmed) (x\(repeatCount))"
+            if !pendingEntries.isEmpty {
+                pendingEntries[pendingEntries.count - 1] = repeatedText
+            } else {
+                pendingEntries.append(repeatedText)
+            }
+            lock.unlock()
+            scheduleFlush()
+            return
+        }
+
+        lastMessage = trimmed
+        repeatCount = 1
+        pendingEntries.append(trimmed)
+
+        if pendingEntries.count > Self.maxCapacity {
+            pendingEntries.removeFirst(pendingEntries.count - Self.maxCapacity)
+        }
+        lock.unlock()
+
+        scheduleFlush()
+    }
+
+    private func scheduleFlush() {
+        lock.lock()
+        guard !isFlushScheduled else {
+            lock.unlock()
+            return
+        }
+        isFlushScheduled = true
+        lock.unlock()
+
+        // Batch flush every 250ms to completely prevent SwiftUI UI thread lockup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self = self else { return }
+            self.lock.lock()
+            let batch = self.pendingEntries
+            self.pendingEntries.removeAll()
+            self.isFlushScheduled = false
+            let lastMsg = self.lastMessage
+            self.lock.unlock()
+
+            guard !batch.isEmpty else { return }
+
+            var current = self.entries
+            if let firstBatch = batch.first, !lastMsg.isEmpty, firstBatch.hasPrefix(lastMsg), !current.isEmpty {
+                current[current.count - 1] = firstBatch
+                current.append(contentsOf: batch.dropFirst())
+            } else {
+                current.append(contentsOf: batch)
+            }
+
+            if current.count > Self.maxCapacity {
+                current.removeFirst(current.count - Self.maxCapacity)
+            }
+            self.entries = current
+        }
+    }
+
+    func clear() {
+        lock.lock()
+        pendingEntries.removeAll()
+        lastMessage = ""
+        repeatCount = 1
+        lock.unlock()
+        DispatchQueue.main.async {
+            self.entries.removeAll()
         }
     }
 }
+
 func log(_ msg: String) {
     if !IS_LOGGING_DISABLED {
         AppLog.shared.append("[3105] \(msg)")
     }
 }
 
-// Retain the pipe for the app's lifetime so stdout/stderr stay redirected.
+// Retain the pipe for the app's lifetime so stdout stays redirected.
 private var logCapturePipe: Pipe?
 
-// Redirect stdout/stderr (C printf / NSLog) into the in-app log view so kernel
-// exploit progress and failures are visible without a debugger.
+// Redirect stdout (C printf) into in-app log view with strict intelligent filtering.
+// NOTE: We intentionally do NOT redirect STDERR to avoid capturing noisy iOS framework warnings.
 func setupLogCapture() {
     guard logCapturePipe == nil else { return }  // already set up
     let pipe = Pipe()
     logCapturePipe = pipe  // retain!
 
     setvbuf(stdout, nil, _IONBF, 0)
-    setvbuf(stderr, nil, _IONBF, 0)
     let writeFd = pipe.fileHandleForWriting.fileDescriptor
-    if dup2(writeFd, STDOUT_FILENO) < 0 || dup2(writeFd, STDERR_FILENO) < 0 {
+    if dup2(writeFd, STDOUT_FILENO) < 0 {
         log("setupLogCapture: dup2 failed, log capture disabled")
         logCapturePipe = nil
         return
@@ -49,12 +132,25 @@ func setupLogCapture() {
     pipe.fileHandleForReading.readabilityHandler = { handle in
         let data = handle.availableData
         guard !data.isEmpty else { return }
-        if let text = String(data: data, encoding: .utf8) {
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                DispatchQueue.main.async {
-                    AppLog.shared.append(trimmed)
-                }
+        guard let text = String(data: data, encoding: .utf8) else { return }
+
+        let lines = text.components(separatedBy: .newlines)
+        for rawLine in lines {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { continue }
+
+            // Filter out system daemon spam (Metal, WebKit, CoreGraphics, UIKit warnings)
+            let isRelevant = line.hasPrefix("[+]") || line.hasPrefix("[-]") || line.hasPrefix("[*]") ||
+                             line.hasPrefix("[!]") || line.hasPrefix("[3105]") || line.hasPrefix("[CHEAT]") ||
+                             line.hasPrefix("[CONFIG]") || line.hasPrefix("[INJECT]") || line.hasPrefix("[UNINJECT]") ||
+                             line.hasPrefix("[AIM]") || line.hasPrefix("[ESP]") || line.hasPrefix("[COMBAT]") ||
+                             line.hasPrefix("[license]") || line.hasPrefix("[token]") ||
+                             line.localizedCaseInsensitiveContains("kernel") ||
+                             line.localizedCaseInsensitiveContains("exploit") ||
+                             line.localizedCaseInsensitiveContains("krw")
+
+            if isRelevant {
+                AppLog.shared.append(line)
             }
         }
     }

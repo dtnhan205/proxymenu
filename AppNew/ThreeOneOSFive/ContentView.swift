@@ -433,7 +433,6 @@ final class CheatMenuState: ObservableObject {
         espSelectedColorId = closest
         if target == .box || target == .all { boxColorId = closest }
         if target == .line || target == .all { lineColorId = closest }
-        AppLog.shared.append("[ESP] Màu \(target.title): \(getHex(for: target))")
     }
 
     func getThickness(for target: ESPColorTarget) -> Double {
@@ -1332,6 +1331,7 @@ struct ESPColorPickerPopup: View {
                             impact.impactOccurred()
                             cheatState.setRGB(r: curR, g: curG, b: curB, for: target)
                             cheatState.setThickness(curThickness, for: target)
+                            AppLog.shared.append("[ESP] Đã lưu màu \(target.title): \(hexString) (Dày \(String(format: "%.1f", curThickness))px)")
                             dismiss()
                         } label: {
                             HStack(spacing: 8) {
@@ -1375,6 +1375,7 @@ struct ESPColorPickerPopup: View {
                     Button("Xong") {
                         cheatState.setRGB(r: curR, g: curG, b: curB, for: target)
                         cheatState.setThickness(curThickness, for: target)
+                        AppLog.shared.append("[ESP] Đã lưu màu \(target.title): \(hexString)")
                         dismiss()
                     }
                     .foregroundColor(CyberTheme.cyberCyan)
@@ -1397,7 +1398,6 @@ struct ESPColorPickerPopup: View {
 struct ContentView: View {
     @StateObject private var cheatState = CheatMenuState.shared
     @ObservedObject private var licenseStore = LicenseStore.shared
-    @ObservedObject private var appLog = AppLog.shared
 
     @State private var selectedTab: CheatTab = .aim
     @State private var isInjecting: Bool = false
@@ -1527,7 +1527,7 @@ struct ContentView: View {
             Text(injectionAlertText)
         }
         .sheet(isPresented: $showLogModal) {
-            logTerminalSheet
+            LogTerminalModalView(isPresented: $showLogModal)
         }
     }
 
@@ -2717,11 +2717,11 @@ struct ContentView: View {
             CyberCard(glowColor: CyberTheme.crimsonNeon.opacity(0.10)) {
                 SettingsInfoRow(icon: "app.badge.fill", label: "Tên Ứng Dụng", value: "INNOVA CHEAT", valueColor: CyberTheme.crimsonNeon)
                 Divider().background(CyberTheme.divider)
-                SettingsInfoRow(icon: "number.circle.fill", label: "Phiên Bản Core", value: "v1.0.0 (Build 3105)", isMonospaced: true)
+                SettingsInfoRow(icon: "number.circle.fill", label: "Phiên Bản Core", value: "v1.0.0", isMonospaced: true)
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(icon: "cpu.fill", label: "Kiến Trúc Binary", value: "ARM64e • iOS Metal", isMonospaced: true)
                 Divider().background(CyberTheme.divider)
-                SettingsInfoRow(icon: "gamecontroller.fill", label: "Đối Tượng Hỗ Trợ", value: "Free Fire & FF MAX")
+                SettingsInfoRow(icon: "gamecontroller.fill", label: "Đối Tượng Hỗ Trợ", value: "FF & FF MAX")
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(icon: "bolt.horizontal.fill", label: "Patch Engine", value: "IFix Dynamic Bytecode", valueColor: CyberTheme.matrixGreen)
             }
@@ -2988,33 +2988,8 @@ struct ContentView: View {
             )
 
             CyberCard(glowColor: CyberTheme.electricPurple.opacity(0.10)) {
-                // View Console Logs Button
-                Button {
-                    showLogModal = true
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "terminal.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(CyberTheme.electricPurple)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Xem Nhật Ký Hoạt Động (Console Logs)")
-                                .font(.system(size: 13.5, weight: .semibold))
-                                .foregroundColor(.white)
-                            Text("\(appLog.entries.count) dòng log hệ thống")
-                                .font(.system(size: 11, weight: .regular))
-                                .foregroundColor(CyberTheme.textMuted)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(CyberTheme.textMuted)
-                    }
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.plain)
+                // View Console Logs Button (Isolated observer: does not trigger ContentView redraw)
+                ConsoleLogSummaryRow(showLogModal: $showLogModal)
 
                 Divider().background(CyberTheme.divider)
 
@@ -3043,124 +3018,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Log Terminal Modal Sheet
-    private var logTerminalSheet: some View {
-        NavigationView {
-            ZStack {
-                CyberTheme.bgVoid
-                    .ignoresSafeArea()
-
-                VStack(spacing: 12) {
-                    // Action Buttons Header
-                    HStack {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(CyberTheme.matrixGreen)
-                                .frame(width: 8, height: 8)
-                            Text("SYSTEM CONSOLE (\(appLog.entries.count))")
-                                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundColor(.white)
-                        }
-
-                        Spacer()
-
-                        // Copy All Logs
-                        Button {
-                            let text = appLog.entries.joined(separator: "\n")
-                            UIPasteboard.general.string = text
-                            showToast("Đã sao chép toàn bộ logs!")
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 11))
-                                Text("Copy")
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Capsule())
-                        }
-
-                        // Clear Logs
-                        Button {
-                            appLog.entries.removeAll()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 11))
-                                Text("Clear")
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .foregroundColor(Color.red.opacity(0.85))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.red.opacity(0.15))
-                            .clipShape(Capsule())
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-
-                    // Scrollable Console
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 4) {
-                                if appLog.entries.isEmpty {
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "terminal")
-                                            .font(.system(size: 32))
-                                            .foregroundColor(Color.white.opacity(0.2))
-                                        Text("Chưa có log hệ thống")
-                                            .font(.system(size: 13, design: .monospaced))
-                                            .foregroundColor(CyberTheme.textMuted)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.top, 60)
-                                } else {
-                                    ForEach(Array(appLog.entries.enumerated()), id: \.offset) { idx, entry in
-                                        Text(entry)
-                                            .font(.system(size: 11, weight: .regular, design: .monospaced))
-                                            .foregroundColor(logColor(for: entry))
-                                            .textSelection(.enabled)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .id(idx)
-                                    }
-                                }
-                            }
-                            .padding(14)
-                        }
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color(red: 0.04, green: 0.04, blue: 0.05))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 16)
-                        .onChange(of: appLog.entries.count) { count in
-                            guard count > 0 else { return }
-                            proxy.scrollTo(count - 1, anchor: .bottom)
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Console Logs")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Đóng") {
-                        showLogModal = false
-                    }
-                    .foregroundColor(CyberTheme.crimsonNeon)
-                }
-            }
-        }
-    }
-
     // MARK: - Actions
     private func handleInjectCheat() {
         guard !isInjecting else { return }
@@ -3168,7 +3025,7 @@ struct ContentView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
 
-        appLog.append("[CHEAT] Bắt đầu nạp module cheat vào \(selectedTarget.displayName)...")
+        AppLog.shared.append("[CHEAT] Bắt đầu nạp module cheat vào \(selectedTarget.displayName)...")
 
         Task {
             do {
@@ -3199,7 +3056,7 @@ struct ContentView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
 
-        appLog.append("[CHEAT] Bắt đầu gỡ bỏ module cheat khỏi \(selectedTarget.displayName)...")
+        AppLog.shared.append("[CHEAT] Bắt đầu gỡ bỏ module cheat khỏi \(selectedTarget.displayName)...")
 
         FreeFirePatchService.uninject(target: selectedTarget)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -3288,3 +3145,193 @@ struct ContentView: View {
         return formatter.string(from: date)
     }
 }
+
+// MARK: - Dedicated Console Log Summary Row (Isolates @ObservedObject to prevent root ContentView redraws)
+struct ConsoleLogSummaryRow: View {
+    @ObservedObject private var appLog = AppLog.shared
+    @Binding var showLogModal: Bool
+
+    var body: some View {
+        Button {
+            showLogModal = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(CyberTheme.electricPurple)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Xem Nhật Ký Hoạt Động (Console Logs)")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("\(appLog.entries.count) dòng log hệ thống")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(CyberTheme.textMuted)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(CyberTheme.textMuted)
+            }
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Log Terminal Modal View (High performance, bounded list with deduplication)
+struct LogTerminalModalView: View {
+    @Binding var isPresented: Bool
+    @ObservedObject private var appLog = AppLog.shared
+    @State private var toastMessage: String? = nil
+
+    private func logColor(for text: String) -> Color {
+        if text.contains("❌") || text.contains("Lỗi") || text.contains("failed") || text.contains("error") {
+            return Color(red: 1.0, green: 0.35, blue: 0.35)
+        } else if text.contains("✅") || text.contains("ENABLED") || text.contains("[+]") || text.contains("[CHEAT]") {
+            return CyberTheme.matrixGreen
+        } else if text.contains("🔒") || text.contains("[CONFIG]") {
+            return CyberTheme.mechaGold
+        } else if text.contains("[AIM]") {
+            return CyberTheme.crimsonNeon
+        } else if text.contains("[ESP]") {
+            return CyberTheme.cyberCyan
+        }
+        return Color(white: 0.85)
+    }
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                CyberTheme.bgVoid
+                    .ignoresSafeArea()
+
+                VStack(spacing: 12) {
+                    // Header Bar
+                    HStack {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(CyberTheme.matrixGreen)
+                                .frame(width: 8, height: 8)
+                            Text("SYSTEM CONSOLE (\(appLog.entries.count))")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+
+                        Spacer()
+
+                        // Copy All Logs
+                        Button {
+                            let text = appLog.entries.joined(separator: "\n")
+                            UIPasteboard.general.string = text
+                            toastMessage = "Đã sao chép toàn bộ logs!"
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                                toastMessage = nil
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 11))
+                                Text("Copy")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Capsule())
+                        }
+
+                        // Clear Logs
+                        Button {
+                            appLog.clear()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11))
+                                Text("Clear")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(Color.red.opacity(0.85))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.red.opacity(0.15))
+                            .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                    // Scrollable Terminal Console
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 5) {
+                                if appLog.entries.isEmpty {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "terminal")
+                                            .font(.system(size: 32))
+                                            .foregroundColor(Color.white.opacity(0.2))
+                                        Text("Chưa có log hệ thống")
+                                            .font(.system(size: 13, design: .monospaced))
+                                            .foregroundColor(CyberTheme.textMuted)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 60)
+                                } else {
+                                    ForEach(Array(appLog.entries.enumerated()), id: \.offset) { idx, entry in
+                                        Text(entry)
+                                            .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                            .foregroundColor(logColor(for: entry))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .id(idx)
+                                    }
+                                }
+                            }
+                            .padding(14)
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color(red: 0.04, green: 0.04, blue: 0.05))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                    }
+                }
+
+                if let toast = toastMessage {
+                    VStack {
+                        Spacer()
+                        Text(toast)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.black.opacity(0.85))
+                            .clipShape(Capsule())
+                            .padding(.bottom, 24)
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .navigationTitle("Console Logs")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") {
+                        isPresented = false
+                    }
+                    .foregroundColor(CyberTheme.crimsonNeon)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
