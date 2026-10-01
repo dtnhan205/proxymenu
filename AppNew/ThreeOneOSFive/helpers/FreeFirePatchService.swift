@@ -18,6 +18,7 @@ enum FreeFireTarget: String, CaseIterable, Identifiable {
 // MARK: - FreeFire Patch Service
 enum FreeFirePatchService {
     private static let targetKey = "cheat.selectedTarget"
+    private static var cachedContainerPaths: [String: String] = [:]
 
     static var selectedTarget: FreeFireTarget {
         get {
@@ -29,9 +30,27 @@ enum FreeFirePatchService {
         }
     }
 
+    /// Fast cached container path resolver to prevent freezing main thread during slider drag
+    static func getOrResolveContainerPath(bundleID: String) -> String? {
+        if let cached = cachedContainerPaths[bundleID], FileManager.default.fileExists(atPath: cached) {
+            return cached
+        }
+        let udKey = "cheat.cachedContainerPath." + bundleID
+        if let saved = UserDefaults.standard.string(forKey: udKey), FileManager.default.fileExists(atPath: saved) {
+            cachedContainerPaths[bundleID] = saved
+            return saved
+        }
+        if let resolved = ContainerStore.resolveAppContainerPath(bundleID: bundleID) {
+            cachedContainerPaths[bundleID] = resolved
+            UserDefaults.standard.set(resolved, forKey: udKey)
+            return resolved
+        }
+        return nil
+    }
+
     /// Check if Assembly-CSharp-patch.bytes is injected in the specified game container
     static func isInjected(target: FreeFireTarget = selectedTarget) -> Bool {
-        guard let containerPath = ContainerStore.resolveAppContainerPath(bundleID: target.rawValue) else {
+        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) else {
             return false
         }
         let ifixPath = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents/IFix/Assembly-CSharp-patch.bytes").path
@@ -125,36 +144,60 @@ enum FreeFirePatchService {
 
     private static var lastSyncLogTime: TimeInterval = 0
 
-    /// Sync the current configuration to the game container in encrypted cipher format
+    /// Sync the current configuration to all game containers and multi-channel IPC
     static func syncConfig(target: FreeFireTarget = selectedTarget, state: CheatMenuState = CheatMenuState.shared, forceLog: Bool = false) {
         let payload = makeConfigPayload(state: state)
         guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
             return
         }
 
-        // Encrypt payload so it cannot be read or tampered with outside the game
         let encryptedData = encryptConfigData(jsonData)
+        let fovInt = Int(state.silentFOV)
+        let b64Str = String(data: encryptedData, encoding: .utf8) ?? ""
 
-        // 1. Write to Game Data Container Documents
-        if let containerPath = ContainerStore.resolveAppContainerPath(bundleID: target.rawValue) {
-            let docsURL = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents")
-            try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
-            let configURL = docsURL.appendingPathComponent("menu_config.json")
-            try? encryptedData.write(to: configURL, options: .atomic)
-            let now = CACurrentMediaTime()
-            if forceLog || (now - lastSyncLogTime > 2.5) {
-                lastSyncLogTime = now
-                AppLog.shared.append("[CONFIG] 🔒 Đã đồng bộ cấu hình -> \(target.displayName)")
+        // Multi-channel 1: Instant system clipboard IPC (Zero permission, 0ms latency across sandboxes)
+        UIPasteboard.general.string = "INNOVA_FOV:\(fovInt)|INNOVA_CFG:\(b64Str)"
+
+        var syncedTargets: [String] = []
+
+        // Multi-channel 2: Direct file writes to all discovered container locations
+        for t in FreeFireTarget.allCases {
+            guard let containerPath = getOrResolveContainerPath(bundleID: t.rawValue) else { continue }
+            let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+            let ifixURL = docsURL.appendingPathComponent("IFix", isDirectory: true)
+            let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
+            let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
+
+            let targetDirs = [docsURL, ifixURL, cachesURL, tmpURL]
+            for dir in targetDirs {
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let cfgFile = dir.appendingPathComponent("menu_config.json")
+                try? encryptedData.write(to: cfgFile)
             }
+            syncedTargets.append(t.displayName)
         }
 
-        // 2. Also write to Downloads & Shared locations
-        let dlURL = URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json")
-        try? encryptedData.write(to: dlURL, options: .atomic)
+        // Multi-channel 3: Shared / Downloads locations
+        let commonPaths = [
+            "/var/mobile/Downloads/menu_config.json",
+            "/tmp/menu_config.json",
+            "/private/var/tmp/menu_config.json"
+        ]
+        for p in commonPaths {
+            try? encryptedData.write(to: URL(fileURLWithPath: p))
+        }
 
         if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let proxyCfg = proxyDocs.appendingPathComponent("menu_config.json")
-            try? encryptedData.write(to: proxyCfg, options: .atomic)
+            try? encryptedData.write(to: proxyCfg)
+        }
+
+        let now = CACurrentMediaTime()
+        if forceLog || (now - lastSyncLogTime > 2.0) {
+            lastSyncLogTime = now
+            let targetNames = syncedTargets.isEmpty ? target.displayName : syncedTargets.joined(separator: ", ")
+            AppLog.shared.append("[CONFIG] 🔒 FOV: \(fovInt)px -> \(targetNames)")
         }
     }
 
@@ -181,7 +224,7 @@ enum FreeFirePatchService {
             )
         }
 
-        guard let containerPath = ContainerStore.resolveAppContainerPath(bundleID: target.rawValue),
+        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue),
               ContainerStore.isApplicationContainerPath(containerPath) else {
             AppLog.shared.append("[INJECT] ❌ Không tìm thấy container của \(target.displayName)")
             throw NSError(
@@ -213,14 +256,14 @@ enum FreeFirePatchService {
         try? localData.write(to: targetLocal2, options: .atomic)
 
         // 3. Write menu_config.json
-        syncConfig(target: target)
+        syncConfig(target: target, forceLog: true)
 
         AppLog.shared.append("[INJECT] ✅ Đã Inject thành công (Assembly-CSharp-patch.bytes & localConfig.json) vào \(target.displayName)")
     }
 
     /// Uninject: delete the patch bytes and config from game container
     static func uninject(target: FreeFireTarget = selectedTarget) {
-        guard let containerPath = ContainerStore.resolveAppContainerPath(bundleID: target.rawValue) else {
+        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) else {
             AppLog.shared.append("[UNINJECT] ⚠️ Không tìm thấy container \(target.displayName)")
             return
         }

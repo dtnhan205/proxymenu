@@ -60,9 +60,6 @@ namespace ProjectEspPatch
         private const int AuxTickShift = 3;
         private const float AuxStateMarker = 1000000f;
         private const ulong SpeedRunningKey = 4995421289296778564UL;
-        private static float customCamFov = 85f;
-        private static float activeFovRadius = 140f;
-        private static string cachedCfgPath = null;
         private const int DefaultAimState = AimEnabled | (2 << AimModeShift)
             | (3 << HeadRateShift);
 
@@ -93,7 +90,7 @@ namespace ProjectEspPatch
                     }
                     driver = new GameObject("__esp_driver");
                     driver.transform.localScale = new Vector3(0f, (float)(1 | (1 << 19) | (0 << 3) | (245 << 11)), (float)(255 << 4));
-                    driver.transform.position = new Vector3(Time.unscaledTime, Time.unscaledTime, activeFovRadius >= 10f ? activeFovRadius : 140f);
+                    driver.transform.position = new Vector3(Time.unscaledTime, 85f, 140f);
                     SceneEditBoxSelectTool tool = (SceneEditBoxSelectTool)driver.AddComponent(typeof(SceneEditBoxSelectTool));
                     if (tool != null)
                     {
@@ -102,7 +99,7 @@ namespace ProjectEspPatch
                 }
                 else if (driver.transform.position.z < 10f)
                 {
-                    driver.transform.position = new Vector3(driver.transform.position.x, driver.transform.position.y, activeFovRadius >= 10f ? activeFovRadius : 140f);
+                    driver.transform.position = new Vector3(driver.transform.position.x, 85f, 140f);
                 }
                 return stealth;
             }
@@ -137,22 +134,10 @@ namespace ProjectEspPatch
             }
 
             Vector3 driverPos = driverObject.transform.position;
-            if (driverPos.z >= 10f && driverPos.z <= 600f)
-            {
-                activeFovRadius = driverPos.z;
-            }
-            else if (activeFovRadius >= 10f && activeFovRadius <= 600f)
-            {
-                driverPos.z = activeFovRadius;
-                driverObject.transform.position = driverPos;
-            }
-            else
-            {
-                activeFovRadius = 140f;
-                driverPos.z = 140f;
-                driverObject.transform.position = driverPos;
-            }
-            float fovRadius = activeFovRadius;
+            float fovRadius = (driverPos.z >= 10f && driverPos.z <= 600f) ? driverPos.z : 140f;
+            driverPos.z = fovRadius;
+            float customCamFov = (driverPos.y >= 50f && driverPos.y <= 140f) ? driverPos.y : 85f;
+            driverPos.y = customCamFov;
             Vector3 modalState = driverObject.transform.localScale;
             int activeModal = (int)modalState.x;
             if (activeModal != ModalAimMode && activeModal != ModalHeadRate
@@ -213,86 +198,166 @@ namespace ProjectEspPatch
                 GC.Collect();
             }
 
-            // Remote config sync from AppNew (/menu_config.json)
-            if (curFrame < 60 || curFrame % 4 == 0)
+            float encodedAuxState = self.{{SCENE_STATE_FIELD}}.y;
+            int auxState;
+            int lastTapTick;
+            if (encodedAuxState <= -AuxStateMarker)
+            {
+                int packedAuxState = (int)(-encodedAuxState - AuxStateMarker);
+                auxState = packedAuxState & AuxMask;
+                lastTapTick = packedAuxState >> AuxTickShift;
+            }
+            else
+            {
+                auxState = 0;
+                lastTapTick = (int)(Mathf.Abs(encodedAuxState) * 4f);
+            }
+
+            // Remote config sync from AppNew (Clipboard IPC + multi-path menu_config.json sync)
+            if (curFrame < 120 || curFrame % 3 == 0)
             {
                 try
                 {
-                    string cfgPath = cachedCfgPath;
-                    if (string.IsNullOrEmpty(cfgPath) || !File.Exists(cfgPath))
+                    string cJson = null;
+
+                    // Channel 1: Clipboard IPC (Instant memory bridge across sandboxes with 0ms latency)
+                    try
                     {
+                        string clip = GUIUtility.systemCopyBuffer;
+                        if (!string.IsNullOrEmpty(clip))
+                        {
+                            if (clip.Contains("INNOVA_FOV:"))
+                            {
+                                int idx = clip.IndexOf("INNOVA_FOV:");
+                                int endIdx = clip.IndexOf('|', idx);
+                                string fovStr = endIdx > idx
+                                    ? clip.Substring(idx + 11, endIdx - (idx + 11))
+                                    : clip.Substring(idx + 11);
+                                int parsedFov = 0;
+                                if (int.TryParse(fovStr.Trim(), out parsedFov) && parsedFov >= 10 && parsedFov <= 600)
+                                {
+                                    fovRadius = (float)parsedFov;
+                                    driverPos.z = fovRadius;
+                                    driverObject.transform.position = driverPos;
+                                }
+                            }
+                            if (clip.Contains("INNOVA_CFG:"))
+                            {
+                                int idx = clip.IndexOf("INNOVA_CFG:");
+                                int endIdx = clip.IndexOf('|', idx);
+                                string rawCfg = endIdx > idx
+                                    ? clip.Substring(idx + 11, endIdx - (idx + 11))
+                                    : clip.Substring(idx + 11);
+                                cJson = rawCfg.Trim();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+
+                    // Channel 2: Multi-path file sync with FileShare.ReadWrite
+                    if (string.IsNullOrEmpty(cJson))
+                    {
+                        string cfgPath = null;
                         string cfgFile = "/menu_config.json";
                         string pDir = Application.persistentDataPath;
                         if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
                         {
                             pDir = pDir.Substring(0, pDir.Length - 1);
                         }
-                        if (!string.IsNullOrEmpty(pDir))
+
+                        string[] searchPaths = new string[] {
+                            pDir + cfgFile,
+                            pDir + "/IFix" + cfgFile,
+                            pDir + "/Documents" + cfgFile,
+                            pDir + "/../Documents" + cfgFile,
+                            pDir + "/../Library/Caches" + cfgFile,
+                            pDir + "/../tmp" + cfgFile,
+                            "/var/mobile/Downloads" + cfgFile,
+                            "/tmp" + cfgFile,
+                            "/private/var/tmp" + cfgFile
+                        };
+
+                        for (int sp = 0; sp < searchPaths.Length; sp++)
                         {
-                            if (File.Exists(pDir + cfgFile)) cfgPath = pDir + cfgFile;
-                            else if (File.Exists(pDir + "/Documents" + cfgFile)) cfgPath = pDir + "/Documents" + cfgFile;
-                            else if (File.Exists(pDir + "/../Documents" + cfgFile)) cfgPath = pDir + "/../Documents" + cfgFile;
+                            string spath = searchPaths[sp];
+                            if (!string.IsNullOrEmpty(spath) && File.Exists(spath))
+                            {
+                                cfgPath = spath;
+                                break;
+                            }
                         }
-                        if (string.IsNullOrEmpty(cfgPath))
-                        {
-                            if (File.Exists("/var/mobile/Downloads" + cfgFile)) cfgPath = "/var/mobile/Downloads" + cfgFile;
-                            else if (File.Exists("/tmp" + cfgFile)) cfgPath = "/tmp" + cfgFile;
-                        }
+
                         if (!string.IsNullOrEmpty(cfgPath) && File.Exists(cfgPath))
                         {
-                            cachedCfgPath = cfgPath;
-                        }
-                    }
-
-                    if (!string.IsNullOrEmpty(cfgPath) && File.Exists(cfgPath))
-                    {
-                        string cJson = File.ReadAllText(cfgPath);
-                        if (!string.IsNullOrEmpty(cJson))
-                        {
-                            cJson = cJson.Trim();
-                            if (!cJson.Contains("\"box_esp\""))
+                            try
+                            {
+                                FileStream fs = new FileStream(cfgPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                                StreamReader sr = new StreamReader(fs, System.Text.Encoding.UTF8);
+                                cJson = sr.ReadToEnd();
+                                sr.Close();
+                                fs.Close();
+                            }
+                            catch (Exception)
                             {
                                 try
                                 {
-                                    string b64Str = cJson;
-                                    int pData = cJson.IndexOf("\"data\":");
-                                    if (pData >= 0)
-                                    {
-                                        int sQ = cJson.IndexOf('"', pData + 7);
-                                        if (sQ >= 0)
-                                        {
-                                            int eQ = cJson.IndexOf('"', sQ + 1);
-                                            if (eQ > sQ) b64Str = cJson.Substring(sQ + 1, eQ - sQ - 1);
-                                        }
-                                    }
-                                    byte[] encBytes = Convert.FromBase64String(b64Str);
-                                    byte[] xKey = new byte[16];
-                                    xKey[0] = 75;
-                                    xKey[1] = 158;
-                                    xKey[2] = 51;
-                                    xKey[3] = 127;
-                                    xKey[4] = 26;
-                                    xKey[5] = 136;
-                                    xKey[6] = 210;
-                                    xKey[7] = 101;
-                                    xKey[8] = 12;
-                                    xKey[9] = 241;
-                                    xKey[10] = 84;
-                                    xKey[11] = 155;
-                                    xKey[12] = 39;
-                                    xKey[13] = 234;
-                                    xKey[14] = 99;
-                                    xKey[15] = 24;
-                                    for (int i = 0; i < encBytes.Length; i++)
-                                    {
-                                        encBytes[i] = (byte)(encBytes[i] ^ xKey[i % 16]);
-                                    }
-                                    cJson = System.Text.Encoding.UTF8.GetString(encBytes);
+                                    cJson = File.ReadAllText(cfgPath);
                                 }
-                                catch
+                                catch (Exception)
                                 {
                                 }
                             }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(cJson))
+                    {
+                        cJson = cJson.Trim();
+                        if (!cJson.Contains("\"box_esp\""))
+                        {
+                            try
+                            {
+                                string b64Str = cJson;
+                                int pData = cJson.IndexOf("\"data\":");
+                                if (pData >= 0)
+                                {
+                                    int sQ = cJson.IndexOf('"', pData + 7);
+                                    if (sQ >= 0)
+                                    {
+                                        int eQ = cJson.IndexOf('"', sQ + 1);
+                                        if (eQ > sQ) b64Str = cJson.Substring(sQ + 1, eQ - sQ - 1);
+                                    }
+                                }
+                                byte[] encBytes = Convert.FromBase64String(b64Str);
+                                byte[] xKey = new byte[16];
+                                xKey[0] = 75;
+                                xKey[1] = 158;
+                                xKey[2] = 51;
+                                xKey[3] = 127;
+                                xKey[4] = 26;
+                                xKey[5] = 136;
+                                xKey[6] = 210;
+                                xKey[7] = 101;
+                                xKey[8] = 12;
+                                xKey[9] = 241;
+                                xKey[10] = 84;
+                                xKey[11] = 155;
+                                xKey[12] = 39;
+                                xKey[13] = 234;
+                                xKey[14] = 99;
+                                xKey[15] = 24;
+                                for (int i = 0; i < encBytes.Length; i++)
+                                {
+                                    encBytes[i] = (byte)(encBytes[i] ^ xKey[i % 16]);
+                                }
+                                cJson = System.Text.Encoding.UTF8.GetString(encBytes);
+                            }
+                            catch
+                            {
+                            }
+                        }
 
                             state |= StateAuthorized;
 
@@ -304,7 +369,7 @@ namespace ProjectEspPatch
                             int nSilent = 1;
                             int nBot = 0;
                             int nRecoil = 0;
-                            int nFov = 70;
+                            int nFov = (int)fovRadius;
                             int nHead = 2;
                             int nCol = 0;
                             int nTarget = 1; // 1 = Head, 0 = Neck
@@ -391,6 +456,8 @@ namespace ProjectEspPatch
                             if (nCamDist >= 50 && nCamDist <= 140)
                             {
                                 customCamFov = (float)nCamDist;
+                                driverPos.y = customCamFov;
+                                driverObject.transform.position = driverPos;
                             }
 
                             if (nFastFire != 0) vipMask |= VipFastFire;
@@ -408,14 +475,13 @@ namespace ProjectEspPatch
                             if (nSpeed != 0) auxState |= AuxSpeedRunning;
                             else auxState &= ~AuxSpeedRunning;
 
-                            int packedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
-                            self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, -AuxStateMarker - (float)packedAux);
+                            int cfgPackedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
+                            self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, -AuxStateMarker - (float)cfgPackedAux);
 
                             if (nFov >= 10 && nFov <= 600)
                             {
-                                activeFovRadius = (float)nFov;
-                                fovRadius = activeFovRadius;
-                                driverPos.z = activeFovRadius;
+                                fovRadius = (float)nFov;
+                                driverPos.z = fovRadius;
                                 driverObject.transform.position = driverPos;
                             }
 
@@ -434,11 +500,10 @@ namespace ProjectEspPatch
                             driverObject.transform.localScale = modalState;
                         }
                     }
+                    catch (Exception)
+                    {
+                    }
                 }
-                catch (Exception)
-                {
-                }
-            }
 
             state |= StateAuthorized;
             self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, self.{{SCENE_STATE_FIELD}}.y);
@@ -452,20 +517,7 @@ namespace ProjectEspPatch
             int tapCount = driverObject != null ? (int)driverObject.transform.localEulerAngles.y : 0;
             int aimMode = (state & AimModeMask) >> AimModeShift;
             int headRateIndex = (state & HeadRateMask) >> HeadRateShift;
-            float encodedAuxState = self.{{SCENE_STATE_FIELD}}.y;
-            int auxState;
-            int lastTapTick;
-            if (encodedAuxState <= -AuxStateMarker)
-            {
-                int packedAuxState = (int)(-encodedAuxState - AuxStateMarker);
-                auxState = packedAuxState & AuxMask;
-                lastTapTick = packedAuxState >> AuxTickShift;
-            }
-            else
-            {
-                auxState = 0;
-                lastTapTick = (int)(Mathf.Abs(encodedAuxState) * 4f);
-            }
+
             if (currentEvent.type == EventType.Repaint)
             {
                 bool fourFingerActive = (state & StateThreeFinger) != 0;
@@ -613,7 +665,6 @@ namespace ProjectEspPatch
                 {
                     float pct = Mathf.Clamp01((pointer.x - fovTrack.x) / fovTrack.width);
                     fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 460f), 40f, 500f);
-                    activeFovRadius = fovRadius;
                     driverPos.z = fovRadius;
                     driverObject.transform.position = driverPos;
                     currentEvent.Use();
@@ -750,7 +801,6 @@ namespace ProjectEspPatch
                             {
                                 float pct = Mathf.Clamp01((pointer.x - fovTrack.x) / fovTrack.width);
                                 fovRadius = Mathf.Clamp(Mathf.Round(40f + pct * 460f), 40f, 500f);
-                                activeFovRadius = fovRadius;
                                 driverPos.z = fovRadius;
                                 driverObject.transform.position = driverPos;
                                 currentEvent.Use();
@@ -764,7 +814,6 @@ namespace ProjectEspPatch
                                 if (decBtn.Contains(pointer))
                                 {
                                     fovRadius = Mathf.Clamp(fovRadius - 10f, 40f, 500f);
-                                    activeFovRadius = fovRadius;
                                     driverPos.z = fovRadius;
                                     driverObject.transform.position = driverPos;
                                     currentEvent.Use();
@@ -772,7 +821,6 @@ namespace ProjectEspPatch
                                 else if (incBtn.Contains(pointer))
                                 {
                                     fovRadius = Mathf.Clamp(fovRadius + 10f, 40f, 500f);
-                                    activeFovRadius = fovRadius;
                                     driverPos.z = fovRadius;
                                     driverObject.transform.position = driverPos;
                                     currentEvent.Use();
@@ -787,7 +835,6 @@ namespace ProjectEspPatch
                                         if (pRect.Contains(pointer))
                                         {
                                             fovRadius = pVal;
-                                            activeFovRadius = fovRadius;
                                             driverPos.z = fovRadius;
                                             driverObject.transform.position = driverPos;
                                             currentEvent.Use();
@@ -1020,7 +1067,6 @@ namespace ProjectEspPatch
                             aimMode = 2;
                             headRateIndex = 3;
                             auxState &= AuxSpeedRunningApplied;
-                            activeFovRadius = 140f;
                             driverPos.z = 140f;
                             driverObject.transform.position = driverPos;
                             fovRadius = 140f;
@@ -1233,12 +1279,13 @@ namespace ProjectEspPatch
                                 float fb = Mathf.Clamp01(2f - Mathf.Abs(fovHue * 6f - 4f));
                                 GUI.color = new Color(fr, fg, fb, 0.92f);
                             }
+                            float drawFov = fovRadius;
                             float angle0 = (float)segment * 0.09817477f;
                             float angle1 = (float)(segment + 1) * 0.09817477f;
-                            float x0 = circleX + Mathf.Cos(angle0) * fovRadius;
-                            float y0 = circleY + Mathf.Sin(angle0) * fovRadius;
-                            float x1 = circleX + Mathf.Cos(angle1) * fovRadius;
-                            float y1 = circleY + Mathf.Sin(angle1) * fovRadius;
+                            float x0 = circleX + Mathf.Cos(angle0) * drawFov;
+                            float y0 = circleY + Mathf.Sin(angle0) * drawFov;
+                            float x1 = circleX + Mathf.Cos(angle1) * drawFov;
+                            float y1 = circleY + Mathf.Sin(angle1) * drawFov;
                             float dx = x1 - x0;
                             float dy = y1 - y0;
                             float length = Mathf.Sqrt(dx * dx + dy * dy);
@@ -2466,11 +2513,7 @@ namespace ProjectEspPatch
 
             Vector3 aimStart = self.AimStartPostion;
             float fovLockRadius = 140f;
-            if (activeFovRadius >= 10f && activeFovRadius <= 600f)
-            {
-                fovLockRadius = activeFovRadius;
-            }
-            else if (driver != null)
+            if (driver != null)
             {
                 float storedZ = driver.transform.position.z;
                 if (storedZ >= 10f && storedZ <= 600f)
