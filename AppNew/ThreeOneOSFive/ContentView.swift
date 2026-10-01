@@ -1782,7 +1782,7 @@ struct ContentView: View {
                     .clipShape(ChamferedCardShape(cutSize: 12))
                     .overlay(
                         ChamferedCardShape(cutSize: 12)
-                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.35), lineWidth: 1)
                     )
                     .shadow(color: (isInjected ? Color.red : CyberTheme.crimsonNeon).opacity(0.65), radius: 12, y: 3)
                 }
