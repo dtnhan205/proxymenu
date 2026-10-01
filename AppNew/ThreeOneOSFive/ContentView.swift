@@ -351,7 +351,7 @@ final class CheatMenuState: ObservableObject {
 
     init() {
         let ud = UserDefaults.standard
-        self.aimSilent = ud.object(forKey: "cheat.aimSilent") as? Bool ?? true
+        self.aimSilent = ud.object(forKey: "cheat.aimSilent") as? Bool ?? false
         self.silentFOV = ud.object(forKey: "cheat.silentFOV") as? Double ?? 180.0
         self.headshotRate = ud.object(forKey: "cheat.headshotRate") as? Double ?? 100.0
         self.aimBot = ud.object(forKey: "cheat.aimBot") as? Bool ?? false
@@ -386,7 +386,7 @@ final class CheatMenuState: ObservableObject {
     }
 
     func resetToDefaults() {
-        aimSilent = true
+        aimSilent = false
         silentFOV = 180.0
         headshotRate = 100.0
         aimBot = false
@@ -1338,6 +1338,8 @@ struct ContentView: View {
                 // Sub-controls (Silent FOV & Headshot Rate) — only when Aim Silent is enabled
                 if cheatState.aimSilent {
                     VStack(spacing: 12) {
+                        Divider().background(CyberTheme.divider)
+
                         // Silent FOV
                         VStack(spacing: 4) {
                             HStack(spacing: 8) {
@@ -1360,7 +1362,7 @@ struct ContentView: View {
                                     .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.crimsonNeon)
                             }
-                            CyberSlider(value: $cheatState.silentFOV, range: 30...500, step: 1, activeColor: CyberTheme.crimsonNeon)
+                            CyberSlider(value: $cheatState.silentFOV, range: 0...180, step: 1, activeColor: CyberTheme.crimsonNeon)
                         }
 
                         // Headshot Rate
@@ -1388,11 +1390,12 @@ struct ContentView: View {
                             CyberSlider(value: $cheatState.headshotRate, range: 0...100, step: 1, activeColor: CyberTheme.mechaGold)
                         }
                     }
-                    .padding(.top, 4)
-                    .padding(.bottom, 4)
+                    .padding(.top, 2)
+                    .padding(.bottom, 2)
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
+            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: cheatState.aimSilent)
 
             // Card 2: Aim Bot & Target Selection (Neck / Head) + Aim Line
             CyberCard(glowColor: (cheatState.aimBot || cheatState.aimLine) ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
