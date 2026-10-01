@@ -1,0 +1,133 @@
+name: Build ProxyVipVn
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build IPA
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Show runner info
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun --sdk iphonesimulator --show-sdk-version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - uses: actions/checkout@v4
+
+      # Cache DerivedData của Xcode để giảm thời gian build
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            ~/Library/Caches/com.apple.dt.Xcode
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('AppNew/ThreeOneOSFive.xcodeproj/project.pbxproj', 'AppNew/ThreeOneOSFive/**/*.swift', 'AppNew/ThreeOneOSFive/**/*.m', 'AppNew/ThreeOneOSFive/**/*.c', 'AppNew/ThreeOneOSFive/**/*.h', 'AppNew/ThreeOneOSFive/Info.plist') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-
+
+      # Kiểm tra hoặc tạo AppBranding.swift nếu có script tools
+      - name: Verify AppBranding.swift
+        run: |
+          set -euo pipefail
+          BRAND_FILE="AppNew/ThreeOneOSFive/helpers/AppBranding.swift"
+
+          if [ -f "tools/gen_branding.py" ]; then
+            echo "Running tools/gen_branding.py..."
+            python3 tools/gen_branding.py --out-dir AppNew/ThreeOneOSFive/helpers
+          fi
+
+          if [ ! -s "$BRAND_FILE" ]; then
+            echo "::error::AppBranding.swift was not found or is empty"
+            exit 1
+          fi
+
+          echo "AppBranding.swift OK ($(wc -c < "$BRAND_FILE") bytes)"
+
+      # Build archive (universal iOS, không sign — dùng cho TrollStore/sideload)
+      - name: Build archive
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild \
+            -project AppNew/ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/ProxyVipVn.xcarchive \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            archive
+
+      # Đóng gói IPA từ .app trong xcarchive
+      - name: Package IPA
+        id: package
+        run: |
+          set -euo pipefail
+          APP_DIR=$(find build/ProxyVipVn.xcarchive/Products/Applications -name "*.app" -maxdepth 1 | head -1)
+          if [ -z "$APP_DIR" ] || [ ! -d "$APP_DIR" ]; then
+            echo "::error::App bundle not found. Available products:"
+            ls -la build/ProxyVipVn.xcarchive/Products/Applications/ || true
+            exit 1
+          fi
+
+          echo "Found App bundle at: $APP_DIR"
+          rm -rf build/ipa
+          mkdir -p build/ipa/Payload
+          cp -r "$APP_DIR" build/ipa/Payload/
+
+          cd build/ipa
+          zip -qr ProxyVipVn.ipa Payload
+          cd "$GITHUB_WORKSPACE"
+
+          # Verify cấu trúc IPA hợp lệ
+          unzip -l build/ipa/ProxyVipVn.ipa | head -30
+          unzip -l build/ipa/ProxyVipVn.ipa | grep -q "Payload/.*\.app/Info.plist" \
+            || { echo "::error::Invalid IPA structure - Info.plist missing"; exit 1; }
+
+          # Kiểm tra file Assembly-CSharp-patch.bytes trong IPA
+          if unzip -l build/ipa/ProxyVipVn.ipa | grep -q "Assembly-CSharp-patch.bytes"; then
+            echo "✅ Assembly-CSharp-patch.bytes embedded in IPA successfully"
+          else
+            echo "ℹ️ Assembly-CSharp-patch.bytes check"
+          fi
+
+          IPA_SIZE=$(stat -f%z build/ipa/ProxyVipVn.ipa 2>/dev/null || stat -c%s build/ipa/ProxyVipVn.ipa)
+          echo "IPA size: $IPA_SIZE bytes"
+          echo "ipa_path=build/ipa/ProxyVipVn.ipa" >> "$GITHUB_OUTPUT"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProxyVipVn-ipa
+          path: build/ipa/ProxyVipVn.ipa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Inspect binary
+        if: always()
+        run: |
+          APP_DIR=$(find build/ProxyVipVn.xcarchive/Products/Applications -name "*.app" -maxdepth 1 2>/dev/null | head -1 || true)
+          if [ -n "$APP_DIR" ] && [ -d "$APP_DIR" ]; then
+            echo "=== App bundle size ==="
+            du -sh "$APP_DIR"
+            echo "=== Mach-O architectures ==="
+            lipo -info "$APP_DIR/ProxyVipVn" 2>/dev/null || true
+            echo "=== Linked frameworks ==="
+            otool -L "$APP_DIR/ProxyVipVn" 2>/dev/null | head -20 || true
+          fi
