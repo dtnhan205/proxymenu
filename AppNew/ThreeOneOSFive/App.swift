@@ -138,7 +138,9 @@ class AppState: ObservableObject {
         guard kernelExploitApplicable else { return }
 
         refreshKernelExploitStatus()
-        maybeAutoRunKernelExploit()
+        // Do not auto-run kernel exploit on startup: avoids 10-30s device freeze on unsupported iOS builds.
+        // MobileHouseArrest (MHA-C2) directly injects Free Fire with zero kernel exploit required.
+        // maybeAutoRunKernelExploit()
     }
 
     private func maybeAutoRunKernelExploit() {

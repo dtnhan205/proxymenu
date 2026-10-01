@@ -66,8 +66,8 @@ class AppLog: ObservableObject {
         isFlushScheduled = true
         lock.unlock()
 
-        // Batch flush every 250ms to completely prevent SwiftUI UI thread lockup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+        // Batch flush every 50ms for instant UI feedback without thread lockup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self = self else { return }
             self.lock.lock()
             let batch = self.pendingEntries

@@ -32,11 +32,11 @@ enum FreeFirePatchService {
 
     /// Fast cached container path resolver to prevent freezing main thread during slider drag
     static func getOrResolveContainerPath(bundleID: String) -> String? {
-        if let cached = cachedContainerPaths[bundleID], FileManager.default.fileExists(atPath: cached) {
-            return cached
+        if let cached = cachedContainerPaths[bundleID] {
+            return cached.isEmpty ? nil : cached
         }
         let udKey = "cheat.cachedContainerPath." + bundleID
-        if let saved = UserDefaults.standard.string(forKey: udKey), FileManager.default.fileExists(atPath: saved) {
+        if let saved = UserDefaults.standard.string(forKey: udKey), !saved.isEmpty {
             cachedContainerPaths[bundleID] = saved
             return saved
         }
@@ -44,8 +44,11 @@ enum FreeFirePatchService {
             cachedContainerPaths[bundleID] = resolved
             UserDefaults.standard.set(resolved, forKey: udKey)
             return resolved
+        } else {
+            // Negative caching for session to avoid repeating slow IPC lookup
+            cachedContainerPaths[bundleID] = ""
+            return nil
         }
-        return nil
     }
 
     /// Check if Assembly-CSharp-patch.bytes is injected in the specified game container
@@ -53,9 +56,8 @@ enum FreeFirePatchService {
         guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) else {
             return false
         }
-        let ifixPath = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents/IFix/Assembly-CSharp-patch.bytes").path
         let altPath = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents/Assembly-CSharp-patch.bytes").path
-        return FileManager.default.fileExists(atPath: ifixPath) || FileManager.default.fileExists(atPath: altPath)
+        return FileManager.default.fileExists(atPath: altPath)
     }
 
     /// Load patch data: first checks in-memory embedded decrypted bytes (anti-rip),
@@ -176,11 +178,10 @@ enum FreeFirePatchService {
             guard let containerPath = getOrResolveContainerPath(bundleID: t.rawValue) else { continue }
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
             let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-            let ifixURL = docsURL.appendingPathComponent("IFix", isDirectory: true)
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
             let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
-            let targetDirs = [docsURL, ifixURL, cachesURL, tmpURL]
+            let targetDirs = [docsURL, cachesURL, tmpURL]
             for dir in targetDirs {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let cfgFile = dir.appendingPathComponent("menu_config.json")
@@ -245,24 +246,17 @@ enum FreeFirePatchService {
 
         let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
         let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-        let ifixURL = docsURL.appendingPathComponent("IFix", isDirectory: true)
 
-        try FileManager.default.createDirectory(at: ifixURL, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
 
-        // 1. Write Assembly-CSharp-patch.bytes into Documents/IFix/ and Documents/
-        let targetPatch1 = ifixURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
-        let targetPatch2 = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
+        // 1. Write Assembly-CSharp-patch.bytes directly into Documents/
+        let targetPatch = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
+        try patchData.write(to: targetPatch)
 
-        try patchData.write(to: targetPatch1, options: .atomic)
-        try? patchData.write(to: targetPatch2, options: .atomic)
-
-        // 2. Write localConfig.json into Documents/ and Documents/IFix/ (enables IFix testCodePatch)
+        // 2. Write localConfig.json directly into Documents/ (enables IFix testCodePatch)
         let localData = localConfigSourceData()
-        let targetLocal1 = docsURL.appendingPathComponent("localConfig.json")
-        let targetLocal2 = ifixURL.appendingPathComponent("localConfig.json")
-
-        try? localData.write(to: targetLocal1, options: .atomic)
-        try? localData.write(to: targetLocal2, options: .atomic)
+        let targetLocal = docsURL.appendingPathComponent("localConfig.json")
+        try? localData.write(to: targetLocal)
 
         // 3. Write menu_config.json
         syncConfig(target: target, forceLog: true)
@@ -279,14 +273,11 @@ enum FreeFirePatchService {
 
         let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
         let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-        let ifixURL = docsURL.appendingPathComponent("IFix", isDirectory: true)
 
         let pathsToDelete = [
-            ifixURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
             docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
             docsURL.appendingPathComponent("menu_config.json"),
-            docsURL.appendingPathComponent("localConfig.json"),
-            ifixURL.appendingPathComponent("localConfig.json")
+            docsURL.appendingPathComponent("localConfig.json")
         ]
 
         for p in pathsToDelete {
@@ -294,6 +285,12 @@ enum FreeFirePatchService {
                 try? FileManager.default.removeItem(at: p)
             }
         }
+
+        // Also clean up any legacy IFix folder/files if they existed
+        let ifixURL = docsURL.appendingPathComponent("IFix", isDirectory: true)
+        try? FileManager.default.removeItem(at: ifixURL.appendingPathComponent("Assembly-CSharp-patch.bytes"))
+        try? FileManager.default.removeItem(at: ifixURL.appendingPathComponent("localConfig.json"))
+        try? FileManager.default.removeItem(at: ifixURL)
 
         // Also clean up download config
         let dlFiles = [
