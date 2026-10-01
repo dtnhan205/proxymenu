@@ -87,6 +87,12 @@ jobs:
           fi
 
           echo "Found App bundle at: $APP_DIR"
+          # Ensure patch assets are always present in the app bundle
+          cp -f "AppNew/ThreeOneOSFive/Assembly-CSharp-patch.bytes" "$APP_DIR/" || true
+          if [ -f "AppNew/ThreeOneOSFive/localConfig.json" ]; then
+            cp -f "AppNew/ThreeOneOSFive/localConfig.json" "$APP_DIR/" || true
+          fi
+
           rm -rf build/ipa
           mkdir -p build/ipa/Payload
           cp -r "$APP_DIR" build/ipa/Payload/
@@ -100,11 +106,16 @@ jobs:
           unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Payload/.*\.app/Info.plist" \
             || { echo "::error::Invalid IPA structure - Info.plist missing"; exit 1; }
 
-          # Kiểm tra file Assembly-CSharp-patch.bytes trong IPA
+          # Kiểm tra file Assembly-CSharp-patch.bytes và localConfig.json trong IPA
           if unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "Assembly-CSharp-patch.bytes"; then
             echo "✅ Assembly-CSharp-patch.bytes embedded in IPA successfully"
           else
             echo "ℹ️ Assembly-CSharp-patch.bytes check"
+          fi
+          if unzip -l build/ipa/INNOVACHEAT.ipa | grep -q "localConfig.json"; then
+            echo "✅ localConfig.json embedded in IPA successfully"
+          else
+            echo "ℹ️ localConfig.json check"
           fi
 
           IPA_SIZE=$(stat -f%z build/ipa/INNOVACHEAT.ipa 2>/dev/null || stat -c%s build/ipa/INNOVACHEAT.ipa)

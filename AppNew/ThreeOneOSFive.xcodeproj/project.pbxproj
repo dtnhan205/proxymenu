@@ -89,6 +89,7 @@
 		3105A211 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3105A031; };
 		FF000001 /* FreeFirePatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000002; };
 		FF000003 /* Assembly-CSharp-patch.bytes in Resources */ = {isa = PBXBuildFile; fileRef = FF000004; };
+		FF000005 /* localConfig.json in Resources */ = {isa = PBXBuildFile; fileRef = FF000006; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -192,6 +193,7 @@
 		3105B123 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		FF000002 /* FreeFirePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeFirePatchService.swift; sourceTree = "<group>"; };
 		FF000004 /* Assembly-CSharp-patch.bytes */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Assembly-CSharp-patch.bytes"; sourceTree = "<group>"; };
+		FF000006 /* localConfig.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = localConfig.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -227,6 +229,7 @@
 				3105A120 /* Localizable.strings */,
 				3105A031 /* Assets.xcassets */,
 				FF000004 /* Assembly-CSharp-patch.bytes */,
+				FF000006 /* localConfig.json */,
 			);
 			path = ThreeOneOSFive;
 			sourceTree = "<group>";
@@ -415,6 +418,7 @@
 				3105A211,
 				3105A228,
 				FF000003,
+				FF000005,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1125,7 +1125,7 @@ struct ContentView: View {
                     self.isInjected = true
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.success)
-                    self.injectionAlertText = "✅ Đã Inject Cheat thành công vào \(self.selectedTarget.displayName)!\n\nFile patch và cấu hình đã được nạp tự động. Bạn có thể mở game và trải nghiệm."
+                    self.injectionAlertText = "✅ Đã Inject Cheat thành công vào \(self.selectedTarget.displayName)!\n\nĐã nạp file patch (Assembly-CSharp-patch.bytes) và cấu hình kích hoạt (localConfig.json, menu_config.json). Bạn có thể mở game và trải nghiệm."
                     self.showInjectionAlert = true
                 }
             } catch {
@@ -1154,7 +1154,7 @@ struct ContentView: View {
             self.isInjected = false
             let notif = UINotificationFeedbackGenerator()
             notif.notificationOccurred(.success)
-            self.injectionAlertText = "🗑️ Đã Uninject (xóa file patch) thành công khỏi \(self.selectedTarget.displayName)."
+            self.injectionAlertText = "🗑️ Đã Uninject (xóa file patch & localConfig.json) thành công khỏi \(self.selectedTarget.displayName)."
             self.showInjectionAlert = true
         }
     }

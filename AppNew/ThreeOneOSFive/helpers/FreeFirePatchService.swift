@@ -117,6 +117,30 @@ enum FreeFirePatchService {
         }
     }
 
+    /// Locate localConfig.json data from bundle, local paths, or fallback default
+    static func localConfigSourceData() -> Data {
+        // 1. Bundle resource
+        if let url = Bundle.main.url(forResource: "localConfig", withExtension: "json"),
+           let data = try? Data(contentsOf: url), !data.isEmpty {
+            return data
+        }
+        // 2. Direct inside main bundle directory
+        let bundleDirect = Bundle.main.bundleURL.appendingPathComponent("localConfig.json")
+        if let data = try? Data(contentsOf: bundleDirect), !data.isEmpty {
+            return data
+        }
+        // 3. Document directory of proxy app
+        if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            let docFile = docs.appendingPathComponent("localConfig.json")
+            if let data = try? Data(contentsOf: docFile), !data.isEmpty {
+                return data
+            }
+        }
+        // 4. Default payload: {"testCodePatch":true,"resetGuest":true}
+        let fallback = "{\"testCodePatch\":true,\"resetGuest\":true}"
+        return fallback.data(using: .utf8) ?? Data()
+    }
+
     /// Inject patch file and initial config into the selected game
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
         guard let sourceURL = patchSourceURL(), let patchData = try? Data(contentsOf: sourceURL) else {
@@ -144,17 +168,25 @@ enum FreeFirePatchService {
 
         try FileManager.default.createDirectory(at: ifixURL, withIntermediateDirectories: true)
 
-        // Write Assembly-CSharp-patch.bytes into Documents/IFix/ and Documents/
+        // 1. Write Assembly-CSharp-patch.bytes into Documents/IFix/ and Documents/
         let targetPatch1 = ifixURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
         let targetPatch2 = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
 
         try patchData.write(to: targetPatch1, options: .atomic)
         try? patchData.write(to: targetPatch2, options: .atomic)
 
-        // Write menu_config.json
+        // 2. Write localConfig.json into Documents/ and Documents/IFix/ (enables IFix testCodePatch)
+        let localData = localConfigSourceData()
+        let targetLocal1 = docsURL.appendingPathComponent("localConfig.json")
+        let targetLocal2 = ifixURL.appendingPathComponent("localConfig.json")
+
+        try? localData.write(to: targetLocal1, options: .atomic)
+        try? localData.write(to: targetLocal2, options: .atomic)
+
+        // 3. Write menu_config.json
         syncConfig(target: target)
 
-        AppLog.shared.append("[INJECT] ✅ Đã Inject thành công vào \(target.displayName)")
+        AppLog.shared.append("[INJECT] ✅ Đã Inject thành công (Assembly-CSharp-patch.bytes & localConfig.json) vào \(target.displayName)")
     }
 
     /// Uninject: delete the patch bytes and config from game container
@@ -171,7 +203,9 @@ enum FreeFirePatchService {
         let pathsToDelete = [
             ifixURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
             docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
-            docsURL.appendingPathComponent("menu_config.json")
+            docsURL.appendingPathComponent("menu_config.json"),
+            docsURL.appendingPathComponent("localConfig.json"),
+            ifixURL.appendingPathComponent("localConfig.json")
         ]
 
         for p in pathsToDelete {
@@ -181,11 +215,16 @@ enum FreeFirePatchService {
         }
 
         // Also clean up download config
-        let dlConfig = URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json")
-        if FileManager.default.fileExists(atPath: dlConfig.path) {
-            try? FileManager.default.removeItem(at: dlConfig)
+        let dlFiles = [
+            URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json"),
+            URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
+        ]
+        for dl in dlFiles {
+            if FileManager.default.fileExists(atPath: dl.path) {
+                try? FileManager.default.removeItem(at: dl)
+            }
         }
 
-        AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa file patch (Uninject) khỏi \(target.displayName)")
+        AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & localConfig.json khỏi \(target.displayName)")
     }
 }
