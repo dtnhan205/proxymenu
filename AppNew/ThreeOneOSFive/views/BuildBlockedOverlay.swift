@@ -48,7 +48,7 @@ struct BuildBlockedOverlay: View {
                     // Vùng nhập key — cho phép user activate lại sau khi
                     // admin đã bật lại token trên server, không cần reinstall.
                     VStack(spacing: 10) {
-                        TextField("NHAP-XXXX-XXXX-XXXX-XXXX", text: $keyInput)
+                        TextField("INNOVA-1D-XXXX-XXXX", text: $keyInput)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled(true)
                             .font(.system(size: 15, weight: .medium, design: .monospaced))
@@ -128,7 +128,7 @@ struct BuildBlockedOverlay: View {
                 await MainActor.run {
                     isBusy = false
                     switch err {
-                    case .buildRevoked, .buildUnknown, .buildMissing:
+                    case .buildRevoked, .buildUnknown, .buildMissing, .buildWrongPlatform:
                         inlineError = "Token vẫn chưa được kích hoạt trên máy chủ. Vui lòng liên hệ admin."
                     default:
                         inlineError = err.errorDescription ?? "Key không hợp lệ"

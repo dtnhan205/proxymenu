@@ -188,7 +188,7 @@ struct RootView: View {
                 DevicePatchService.restoreAllAppliedPatches()
             }
             switch error {
-            case .buildRevoked, .buildUnknown, .buildMissing:
+            case .buildRevoked, .buildUnknown, .buildMissing, .buildWrongPlatform:
                 await MainActor.run {
                     store.setBuildBlocked(true)
                 }

@@ -731,7 +731,7 @@ extension GamePatchesView {
             return true
         case .keyNotFound, .revoked, .expired, .notActivated,
              .deviceLimitReached, .deviceNotBound,
-             .buildMissing, .buildRevoked, .buildUnknown,
+             .buildMissing, .buildRevoked, .buildUnknown, .buildWrongPlatform,
              .innovaKeyRequired, .proxyKeyNotAllowed:
             return false
         }

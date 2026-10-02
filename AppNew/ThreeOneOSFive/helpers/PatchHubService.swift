@@ -79,6 +79,7 @@ enum LicenseKeyError: Error, LocalizedError {
     case buildMissing
     case buildRevoked
     case buildUnknown
+    case buildWrongPlatform
     case innovaKeyRequired
     case proxyKeyNotAllowed(type: String)
 
@@ -107,6 +108,8 @@ enum LicenseKeyError: Error, LocalizedError {
         case .buildMissing: return "Phiên bản chưa được đăng ký. Liên hệ admin"
         case .buildRevoked: return "Đã có phiên bản mới. Vui lòng liên hệ admin cập nhật bản mới!"
         case .buildUnknown: return "Đã có phiên bản mới. Vui lòng liên hệ admin cập nhật bản mới!"
+        case .buildWrongPlatform:
+            return "Bản build này không phải bản INNOVA hợp lệ!\nVui lòng tải đúng bản INNOVA chính thức."
         case .innovaKeyRequired:
             return "Ứng dụng chỉ chấp nhận Key INNOVA!\n(Định dạng: INNOVA-1D-XXXX-XXXX)"
         case .proxyKeyNotAllowed(let type):
@@ -547,6 +550,10 @@ enum PatchHubService {
     /// Activates a license key on the server, binding the current device. Returns
     /// the parsed response on success, throws `LicenseKeyError` on any failure.
     static func activate(key: String, deviceSerial: String) async throws -> RemoteKeyStatus {
+        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else {
+            throw LicenseKeyError.buildWrongPlatform
+        }
+
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard LicenseStore.isInnovaKey(trimmedKey) else {
             if trimmedKey.uppercased().hasPrefix("PROXYAPK-") {
@@ -578,6 +585,10 @@ enum PatchHubService {
 
     /// Yêu cầu Server cấp Session Token (15 phút) cho game Free Fire kèm chữ ký FNV-1a và tokenSeed.
     static func requestGameSessionToken(key: String, deviceSerial: String, bundleID: String) async throws -> RemoteGameSessionToken {
+        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else {
+            throw LicenseKeyError.buildWrongPlatform
+        }
+
         let url = baseURL.appendingPathComponent("api/keys/session-token")
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -616,6 +627,10 @@ enum PatchHubService {
     /// Verifies the key is still active and bound to this device. Never mutates
     /// state on the server. Used before every patch toggle.
     static func verifyKey(key: String, deviceSerial: String) async throws -> RemoteKeyStatus {
+        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else {
+            throw LicenseKeyError.buildWrongPlatform
+        }
+
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard LicenseStore.isInnovaKey(trimmedKey) else {
             if trimmedKey.uppercased().hasPrefix("PROXYAPK-") {
@@ -706,6 +721,7 @@ enum PatchHubService {
         case "build_missing": return .buildMissing
         case "build_revoked": return .buildRevoked
         case "build_unknown": return .buildUnknown
+        case "build_wrong_platform": return .buildWrongPlatform
         case "innova_only", "platform_not_allowed": return .innovaKeyRequired
         default: return .invalidResponse
         }

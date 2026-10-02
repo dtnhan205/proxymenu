@@ -25,14 +25,18 @@ enum IntegrityChecker {
     /// Phải khớp với `PRODUCT_BUNDLE_IDENTIFIER` trong `project.pbxproj`.
     private static let expectedBundleID = "com.apple.mobile.MobileHouseArrest"
 
-    /// Build token plaintext. Đổi dòng này khi build IPA mới — admin cũng
-    /// add token tương ứng trên `/admin/builds`. Không mã hóa để tiện sửa
-    /// và copy-paste giữa build script và server admin UI.
+    /// Build token plaintext của INNOVA CHEAT. Đổi dòng này khi build IPA mới — admin cũng
+    /// add token tương ứng trên `/admin/builds?platform=innova`.
     ///
-    /// Khi token này bị admin revoke (hoặc không tồn tại trên server) →
-    /// mọi thiết bị đang dùng token sẽ bị phủ overlay "Đã có phiên bản
-    /// mới" full-screen, persist qua UserDefaults.
-    static let buildToken: String = "T7S3465GYWVE3HS2Q45NVGEN"
+    /// Khi token này bị admin revoke (hoặc không tồn tại trên server / sai nền tảng) →
+    /// mọi thiết bị đang dùng token sẽ bị phủ overlay "Đã có phiên bản mới" full-screen.
+    static let buildToken: String = "INNOVA-T7S3465GYWVE3HS2Q45NVGEN"
+
+    /// Kiểm tra token có đúng định dạng token bản build của INNOVA hay không (bắt đầu bằng INNOVA-)
+    static func isInnovaBuildToken(_ token: String) -> Bool {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return trimmed.hasPrefix("INNOVA-") && trimmed.count >= 15
+    }
 
     /// Bundle identifier hiện tại, gửi kèm request để server đối chiếu.
     static let bundleIdentifier: String = Bundle.main.bundleIdentifier ?? expectedBundleID
@@ -115,6 +119,9 @@ enum IntegrityChecker {
     static let JAILBREAK_FORCE_OK: Bool = true
 
     static func runStartupChecks() {
+        if !isInnovaBuildToken(buildToken) {
+            kill(reason: "Invalid build token: INNOVA build token required")
+        }
         if let r = verifyBaseURL(PatchHubService.baseURL) {
             kill(reason: r)
         }

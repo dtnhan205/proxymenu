@@ -318,7 +318,7 @@ struct LicenseGateView: View {
                     // Không cho phép nhập lại key khác để bypass; user buộc
                     // phải cập nhật app.
                     switch err {
-                    case .buildRevoked, .buildUnknown, .buildMissing:
+                    case .buildRevoked, .buildUnknown, .buildMissing, .buildWrongPlatform:
                         LicenseStore.shared.setBuildBlocked(true)
                     default:
                         break
@@ -361,7 +361,7 @@ struct LicenseGateView: View {
             return true
         case .keyNotFound, .revoked, .expired, .notActivated,
              .deviceLimitReached, .deviceNotBound,
-             .buildMissing, .buildRevoked, .buildUnknown,
+             .buildMissing, .buildRevoked, .buildUnknown, .buildWrongPlatform,
              .innovaKeyRequired, .proxyKeyNotAllowed:
             return false
         }
