@@ -115,7 +115,10 @@ enum FreeFirePatchService {
         if let data = try? Data(contentsOf: bundleDirect), !data.isEmpty {
             return data
         }
-         // Slot placeholder for on-the-fly binary stamping (Method 2)
+        return nil
+    }
+
+    // Slot placeholder for on-the-fly binary stamping (Method 2)
     private static let stampedDeviceSlotPlaceholder = "INNOVA_DEV_SLOT_0000000000000000"
     // Secret salt for hardware signature token (Method 1)
     private static let authSecretSalt = "INNOVA_3105_SECURE_AUTH_SALT_V1"
@@ -239,8 +242,6 @@ enum FreeFirePatchService {
         let b64 = Data(bytes).base64EncodedString()
         return b64.data(using: .utf8) ?? rawJsonData
     }
-
-    private static var lastSyncLogTime: TimeInterval = 0
 
     /// Sync the current configuration to all game containers and multi-channel IPC
     static func syncConfig(target: FreeFireTarget = selectedTarget, state: CheatMenuState = CheatMenuState.shared, forceLog: Bool = false) {
