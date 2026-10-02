@@ -348,145 +348,159 @@ namespace ProjectEspPatch
 
                             // Method 1 & 2: Token extraction & Verification
                             // Strict security: Token MUST be loaded from .innova_token.dat ONLY.
-                            // menu_config.json does NOT contain credentials.
-                            string devIdVal = null;
-                            string cidVal = null;
-                            string sigVal = null;
+                            // 20-second Fail-Closed interval to eliminate I/O lag and reduce CPU load
+                            float lastAuthTime = lineDriver != null ? lineDriver.transform.localScale.z : 0f;
+                            bool isAuthorized = (state & StateAuthorized) != 0;
 
-                            string tokFile = "/.innova_token.dat";
-                            string[] tokPaths = new string[] {
-                                pDir + tokFile,
-                                pDir + "/Documents" + tokFile,
-                                pDir + "/../Documents" + tokFile
-                            };
-                            for (int tIdx = 0; tIdx < tokPaths.Length; tIdx++)
+                            if (nowTime - lastAuthTime >= 20f || lastAuthTime <= 0.1f)
                             {
-                                string tPath = tokPaths[tIdx];
-                                if (!string.IsNullOrEmpty(tPath) && File.Exists(tPath))
+                                lastAuthTime = nowTime;
+                                if (lineDriver != null)
                                 {
-                                    try
+                                    Vector3 curLs = lineDriver.transform.localScale;
+                                    curLs.z = lastAuthTime;
+                                    lineDriver.transform.localScale = curLs;
+                                }
+
+                                string devIdVal = null;
+                                string cidVal = null;
+                                string sigVal = null;
+
+                                string tokFile = "/.innova_token.dat";
+                                string[] tokPaths = new string[] {
+                                    pDir + tokFile,
+                                    pDir + "/Documents" + tokFile,
+                                    pDir + "/../Documents" + tokFile
+                                };
+                                for (int tIdx = 0; tIdx < tokPaths.Length; tIdx++)
+                                {
+                                    string tPath = tokPaths[tIdx];
+                                    if (!string.IsNullOrEmpty(tPath) && File.Exists(tPath))
                                     {
-                                        string rawTok = File.ReadAllText(tPath);
-                                        if (!string.IsNullOrEmpty(rawTok))
+                                        try
                                         {
-                                            rawTok = rawTok.Trim();
-                                            byte[] encTok = Convert.FromBase64String(rawTok);
-                                            for (int ti = 0; ti < encTok.Length; ti++)
+                                            string rawTok = File.ReadAllText(tPath);
+                                            if (!string.IsNullOrEmpty(rawTok))
                                             {
-                                                encTok[ti] = (byte)(encTok[ti] ^ xKey[ti % 16]);
-                                            }
-                                            string decTok = System.Text.Encoding.UTF8.GetString(encTok);
-                                            int pDevT = decTok.IndexOf("\"dev_id\"");
-                                            if (pDevT >= 0)
-                                            {
-                                                int cDevT = decTok.IndexOf(':', pDevT);
-                                                if (cDevT >= 0)
+                                                rawTok = rawTok.Trim();
+                                                byte[] encTok = Convert.FromBase64String(rawTok);
+                                                for (int ti = 0; ti < encTok.Length; ti++)
                                                 {
-                                                    int sQT = decTok.IndexOf('"', cDevT + 1);
-                                                    if (sQT >= 0)
+                                                    encTok[ti] = (byte)(encTok[ti] ^ xKey[ti % 16]);
+                                                }
+                                                string decTok = System.Text.Encoding.UTF8.GetString(encTok);
+                                                int pDevT = decTok.IndexOf("\"dev_id\"");
+                                                if (pDevT >= 0)
+                                                {
+                                                    int cDevT = decTok.IndexOf(':', pDevT);
+                                                    if (cDevT >= 0)
                                                     {
-                                                        int eQT = decTok.IndexOf('"', sQT + 1);
-                                                        if (eQT > sQT) devIdVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        int sQT = decTok.IndexOf('"', cDevT + 1);
+                                                        if (sQT >= 0)
+                                                        {
+                                                            int eQT = decTok.IndexOf('"', sQT + 1);
+                                                            if (eQT > sQT) devIdVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            int pCidT = decTok.IndexOf("\"cid\"");
-                                            if (pCidT >= 0)
-                                            {
-                                                int cCidT = decTok.IndexOf(':', pCidT);
-                                                if (cCidT >= 0)
+                                                int pCidT = decTok.IndexOf("\"cid\"");
+                                                if (pCidT >= 0)
                                                 {
-                                                    int sQT = decTok.IndexOf('"', cCidT + 1);
-                                                    if (sQT >= 0)
+                                                    int cCidT = decTok.IndexOf(':', pCidT);
+                                                    if (cCidT >= 0)
                                                     {
-                                                        int eQT = decTok.IndexOf('"', sQT + 1);
-                                                        if (eQT > sQT) cidVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        int sQT = decTok.IndexOf('"', cCidT + 1);
+                                                        if (sQT >= 0)
+                                                        {
+                                                            int eQT = decTok.IndexOf('"', sQT + 1);
+                                                            if (eQT > sQT) cidVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            int pSigT = decTok.IndexOf("\"dev_sig\"");
-                                            if (pSigT >= 0)
-                                            {
-                                                int cSigT = decTok.IndexOf(':', pSigT);
-                                                if (cSigT >= 0)
+                                                int pSigT = decTok.IndexOf("\"dev_sig\"");
+                                                if (pSigT >= 0)
                                                 {
-                                                    int sQT = decTok.IndexOf('"', cSigT + 1);
-                                                    if (sQT >= 0)
+                                                    int cSigT = decTok.IndexOf(':', pSigT);
+                                                    if (cSigT >= 0)
                                                     {
-                                                        int eQT = decTok.IndexOf('"', sQT + 1);
-                                                        if (eQT > sQT) sigVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        int sQT = decTok.IndexOf('"', cSigT + 1);
+                                                        if (sQT >= 0)
+                                                        {
+                                                            int eQT = decTok.IndexOf('"', sQT + 1);
+                                                            if (eQT > sQT) sigVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        }
                                                     }
                                                 }
+                                                break;
                                             }
-                                            break;
                                         }
-                                    }
-                                    catch (Exception)
-                                    {
+                                        catch (Exception)
+                                        {
+                                        }
                                     }
                                 }
-                            }
 
-                            bool isAuthorized = false;
-                            bool isStampValid = !string.IsNullOrEmpty(StampedDeviceSlot)
-                                && StampedDeviceSlot.Length == 32
-                                && !StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_");
+                                isAuthorized = false;
+                                bool isStampValid = !string.IsNullOrEmpty(StampedDeviceSlot)
+                                    && StampedDeviceSlot.Length == 32
+                                    && !StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_");
 
-                            if (isStampValid)
-                            {
-                                if (!string.IsNullOrEmpty(devIdVal)
-                                    && !string.IsNullOrEmpty(sigVal)
-                                    && string.Equals(devIdVal, StampedDeviceSlot, StringComparison.OrdinalIgnoreCase))
+                                if (isStampValid)
                                 {
-                                    string sigCid = cidVal != null ? cidVal : "";
-                                    string devPrefix = devIdVal + ":" + sigCid + ":";
-                                    byte[] pfxBytes = System.Text.Encoding.UTF8.GetBytes(devPrefix);
-                                    string saltMask = "IOLLRDY499?T_HMZBTMRAA^HKXVOCK/";
-                                    uint h0 = 0x67452301;
-                                    uint h1 = 0xEFCDAB89;
-                                    uint h2 = 0x98BADCFE;
-                                    uint h3 = 0x10325476;
-                                    int totalLen = pfxBytes.Length + saltMask.Length;
-                                    for (int si = 0; si < totalLen; si++)
+                                    if (!string.IsNullOrEmpty(devIdVal)
+                                        && !string.IsNullOrEmpty(sigVal)
+                                        && string.Equals(devIdVal, StampedDeviceSlot, StringComparison.OrdinalIgnoreCase))
                                     {
-                                        uint sb = (uint)(si < pfxBytes.Length ? pfxBytes[si] : ((int)saltMask[si - pfxBytes.Length] ^ (si - pfxBytes.Length)));
-                                        h0 = (h0 ^ (sb << (si % 24))) * 0x01000193;
-                                        h1 = (h1 + sb) * 0x85EBCA6B;
-                                        h2 = (h2 ^ (sb * 0x9E3779B9)) + (h0 >> 5);
-                                        h3 = (h3 + (sb ^ h1)) * 0xC2B2AE35;
-                                    }
-                                    string expectedSig = h0.ToString("x8") + h1.ToString("x8") + h2.ToString("x8") + h3.ToString("x8");
-                                    if (string.Equals(sigVal, expectedSig, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        string localCid = "";
-                                        if (!string.IsNullOrEmpty(pDir))
+                                        string sigCid = cidVal != null ? cidVal : "";
+                                        string devPrefix = devIdVal + ":" + sigCid + ":";
+                                        byte[] pfxBytes = System.Text.Encoding.UTF8.GetBytes(devPrefix);
+                                        string saltMask = "IOLLRDY499?T_HMZBTMRAA^HKXVOCK/";
+                                        uint h0 = 0x67452301;
+                                        uint h1 = 0xEFCDAB89;
+                                        uint h2 = 0x98BADCFE;
+                                        uint h3 = 0x10325476;
+                                        int totalLen = pfxBytes.Length + saltMask.Length;
+                                        for (int si = 0; si < totalLen; si++)
                                         {
-                                            int appIdx = pDir.IndexOf("/Application/");
-                                            if (appIdx >= 0)
+                                            uint sb = (uint)(si < pfxBytes.Length ? pfxBytes[si] : ((int)saltMask[si - pfxBytes.Length] ^ (si - pfxBytes.Length)));
+                                            h0 = (h0 ^ (sb << (si % 24))) * 0x01000193;
+                                            h1 = (h1 + sb) * 0x85EBCA6B;
+                                            h2 = (h2 ^ (sb * 0x9E3779B9)) + (h0 >> 5);
+                                            h3 = (h3 + (sb ^ h1)) * 0xC2B2AE35;
+                                        }
+                                        string expectedSig = h0.ToString("x8") + h1.ToString("x8") + h2.ToString("x8") + h3.ToString("x8");
+                                        if (string.Equals(sigVal, expectedSig, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            string localCid = "";
+                                            if (!string.IsNullOrEmpty(pDir))
                                             {
-                                                int startCid = appIdx + 13;
-                                                int nextSlash = pDir.IndexOf('/', startCid);
-                                                if (nextSlash > startCid)
+                                                int appIdx = pDir.IndexOf("/Application/");
+                                                if (appIdx >= 0)
                                                 {
-                                                    localCid = pDir.Substring(startCid, nextSlash - startCid).Trim();
-                                                }
-                                                else
-                                                {
-                                                    localCid = pDir.Substring(startCid).Trim();
+                                                    int startCid = appIdx + 13;
+                                                    int nextSlash = pDir.IndexOf('/', startCid);
+                                                    if (nextSlash > startCid)
+                                                    {
+                                                        localCid = pDir.Substring(startCid, nextSlash - startCid).Trim();
+                                                    }
+                                                    else
+                                                    {
+                                                        localCid = pDir.Substring(startCid).Trim();
+                                                    }
                                                 }
                                             }
-                                        }
 
-                                        if (!string.IsNullOrEmpty(localCid))
-                                        {
-                                            if (!string.IsNullOrEmpty(sigCid) && string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                            if (!string.IsNullOrEmpty(localCid))
+                                            {
+                                                if (!string.IsNullOrEmpty(sigCid) && string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    isAuthorized = true;
+                                                }
+                                            }
+                                            else
                                             {
                                                 isAuthorized = true;
                                             }
-                                        }
-                                        else
-                                        {
-                                            isAuthorized = true;
                                         }
                                     }
                                 }
@@ -734,7 +748,7 @@ namespace ProjectEspPatch
                                 lineDriver.transform.position = new Vector3((float)finalLineR, (float)finalLineG, (float)finalLineB);
                                 float lThick = nLineThick > 0 ? (float)nLineThick : 2.5f;
                                 float bThick = nBoxThick > 0 ? (float)nBoxThick : 2.0f;
-                                lineDriver.transform.localScale = new Vector3(lThick, bThick, 0f);
+                                lineDriver.transform.localScale = new Vector3(lThick, bThick, lastAuthTime);
                             }
 
                             customR = finalBoxR;
