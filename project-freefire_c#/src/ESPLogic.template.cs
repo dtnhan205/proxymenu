@@ -61,7 +61,7 @@ namespace ProjectEspPatch
         private const float AuxStateMarker = 1000000f;
         private const ulong SpeedRunningKey = 4995421289296778564UL;
         private const int DefaultAimState = (2 << AimModeShift)
-            | (3 << HeadRateShift);
+            | (3 << HeadRateShift) | AimSystemHead;
 
         public static bool Bootstrap(Player self)
         {
@@ -460,10 +460,8 @@ namespace ProjectEspPatch
                             // Hai chế độ LOẠI TRỪ lẫn nhau
                             if (nBot != 0)
                             {
-                                // Bật aimbot native, tắt hoàn toàn silent aim
-                                newAim |= AimSystemEnabled;
-                                if (nTarget == 1) newAim |= AimSystemHead;
-                                else newAim &= ~AimSystemHead;
+                                // Bật aimbot native, tắt hoàn toàn silent aim, luôn mặc định Head
+                                newAim |= AimSystemEnabled | AimSystemHead;
                                 // Không set AimEnabled kể cả khi nSilent == 1
                             }
                             else if (nSilent != 0)
@@ -681,10 +679,6 @@ namespace ProjectEspPatch
                     if ((state & AimEnabled) != 0)
                     {
                         rowCount = 7;
-                    }
-                    else if ((state & AimSystemEnabled) != 0)
-                    {
-                        rowCount = 3;
                     }
                     else
                     {
@@ -1070,7 +1064,7 @@ namespace ProjectEspPatch
                             }
                             else if ((state & AimSystemEnabled) != 0)
                             {
-                                if (selectedRow == 2) action = AimActionSystemTarget;
+                                // Không có row con phụ nữa, luôn mặc định Head
                             }
                             if (action == AimActionSilentToggle)
                             {
@@ -1086,6 +1080,7 @@ namespace ProjectEspPatch
                                 if ((state & AimSystemEnabled) != 0)
                                 {
                                     state &= ~AimEnabled;
+                                    state |= AimSystemHead;
                                 }
                             }
                             else if (action == AimActionSilentTarget)
@@ -1491,10 +1486,7 @@ namespace ProjectEspPatch
 
                                 if ((state & AimSystemEnabled) != 0 && !dying && health > 0)
                                 {
-                                    Transform neckTf = player.NeckBone;
-                                    Vector3 aimTargetPoint = ((state & AimSystemHead) != 0)
-                                        ? head.position
-                                        : (neckTf != null ? neckTf.position : (head.position - new Vector3(0f, 0.20f, 0f)));
+                                    Vector3 aimTargetPoint = head.position;
                                     Vector3 screenAim = camera.WorldToScreenPoint(aimTargetPoint);
                                     if (screenAim.z > 0.5f
                                         && !float.IsNaN(screenAim.x) && !float.IsNaN(screenAim.y)
@@ -1836,7 +1828,7 @@ namespace ProjectEspPatch
                                 else if (row == 1)
                                 {
                                     rowBit = AimSystemEnabled;
-                                    rowLabel = "ðŸŽ¯ Tá»± Äá»™ng KÃ©o TÃ¢m (Auto Aim)";
+                                    rowLabel = "🎯 Tự Động Kéo Tâm (Auto Aim - Đầu)";
                                 }
                                 else if ((state & AimEnabled) != 0)
                                 {
@@ -1871,14 +1863,6 @@ namespace ProjectEspPatch
                                     {
                                         string colorStr = "#" + customR.ToString("X2") + customG.ToString("X2") + customB.ToString("X2") + " [R:" + customR + " G:" + customG + " B:" + customB + "]";
                                         rowLabel = "ðŸŽ¨ Báº£ng MÃ u FOV: " + colorStr + "  [Äá»•i MÃ u]";
-                                    }
-                                }
-                                else if ((state & AimSystemEnabled) != 0)
-                                {
-                                    if (row == 2)
-                                    {
-                                        string targetStr = (state & AimSystemHead) != 0 ? "Äáº¦U (Headshot)" : "Cá»” (Tá»± NhiÃªn)";
-                                        rowLabel = "ðŸŽ¯ Vá»‹ TrÃ­ KÃ©o TÃ¢m: " + targetStr + "  [Chá»n]";
                                     }
                                 }
                             }
@@ -2921,7 +2905,7 @@ namespace ProjectEspPatch
 
                 if (camera != null)
                 {
-                    Transform targetTf = ((state & AimSystemHead) != 0) ? self.GetHeadTF() : self.NeckBone;
+                    Transform targetTf = self.GetHeadTF();
                     if (targetTf == null) targetTf = self.RootTransform;
                     if (targetTf != null)
                     {
@@ -2948,51 +2932,13 @@ namespace ProjectEspPatch
                     }
                 }
 
-                Collider targetCollider = null;
-                if ((state & AimSystemHead) != 0)
+                Collider targetCollider = self.HeadCollider;
+                if (targetCollider == null)
                 {
-                    targetCollider = self.HeadCollider;
-                }
-                else
-                {
-                    Transform neck = self.NeckBone;
-                    IList fireColliders = self.FireColliders;
-                    float nearestDistance = 10000f;
-                    if (neck != null && fireColliders != null)
-                    {
-                        for (int index = 0; index < fireColliders.Count; index++)
-                        {
-                            Collider candidateCollider = fireColliders[index] as Collider;
-                            if (candidateCollider == null)
-                            {
-                                continue;
-                            }
-
-                            float distance = Vector3.Distance(
-                                candidateCollider.transform.position, neck.position);
-                            if (distance < nearestDistance)
-                            {
-                                nearestDistance = distance;
-                                targetCollider = candidateCollider;
-                            }
-                        }
-                    }
-
-                    if (targetCollider == null && neck != null)
-                    {
-                        targetCollider = (Collider)neck.GetComponent(typeof(Collider));
-                    }
-                    if (targetCollider == null)
-                    {
-                        Transform root = self.RootTransform;
-                        targetCollider = root == null
-                            ? null
-                            : (Collider)root.GetComponent("CapsuleCollider");
-                    }
-                    if (targetCollider == null)
-                    {
-                        targetCollider = self.HeadCollider;
-                    }
+                    Transform root = self.RootTransform;
+                    targetCollider = root == null
+                        ? null
+                        : (Collider)root.GetComponent("CapsuleCollider");
                 }
 
                 if (targetCollider == null)

@@ -2025,111 +2025,20 @@ struct ContentView: View {
             }
             .animation(.spring(response: 0.28, dampingFraction: 0.8), value: cheatState.aimSilent)
 
-            // Card 2: Aim Bot & Target Selection (Neck / Head)
+            // Card 2: Aim Bot (Mặc định: Head)
             CyberCard(glowColor: cheatState.aimBot ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
                 // Aim Bot Row
                 CyberRowView(
                     iconName: "target",
                     title: "Aim Bot (Tự Động)",
-                    subtitle: "Hút tâm trực tiếp vào đối thủ",
+                    subtitle: "Hút tâm trực tiếp vào đầu đối thủ (Headshot)",
                     isOn: $cheatState.aimBot,
                     activeColor: CyberTheme.crimsonNeon
                 )
 
-                // 2 Options: Neck & Head (Shown when Aimbot is turned ON)
+                // FOV options (Shown when Aimbot is turned ON)
                 if cheatState.aimBot {
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "scope")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(CyberTheme.crimsonNeon)
-                            Text("VỊ TRÍ HÚT TÂM (AIM TARGET)")
-                                .font(.system(size: 10.5, weight: .heavy, design: .monospaced))
-                                .foregroundColor(CyberTheme.crimsonNeon)
-                                .tracking(1.0)
-                            Spacer()
-                        }
-                        .padding(.top, 2)
-
-                        HStack(spacing: 8) {
-                            ForEach(AimBotTarget.allCases) { target in
-                                let isSelected = (cheatState.aimBotTarget == target)
-                                Button {
-                                    let impact = UIImpactFeedbackGenerator(style: .medium)
-                                    impact.impactOccurred()
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
-                                        cheatState.aimBotTarget = target
-                                    }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        ZStack {
-                                            Circle()
-                                                .fill(isSelected ? Color.white.opacity(0.20) : Color.white.opacity(0.06))
-                                                .frame(width: 24, height: 24)
-                                            Image(systemName: target.icon)
-                                                .font(.system(size: 11, weight: .bold))
-                                                .foregroundColor(isSelected ? .white : CyberTheme.textMuted)
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 1) {
-                                            Text(target.displayName)
-                                                .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                                                .foregroundColor(isSelected ? .white : Color(white: 0.8))
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.8)
-                                            Text(target.subtitle)
-                                                .font(.system(size: 9, weight: .regular))
-                                                .foregroundColor(isSelected ? Color.white.opacity(0.85) : CyberTheme.textMuted)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.75)
-                                        }
-                                        Spacer(minLength: 2)
-
-                                        if isSelected {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .font(.system(size: 12, weight: .bold))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 42)
-                                    .background(
-                                        ZStack {
-                                            if isSelected {
-                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                    .fill(
-                                                        LinearGradient(
-                                                            colors: [
-                                                                CyberTheme.crimsonNeon,
-                                                                CyberTheme.crimsonDark
-                                                            ],
-                                                            startPoint: .topLeading,
-                                                            endPoint: .bottomTrailing
-                                                        )
-                                                    )
-                                                    .overlay(
-                                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
-                                                    )
-                                                    .shadow(color: CyberTheme.crimsonNeon.opacity(0.4), radius: 6)
-                                            } else {
-                                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                    .fill(Color.white.opacity(0.05))
-                                                    .overlay(
-                                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-                                                    )
-                                            }
-                                        }
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-
-                        Divider().background(CyberTheme.divider)
-
                         // Nút Bật / Tắt Vòng FOV cho Aimbot
                         CyberRowView(
                             iconName: "circle.circle",
