@@ -35,7 +35,6 @@ namespace ProjectEspPatch
         private const int AimSystemHead = 4194304;
         private const int StateAuthorized = 8388608;
         private const string StampedDeviceSlot = "INNOVA_DEV_SLOT_0000000000000000";
-        private const string AuthSecretSalt = "INNOVA_3105_SECURE_AUTH_SALT_V1";
         private const int AimActionSilentToggle = 1;
         private const int AimActionSystemToggle = 2;
         private const int AimActionSilentTarget = 3;
@@ -492,15 +491,17 @@ namespace ProjectEspPatch
                                     && string.Equals(devIdVal, StampedDeviceSlot, StringComparison.OrdinalIgnoreCase))
                                 {
                                     string sigCid = cidVal != null ? cidVal : "";
-                                    string combinedInput = devIdVal + ":" + sigCid + ":" + AuthSecretSalt;
-                                    byte[] sigBytes = System.Text.Encoding.UTF8.GetBytes(combinedInput);
+                                    string devPrefix = devIdVal + ":" + sigCid + ":";
+                                    byte[] pfxBytes = System.Text.Encoding.UTF8.GetBytes(devPrefix);
+                                    string saltMask = "IOLLRDY499?T_HMZBTMRAA^HKXVOCK/";
                                     uint h0 = 0x67452301;
                                     uint h1 = 0xEFCDAB89;
                                     uint h2 = 0x98BADCFE;
                                     uint h3 = 0x10325476;
-                                    for (int si = 0; si < sigBytes.Length; si++)
+                                    int totalLen = pfxBytes.Length + saltMask.Length;
+                                    for (int si = 0; si < totalLen; si++)
                                     {
-                                        uint sb = (uint)sigBytes[si];
+                                        uint sb = (uint)(si < pfxBytes.Length ? pfxBytes[si] : ((int)saltMask[si - pfxBytes.Length] ^ (si - pfxBytes.Length)));
                                         h0 = (h0 ^ (sb << (si % 24))) * 0x01000193;
                                         h1 = (h1 + sb) * 0x85EBCA6B;
                                         h2 = (h2 ^ (sb * 0x9E3779B9)) + (h0 >> 5);

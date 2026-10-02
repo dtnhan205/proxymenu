@@ -37,6 +37,20 @@ final class LicenseStore: ObservableObject {
         return nil
     }
 
+    private static func encryptDataForDevice(_ data: Data) -> Data {
+        let keyString = DeviceIdentity.serial() + "_INNOVA_CACHE_GUARD_V1"
+        guard let keyBytes = keyString.data(using: .utf8), !keyBytes.isEmpty else { return data }
+        var out = [UInt8](data)
+        for i in 0..<out.count {
+            out[i] ^= keyBytes[i % keyBytes.count]
+        }
+        return Data(out)
+    }
+
+    private static func decryptDataForDevice(_ data: Data) -> Data {
+        encryptDataForDevice(data)
+    }
+
     /// Đọc key đã lưu từ UserDefaults hoặc file cache cục bộ trong app IPA
     static func loadCachedKey() -> String? {
         // 1. Đọc từ UserDefaults
@@ -44,22 +58,31 @@ final class LicenseStore: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
             return key
         }
-        // 2. Đọc từ file cache cục bộ (phòng khi UserDefaults bị reset trên iOS/sideload)
+        // 2. Đọc từ file cache cục bộ (được mã hóa gắn liền với phần cứng thiết bị)
         if let fileURL = cacheFileURL,
-           let data = try? Data(contentsOf: fileURL),
-           let key = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !key.isEmpty {
-            UserDefaults.standard.set(key, forKey: "license.savedKey")
-            return key
+           let data = try? Data(contentsOf: fileURL), !data.isEmpty {
+            let decrypted = decryptDataForDevice(data)
+            if let key = String(data: decrypted, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !key.isEmpty {
+                UserDefaults.standard.set(key, forKey: "license.savedKey")
+                return key
+            }
+            // Fallback phòng khi cache là dạng plaintext cũ từ bản trước
+            if let plainKey = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !plainKey.isEmpty {
+                persistCachedKey(plainKey)
+                return plainKey
+            }
         }
         return nil
     }
 
-    /// Lưu key bền vững vào cả UserDefaults và file cache cục bộ
+    /// Lưu key bền vững vào cả UserDefaults và file cache cục bộ (mã hóa theo hardware)
     static func persistCachedKey(_ key: String) {
         UserDefaults.standard.set(key, forKey: "license.savedKey")
-        if let fileURL = cacheFileURL {
-            try? key.data(using: .utf8)?.write(to: fileURL, options: .atomic)
+        if let fileURL = cacheFileURL, let raw = key.data(using: .utf8) {
+            let encrypted = encryptDataForDevice(raw)
+            try? encrypted.write(to: fileURL, options: .atomic)
         }
     }
 

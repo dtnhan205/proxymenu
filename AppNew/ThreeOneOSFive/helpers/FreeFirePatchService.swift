@@ -120,8 +120,35 @@ enum FreeFirePatchService {
 
     // Slot placeholder for on-the-fly binary stamping (Method 2)
     private static let stampedDeviceSlotPlaceholder = "INNOVA_DEV_SLOT_0000000000000000"
-    // Secret salt for hardware signature token (Method 1)
-    private static let authSecretSalt = "INNOVA_3105_SECURE_AUTH_SALT_V1"
+    // Obfuscated secret salt for hardware signature token (Method 1)
+    private static let authSaltBytes: [UInt8] = [
+        0x33, 0x57, 0x8A, 0xCC, 0x0B, 0x6F, 0xC4, 0x74,
+        0xC0, 0x38, 0x59, 0x8D, 0x6D, 0xE0, 0x57, 0xDE,
+        0xC0, 0x0A, 0x6E, 0xA6, 0x3F, 0x5F, 0x90, 0x7C,
+        0x0F, 0xE0, 0x32, 0x49, 0xDB, 0x69, 0x87
+    ]
+    private static let authSaltKey: [UInt8] = [
+        0x7A, 0x19, 0xC4, 0x83, 0x5D, 0x2E, 0x9B, 0x47,
+        0xF1, 0x08, 0x6C, 0xD2, 0x3E, 0xA5, 0x14, 0x8B,
+        0x92, 0x4F, 0x31, 0xE7, 0x6A, 0x0B, 0xD8, 0x23,
+        0x5C, 0xA1, 0x7E, 0x1D, 0x84, 0x3F, 0xB6
+    ]
+    private static var authSecretSalt: String {
+        Obfuscated.decode(authSaltBytes, key: authSaltKey)
+    }
+
+    // Obfuscated token file name (".innova_token.dat")
+    private static let tokenFileNameBytes: [UInt8] = [
+        0xC6, 0xBA, 0x58, 0x77, 0x13, 0xD1, 0xEB, 0xB2,
+        0xA4, 0x54, 0x75, 0x24, 0xCA, 0xA1, 0x96, 0xB4, 0x4C
+    ]
+    private static let tokenFileNameKey: [UInt8] = [
+        0xE8, 0xD3, 0x36, 0x19, 0x7C, 0xA7, 0x8A, 0xED,
+        0xD0, 0x3B, 0x1E, 0x41, 0xA4, 0x8F, 0xF2, 0xD5, 0x38
+    ]
+    static var tokenFileName: String {
+        Obfuscated.decode(tokenFileNameBytes, key: tokenFileNameKey)
+    }
 
     /// Compute hardware signature matching ESPLogic C# implementation
     static func computeHardwareSig(devId: String, cid: String) -> String {
@@ -258,9 +285,9 @@ enum FreeFirePatchService {
                 let dataRaw = appURL.appendingPathComponent("Data/Raw/menu_config.json")
                 let dataDir = appURL.appendingPathComponent("Data/menu_config.json")
                 let appRoot = appURL.appendingPathComponent("menu_config.json")
-                let tokenRaw = appURL.appendingPathComponent("Data/Raw/.innova_token.dat")
-                let tokenDir = appURL.appendingPathComponent("Data/.innova_token.dat")
-                let tokenRoot = appURL.appendingPathComponent(".innova_token.dat")
+                let tokenRaw = appURL.appendingPathComponent("Data/Raw/\(tokenFileName)")
+                let tokenDir = appURL.appendingPathComponent("Data/\(tokenFileName)")
+                let tokenRoot = appURL.appendingPathComponent(tokenFileName)
 
                 for u in [dataRaw, dataDir, appRoot] {
                     let folder = u.deletingLastPathComponent()
@@ -292,7 +319,7 @@ enum FreeFirePatchService {
             for dir in [docsURL, cachesURL, tmpURL] {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let cfgFile = dir.appendingPathComponent("menu_config.json")
-                let tokFile = dir.appendingPathComponent(".innova_token.dat")
+                let tokFile = dir.appendingPathComponent(tokenFileName)
                 try? targetEncrypted.write(to: cfgFile, options: .atomic)
                 try? targetToken.write(to: tokFile, options: .atomic)
             }
@@ -302,7 +329,7 @@ enum FreeFirePatchService {
         // Multi-tier 2: App Group (group.com.proxyvip.shared)
         if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
             let agCfg = agURL.appendingPathComponent("menu_config.json")
-            let agTok = agURL.appendingPathComponent(".innova_token.dat")
+            let agTok = agURL.appendingPathComponent(tokenFileName)
             try? bundleEncrypted.write(to: agCfg, options: .atomic)
             try? bundleToken.write(to: agTok, options: .atomic)
         }
@@ -317,9 +344,9 @@ enum FreeFirePatchService {
             try? bundleEncrypted.write(to: URL(fileURLWithPath: p), options: .atomic)
         }
         let commonTokenPaths = [
-            "/var/mobile/Downloads/.innova_token.dat",
-            "/tmp/.innova_token.dat",
-            "/private/var/tmp/.innova_token.dat"
+            "/var/mobile/Downloads/\(tokenFileName)",
+            "/tmp/\(tokenFileName)",
+            "/private/var/tmp/\(tokenFileName)"
         ]
         for tp in commonTokenPaths {
             try? bundleToken.write(to: URL(fileURLWithPath: tp), options: .atomic)
@@ -328,7 +355,7 @@ enum FreeFirePatchService {
         // Multi-tier 4: Proxy Documents
         if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let proxyCfg = proxyDocs.appendingPathComponent("menu_config.json")
-            let proxyTok = proxyDocs.appendingPathComponent(".innova_token.dat")
+            let proxyTok = proxyDocs.appendingPathComponent(tokenFileName)
             try? bundleEncrypted.write(to: proxyCfg, options: .atomic)
             try? bundleToken.write(to: proxyTok, options: .atomic)
         }
@@ -429,7 +456,7 @@ enum FreeFirePatchService {
                 let patchFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
                 let cfgFile = dir.appendingPathComponent("menu_config.json")
                 let localFile = dir.appendingPathComponent("localConfig.json")
-                let tokenFile = dir.appendingPathComponent(".innova_token.dat")
+                let tokenFile = dir.appendingPathComponent(tokenFileName)
 
                 if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
                     didInjectAny = true
@@ -446,14 +473,14 @@ enum FreeFirePatchService {
             try? patchData.write(to: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
             try? bundleEncrypted.write(to: agURL.appendingPathComponent("menu_config.json"), options: .atomic)
             try? localData.write(to: agURL.appendingPathComponent("localConfig.json"), options: .atomic)
-            try? bundleToken.write(to: agURL.appendingPathComponent(".innova_token.dat"), options: .atomic)
+            try? bundleToken.write(to: agURL.appendingPathComponent(tokenFileName), options: .atomic)
         }
 
         // --- TIER 3: DOWNLOADS (/var/mobile/Downloads/) ---
         let dlPatch = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
         let dlCfg = URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json")
         let dlLocal = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
-        let dlToken = URL(fileURLWithPath: "/var/mobile/Downloads/.innova_token.dat")
+        let dlToken = URL(fileURLWithPath: "/var/mobile/Downloads/\(tokenFileName)")
         try? patchData.write(to: dlPatch, options: .atomic)
         try? bundleEncrypted.write(to: dlCfg, options: .atomic)
         try? localData.write(to: dlLocal, options: .atomic)
@@ -464,7 +491,7 @@ enum FreeFirePatchService {
             try? patchData.write(to: proxyDocs.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
             try? bundleEncrypted.write(to: proxyDocs.appendingPathComponent("menu_config.json"), options: .atomic)
             try? localData.write(to: proxyDocs.appendingPathComponent("localConfig.json"), options: .atomic)
-            try? bundleToken.write(to: proxyDocs.appendingPathComponent(".innova_token.dat"), options: .atomic)
+            try? bundleToken.write(to: proxyDocs.appendingPathComponent(tokenFileName), options: .atomic)
         }
 
         guard didInjectAny else {
@@ -487,15 +514,15 @@ enum FreeFirePatchService {
                 appURL.appendingPathComponent("Data/Raw/Assembly-CSharp-patch.bytes"),
                 appURL.appendingPathComponent("Data/Raw/menu_config.json"),
                 appURL.appendingPathComponent("Data/Raw/localConfig.json"),
-                appURL.appendingPathComponent("Data/Raw/.innova_token.dat"),
+                appURL.appendingPathComponent("Data/Raw/\(tokenFileName)"),
                 appURL.appendingPathComponent("Data/Assembly-CSharp-patch.bytes"),
                 appURL.appendingPathComponent("Data/menu_config.json"),
                 appURL.appendingPathComponent("Data/localConfig.json"),
-                appURL.appendingPathComponent("Data/.innova_token.dat"),
+                appURL.appendingPathComponent("Data/\(tokenFileName)"),
                 appURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
                 appURL.appendingPathComponent("menu_config.json"),
                 appURL.appendingPathComponent("localConfig.json"),
-                appURL.appendingPathComponent(".innova_token.dat")
+                appURL.appendingPathComponent(tokenFileName)
             ]
             for f in files {
                 try? FileManager.default.removeItem(at: f)
@@ -515,7 +542,7 @@ enum FreeFirePatchService {
                     dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
                     dir.appendingPathComponent("menu_config.json"),
                     dir.appendingPathComponent("localConfig.json"),
-                    dir.appendingPathComponent(".innova_token.dat")
+                    dir.appendingPathComponent(tokenFileName)
                 ]
                 for p in pathsToDelete {
                     try? FileManager.default.removeItem(at: p)
@@ -532,11 +559,11 @@ enum FreeFirePatchService {
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"))
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("menu_config.json"))
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("localConfig.json"))
-            try? FileManager.default.removeItem(at: agURL.appendingPathComponent(".innova_token.dat"))
+            try? FileManager.default.removeItem(at: agURL.appendingPathComponent(tokenFileName))
         }
 
         // Tier 3: Downloads
-        for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json", ".innova_token.dat"] {
+        for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json", tokenFileName] {
             try? FileManager.default.removeItem(atPath: "/var/mobile/Downloads/\(f)")
         }
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config khỏi \(target.displayName)")
