@@ -123,7 +123,7 @@ def render_frame(f_idx):
 
     # 4. Top Status Header
     top_y = 60
-    draw.text((36, top_y), "/// 3105 PROTOCOL ///", fill=(0, 240, 255, 230), font=font_hud)
+    draw.text((36, top_y), "/// INNOVA CHEAT PROTOCOL ///", fill=(0, 240, 255, 230), font=font_hud)
     fps_text = f"FPS: {FPS} | LATENCY: 8ms"
     draw.text((WIDTH - 36 - 160, top_y), fps_text, fill=(0, 240, 255, 180), font=font_small)
     draw.line([(36, top_y + 22), (WIDTH - 36, top_y + 22)], fill=(0, 240, 255, 80), width=1)
@@ -145,7 +145,7 @@ def render_frame(f_idx):
         draw_corner_brackets(draw, cx0, cy0, cx1, cy1, length=24, color=bracket_col, width=2)
         draw.rectangle([cx0, cy0, cx1, cy1], outline=(0, 240, 255, int(card_alpha * 0.3)), width=1)
         
-        title_text = "3 1 0 5  P R O X Y"
+        title_text = "I N N O V A  C H E A T"
         t_box = font_title.getbbox(title_text)
         tw = t_box[2] - t_box[0]
         tx = (WIDTH - tw) // 2
