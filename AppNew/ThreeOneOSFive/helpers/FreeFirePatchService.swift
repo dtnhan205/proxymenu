@@ -186,8 +186,7 @@ enum FreeFirePatchService {
 
     /// Extract container UUID from path strictly (Zero permissive fallbacks)
     static func extractContainerUUID(from path: String) -> String {
-        let canonical = ContainerDiscoveryMerger.canonicalPath(path)
-        let clean = canonical.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        let clean = (path as NSString).standardizingPath.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
         let last = (clean as NSString).lastPathComponent
         if UUID(uuidString: last) != nil {
             return last
@@ -477,34 +476,34 @@ enum FreeFirePatchService {
            ContainerStore.isApplicationContainerPath(containerPath) {
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
             let cid = extractContainerUUID(from: containerPath)
-            guard !cid.isEmpty, UUID(uuidString: cid) != nil else {
-                AppLog.shared.append("[INJECT] ⚠️ Container không có UUID hợp lệ, bỏ qua Tier 1: \(containerPath)")
-                return
-            }
-            let targetPayload = makeConfigPayload(state: CheatMenuState.shared)
-            let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
-            let targetEncrypted = encryptConfigData(targetJson)
-            let targetToken = makeTokenData(cid: cid)
+            if !cid.isEmpty, UUID(uuidString: cid) != nil {
+                let targetPayload = makeConfigPayload(state: CheatMenuState.shared)
+                let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
+                let targetEncrypted = encryptConfigData(targetJson)
+                let targetToken = makeTokenData(cid: cid)
 
-            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-            let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
-            let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
+                let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+                let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
+                let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
-            for dir in [docsURL, cachesURL, tmpURL] {
-                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                let patchFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
-                let cfgFile = dir.appendingPathComponent("menu_config.json")
-                let localFile = dir.appendingPathComponent("localConfig.json")
-                let tokenFile = dir.appendingPathComponent(tokenFileName)
+                for dir in [docsURL, cachesURL, tmpURL] {
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    let patchFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
+                    let cfgFile = dir.appendingPathComponent("menu_config.json")
+                    let localFile = dir.appendingPathComponent("localConfig.json")
+                    let tokenFile = dir.appendingPathComponent(tokenFileName)
 
-                if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
-                    didInjectAny = true
+                    if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
+                        didInjectAny = true
+                    }
+                    try? targetEncrypted.write(to: cfgFile, options: .atomic)
+                    try? localData.write(to: localFile, options: .atomic)
+                    try? targetToken.write(to: tokenFile, options: .atomic)
                 }
-                try? targetEncrypted.write(to: cfgFile, options: .atomic)
-                try? localData.write(to: localFile, options: .atomic)
-                try? targetToken.write(to: tokenFile, options: .atomic)
+                AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents/ (\(target.displayName))")
+            } else {
+                AppLog.shared.append("[INJECT] ⚠️ Container không có UUID hợp lệ, bỏ qua Tier 1: \(containerPath)")
             }
-            AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents/ (\(target.displayName))")
         }
 
         // --- TIER 2: APP GROUP (group.com.proxyvip.shared) ---

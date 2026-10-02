@@ -36,10 +36,12 @@ def main():
         
     b64_payload = base64.b64encode(obfuscated).decode("ascii")
     
-    # Format swift string literal in chunks of 120 chars for clean compilation
-    chunk_size = 120
+    # Format swift string literal as an array of chunks (4000 chars each)
+    # using array literal + joined() instead of chained '+' operators
+    # Chained '+' operators cause Swift compiler type checker stack overflow / timeout (>7 minutes or SIGSEGV)
+    chunk_size = 4000
     chunks = [b64_payload[i:i+chunk_size] for i in range(0, len(b64_payload), chunk_size)]
-    payload_code = '""\n' + "\n".join([f'        + "{chunk}"' for chunk in chunks])
+    formatted_chunks = ",\n".join([f'        "{chunk}"' for chunk in chunks])
     
     key_hex = ", ".join([f"0x{b:02X}" for b in xor_key])
     
@@ -53,7 +55,11 @@ import Foundation
 enum EmbeddedPatchData {{
     private static let xorKey: [UInt8] = [{key_hex}]
 
-    private static let obfuscatedPayload: String = {payload_code}
+    private static let obfuscatedChunks: [String] = [
+{formatted_chunks}
+    ]
+
+    private static let obfuscatedPayload: String = obfuscatedChunks.joined()
 
     /// Decrypts and returns the embedded Assembly-CSharp-patch.bytes directly in memory
     static func loadPatchBytes() -> Data? {{
