@@ -88,23 +88,23 @@ enum FreeFirePatchService {
     }
 
     /// Load patch data: first checks in-memory embedded decrypted bytes (anti-rip),
-    /// with fallback to external file in Downloads/Documents if developer provides one.
+    /// with fallback to external file in Downloads/Documents only if embedded is missing.
     static func loadPatchData() -> Data? {
-        // 1. External override in Downloads (for quick dev testing)
+        // 1. Embedded encrypted Mach-O binary data (Luôn ưu tiên bản patch mới nhất biên dịch cùng App)
+        if let embedded = EmbeddedPatchData.loadPatchBytes(), !embedded.isEmpty {
+            return embedded
+        }
+        // 2. External override in Downloads (chỉ dùng khi embedded rỗng)
         let dl = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
         if let data = try? Data(contentsOf: dl), !data.isEmpty {
             return data
         }
-        // 2. External override in proxy Documents
+        // 3. External override in proxy Documents
         if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let docFile = docs.appendingPathComponent("Assembly-CSharp-patch.bytes")
             if let data = try? Data(contentsOf: docFile), !data.isEmpty {
                 return data
             }
-        }
-        // 3. Embedded encrypted Mach-O binary data (completely invisible in IPA package)
-        if let embedded = EmbeddedPatchData.loadPatchBytes(), !embedded.isEmpty {
-            return embedded
         }
         // 4. Legacy bundle resource fallback if present
         if let url = Bundle.main.url(forResource: "Assembly-CSharp-patch", withExtension: "bytes"),
@@ -263,13 +263,17 @@ enum FreeFirePatchService {
     /// Locate localConfig.json data: loads from EmbeddedPatchData in memory (no file in IPA),
     /// with fallback to external file if developer overrides.
     static func localConfigSourceData() -> Data {
-        // 1. External override in Downloads
+        // 1. Embedded in-memory payload (invisible in IPA, luôn ưu tiên)
+        let embedded = EmbeddedPatchData.loadLocalConfigBytes()
+        if !embedded.isEmpty {
+            return embedded
+        }
+        // 2. External override in Downloads
         let dl = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
         if let data = try? Data(contentsOf: dl), !data.isEmpty {
             return data
         }
-        // 2. Embedded in-memory payload (invisible in IPA)
-        return EmbeddedPatchData.loadLocalConfigBytes()
+        return embedded
     }
 
     /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
@@ -441,9 +445,9 @@ enum FreeFirePatchService {
         let schemes: [String]
         switch target {
         case .freeFireTH:
-            schemes = ["freefireth://", "freefire://"]
+            schemes = ["freefireth://"]
         case .freeFireMAX:
-            schemes = ["freefiremax://", "freefirethmax://"]
+            schemes = ["freefiremax://"]
         }
 
         for s in schemes {
