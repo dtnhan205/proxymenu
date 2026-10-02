@@ -205,8 +205,6 @@ namespace ProjectEspPatch
             float panelHeight = Mathf.Clamp((float)screenHeight * 0.84f, 480f, (float)screenHeight - 24f);
             int state = (int)self.{{SCENE_STATE_FIELD}}.x;
             bool menuOpen = self.{{SCENE_MENU_FIELD}};
-            bool isAuth = false;
-
             if ((state & StateInitialized) == 0)
             {
                 state = StateInitialized | EspMask | DefaultAimState;
@@ -223,13 +221,53 @@ namespace ProjectEspPatch
 
             int curFrame = Time.frameCount;
 
-            // Dá»n dáº¹p RAM / GC Ä‘á»‹nh ká»³ 15 giÃ¢y 1 láº§n (~900 frames á»Ÿ 60fps) Ä‘á»ƒ giáº£i phÃ³ng bá»™ nhá»›, tá»‘i Æ°u FPS vÃ  chá»‘ng trÃ n RAM
+            // Dọn dẹp RAM / GC định kỳ 15 giây 1 lần (~900 frames ở 60fps) để giải phóng bộ nhớ, tối ưu FPS và chống tràn RAM
             float nowTime = Time.unscaledTime;
             if (nowTime - driverPos.x >= 15f || (curFrame % 900 == 1 && nowTime - driverPos.x >= 10f))
             {
                 driverPos.x = nowTime;
                 driverObject.transform.position = driverPos;
                 GC.Collect();
+            }
+
+            // Đánh giá quyền xác thực isAuth liên tục trên MỌI frame để loại bỏ hoàn toàn hiện tượng nhấp nháy 20Hz
+            bool isAuth = (state & StateAuthorized) != 0;
+            if (isAuth)
+            {
+                if (StampedDeviceSlot.Length != 32 || StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_"))
+                {
+                    isAuth = false;
+                }
+                else
+                {
+                    GameObject guardCheck = GameObject.Find("__esp_core");
+                    if (guardCheck == null)
+                    {
+                        isAuth = false;
+                    }
+                    else
+                    {
+                        uint dHash = 0x811C9DC5;
+                        for (int di = 0; di < 32; di++)
+                        {
+                            dHash = (dHash ^ (uint)StampedDeviceSlot[di]) * 0x01000193;
+                        }
+                        float expectedProof = (float)((dHash ^ 0x5A5AA5A5) & 0x00FFFFFF);
+                        Vector3 gPos = guardCheck.transform.position;
+                        if (Math.Abs(gPos.y - expectedProof) > 0.5f || Math.Abs(gPos.x - (float)dHash) > 0.5f)
+                        {
+                            isAuth = false;
+                        }
+                        else
+                        {
+                            long nowSec = (DateTime.UtcNow.Ticks - 621355968000000000L) / 10000000L;
+                            if (gPos.z <= 0.1f || (float)nowSec > gPos.z)
+                            {
+                                isAuth = false;
+                            }
+                        }
+                    }
+                }
             }
 
             float encodedAuxState = self.{{SCENE_STATE_FIELD}}.y;
@@ -1686,6 +1724,25 @@ namespace ProjectEspPatch
                     && screenWidth > 0 && screenHeight > 0)
                 {
                     Camera camera = Camera.main;
+                    if (camera == null)
+                    {
+                        camera = Camera.current;
+                        if (camera == null)
+                        {
+                            Camera[] cams = Camera.allCameras;
+                            if (cams != null && cams.Length > 0)
+                            {
+                                for (int ci = 0; ci < cams.Length; ci++)
+                                {
+                                    if (cams[ci] != null && cams[ci].enabled && !cams[ci].name.Contains("UI"))
+                                    {
+                                        camera = cams[ci];
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Player localPlayer = GameFacade.CurrentLocalPlayer();
                     Transform localRoot = localPlayer == null ? null : localPlayer.RootTransform;
 
@@ -1752,10 +1809,11 @@ namespace ProjectEspPatch
                                 }
                                 Transform root = player.RootTransform;
                                 if (player.IsLocalPlayer()
-                                    || player.IsLocalTeammate(false) || !player.IsVisible())
+                                    || player.IsLocalTeammate(false))
                                 {
                                     continue;
                                 }
+                                bool isPlayerVis = player.IsVisible();
 
                                 bool dying = player.IsDieing;
                                 int health = player.CurHP;
