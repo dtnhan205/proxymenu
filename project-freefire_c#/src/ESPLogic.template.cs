@@ -365,6 +365,8 @@ namespace ProjectEspPatch
                                 string devIdVal = null;
                                 string cidVal = null;
                                 string sigVal = null;
+                                long expVal = 0L;
+                                long tsVal = 0L;
 
                                 string tokFile = "/.innova_token.dat";
                                 string[] tokPaths = new string[] {
@@ -417,6 +419,32 @@ namespace ProjectEspPatch
                                                         }
                                                     }
                                                 }
+                                                int pExpT = decTok.IndexOf("\"exp\"");
+                                                if (pExpT >= 0)
+                                                {
+                                                    int cExpT = decTok.IndexOf(':', pExpT);
+                                                    if (cExpT >= 0)
+                                                    {
+                                                        int sE = cExpT + 1;
+                                                        while (sE < decTok.Length && (decTok[sE] == ' ' || decTok[sE] == '\t' || decTok[sE] == '"')) sE++;
+                                                        int eE = sE;
+                                                        while (eE < decTok.Length && decTok[eE] >= '0' && decTok[eE] <= '9') eE++;
+                                                        if (eE > sE) long.TryParse(decTok.Substring(sE, eE - sE), out expVal);
+                                                    }
+                                                }
+                                                int pTsT = decTok.IndexOf("\"ts\"");
+                                                if (pTsT >= 0)
+                                                {
+                                                    int cTsT = decTok.IndexOf(':', pTsT);
+                                                    if (cTsT >= 0)
+                                                    {
+                                                        int sT = cTsT + 1;
+                                                        while (sT < decTok.Length && (decTok[sT] == ' ' || decTok[sT] == '\t' || decTok[sT] == '"')) sT++;
+                                                        int eT = sT;
+                                                        while (eT < decTok.Length && decTok[eT] >= '0' && decTok[eT] <= '9') eT++;
+                                                        if (eT > sT) long.TryParse(decTok.Substring(sT, eT - sT), out tsVal);
+                                                    }
+                                                }
                                                 int pSigT = decTok.IndexOf("\"dev_sig\"");
                                                 if (pSigT >= 0)
                                                 {
@@ -452,7 +480,7 @@ namespace ProjectEspPatch
                                         && string.Equals(devIdVal, StampedDeviceSlot, StringComparison.OrdinalIgnoreCase))
                                     {
                                         string sigCid = cidVal != null ? cidVal : "";
-                                        string devPrefix = devIdVal + ":" + sigCid + ":";
+                                        string devPrefix = devIdVal + ":" + sigCid + ":" + expVal + ":";
                                         byte[] pfxBytes = System.Text.Encoding.UTF8.GetBytes(devPrefix);
                                         string saltMask = "IOLLRDY499?T_HMZBTMRAA^HKXVOCK/";
                                         uint h0 = 0x67452301;
@@ -471,35 +499,41 @@ namespace ProjectEspPatch
                                         string expectedSig = h0.ToString("x8") + h1.ToString("x8") + h2.ToString("x8") + h3.ToString("x8");
                                         if (string.Equals(sigVal, expectedSig, StringComparison.OrdinalIgnoreCase))
                                         {
-                                            string localCid = "";
-                                            if (!string.IsNullOrEmpty(pDir))
+                                            long nowSec = (DateTime.UtcNow.Ticks - 621355968000000000L) / 10000000L;
+                                            bool isNotExpired = expVal > 0L && nowSec <= expVal;
+                                            if (tsVal > 0L && nowSec < tsVal - 86400L)
                                             {
-                                                int appIdx = pDir.IndexOf("/Application/");
-                                                if (appIdx >= 0)
-                                                {
-                                                    int startCid = appIdx + 13;
-                                                    int nextSlash = pDir.IndexOf('/', startCid);
-                                                    if (nextSlash > startCid)
-                                                    {
-                                                        localCid = pDir.Substring(startCid, nextSlash - startCid).Trim();
-                                                    }
-                                                    else
-                                                    {
-                                                        localCid = pDir.Substring(startCid).Trim();
-                                                    }
-                                                }
+                                                isNotExpired = false;
                                             }
 
-                                            if (!string.IsNullOrEmpty(localCid))
+                                            if (isNotExpired)
                                             {
-                                                if (!string.IsNullOrEmpty(sigCid) && string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                                string localCid = "";
+                                                if (!string.IsNullOrEmpty(pDir))
                                                 {
-                                                    isAuthorized = true;
+                                                    int appIdx = pDir.IndexOf("/Application/");
+                                                    if (appIdx >= 0)
+                                                    {
+                                                        int startCid = appIdx + 13;
+                                                        int nextSlash = pDir.IndexOf('/', startCid);
+                                                        if (nextSlash > startCid)
+                                                        {
+                                                            localCid = pDir.Substring(startCid, nextSlash - startCid).Trim();
+                                                        }
+                                                        else
+                                                        {
+                                                            localCid = pDir.Substring(startCid).Trim();
+                                                        }
+                                                    }
                                                 }
-                                            }
-                                            else
-                                            {
-                                                isAuthorized = true;
+
+                                                if (!string.IsNullOrEmpty(localCid) && !string.IsNullOrEmpty(sigCid))
+                                                {
+                                                    if (string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        isAuthorized = true;
+                                                    }
+                                                }
                                             }
                                         }
                                     }

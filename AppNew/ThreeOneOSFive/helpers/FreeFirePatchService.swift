@@ -150,9 +150,21 @@ enum FreeFirePatchService {
         Obfuscated.decode(tokenFileNameBytes, key: tokenFileNameKey)
     }
 
-    /// Compute hardware signature matching ESPLogic C# implementation
-    static func computeHardwareSig(devId: String, cid: String) -> String {
-        let combined = "\(devId):\(cid):\(authSecretSalt)"
+    /// Resolve remaining expiration epoch seconds from LicenseStore
+    static func resolveLicenseExpirationTimestamp() -> Int {
+        if let expDate = LicenseStore.shared.expiresAt {
+            return Int(expDate.timeIntervalSince1970)
+        }
+        if let stored = UserDefaults.standard.object(forKey: "license.expiresAt") as? Double, stored > 0 {
+            return Int(stored)
+        }
+        // Fallback: 30 ngày nếu key chưa có trường expiresAt
+        return Int(Date().addingTimeInterval(86400 * 30).timeIntervalSince1970)
+    }
+
+    /// Compute hardware signature matching ESPLogic C# implementation with expiration binding
+    static func computeHardwareSig(devId: String, cid: String, exp: Int) -> String {
+        let combined = "\(devId):\(cid):\(exp):\(authSecretSalt)"
         guard let bytes = combined.data(using: .utf8) else { return "" }
 
         var h0: UInt32 = 0x67452301
@@ -178,16 +190,38 @@ enum FreeFirePatchService {
         return url.lastPathComponent
     }
 
-    /// Generate standalone encrypted .innova_token.dat payload
+    /// Generate standalone encrypted .innova_token.dat payload with expiration
     static func makeTokenData(cid: String) -> Data {
         let devId = DeviceIdentity.serial()
-        let sig = computeHardwareSig(devId: devId, cid: cid)
+        let nowTs = Int(Date().timeIntervalSince1970)
+        let expTs = resolveLicenseExpirationTimestamp()
+        let isExpired = (expTs <= nowTs)
+        let effectiveExp = isExpired ? 0 : expTs
+        let sig = computeHardwareSig(devId: devId, cid: cid, exp: effectiveExp)
         let tokenDict: [String: Any] = [
             "dev_id": devId,
             "cid": cid,
+            "exp": effectiveExp,
             "dev_sig": sig,
-            "dev_status": "AUTHORIZED",
-            "ts": Int(Date().timeIntervalSince1970)
+            "dev_status": isExpired ? "EXPIRED" : "AUTHORIZED",
+            "ts": nowTs
+        ]
+        let jsonData = (try? JSONSerialization.data(withJSONObject: tokenDict, options: [])) ?? Data()
+        return encryptConfigData(jsonData)
+    }
+
+    /// Generate an explicitly revoked/expired token
+    static func makeRevokedTokenData(cid: String) -> Data {
+        let devId = DeviceIdentity.serial()
+        let nowTs = Int(Date().timeIntervalSince1970)
+        let sig = computeHardwareSig(devId: devId, cid: cid, exp: 0)
+        let tokenDict: [String: Any] = [
+            "dev_id": devId,
+            "cid": cid,
+            "exp": 0,
+            "dev_sig": sig,
+            "dev_status": "REVOKED",
+            "ts": nowTs
         ]
         let jsonData = (try? JSONSerialization.data(withJSONObject: tokenDict, options: [])) ?? Data()
         return encryptConfigData(jsonData)
@@ -367,6 +401,18 @@ enum FreeFirePatchService {
             )
         }
 
+        // Kiểm tra thời hạn License Key trước khi nạp cheat
+        let nowTs = Int(Date().timeIntervalSince1970)
+        let expTs = resolveLicenseExpirationTimestamp()
+        if expTs <= nowTs {
+            AppLog.shared.append("[INJECT] ❌ License key đã hết hạn! Vui lòng gia hạn key.")
+            throw NSError(
+                domain: "FreeFirePatch",
+                code: 403,
+                userInfo: [NSLocalizedDescriptionKey: "License key đã hết hạn! Vui lòng gia hạn key để nạp cheat."]
+            )
+        }
+
         // Method 2: On-the-fly stamping into binary Assembly-CSharp-patch.bytes
         var patchData = rawPatchData
         let devSerial = DeviceIdentity.serial()
@@ -499,6 +545,13 @@ enum FreeFirePatchService {
         // Tier 1: Data Container Documents, Caches, tmp
         if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) {
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+            let cid = extractContainerUUID(from: containerPath)
+
+            // Ghi đè token bằng trạng thái REVOKED / EXPIRED (exp = 0) để game lập tức thu hồi quyền nếu đang chạy
+            let revokedToken = makeRevokedTokenData(cid: cid)
+            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+            try? revokedToken.write(to: docsURL.appendingPathComponent(tokenFileName), options: .atomic)
+
             let dirs = [
                 containerURL.appendingPathComponent("Documents", isDirectory: true),
                 containerURL.appendingPathComponent("Library/Caches", isDirectory: true),
@@ -508,8 +561,7 @@ enum FreeFirePatchService {
                 let pathsToDelete = [
                     dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
                     dir.appendingPathComponent("menu_config.json"),
-                    dir.appendingPathComponent("localConfig.json"),
-                    dir.appendingPathComponent(tokenFileName)
+                    dir.appendingPathComponent("localConfig.json")
                 ]
                 for p in pathsToDelete {
                     try? FileManager.default.removeItem(at: p)
