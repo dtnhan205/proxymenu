@@ -347,134 +347,82 @@ namespace ProjectEspPatch
                         }
 
                             // Method 1 & 2: Token extraction & Verification
+                            // Strict security: Token MUST be loaded from .innova_token.dat ONLY.
+                            // menu_config.json does NOT contain credentials.
                             string devIdVal = null;
                             string cidVal = null;
                             string sigVal = null;
 
-                            int pDev = cJson.IndexOf("\"dev_id\"");
-                            if (pDev >= 0)
+                            string tokFile = "/.innova_token.dat";
+                            string[] tokPaths = new string[] {
+                                pDir + tokFile,
+                                pDir + "/Documents" + tokFile,
+                                pDir + "/../Documents" + tokFile
+                            };
+                            for (int tIdx = 0; tIdx < tokPaths.Length; tIdx++)
                             {
-                                int cDev = cJson.IndexOf(':', pDev);
-                                if (cDev >= 0)
+                                string tPath = tokPaths[tIdx];
+                                if (!string.IsNullOrEmpty(tPath) && File.Exists(tPath))
                                 {
-                                    int sQ = cJson.IndexOf('"', cDev + 1);
-                                    if (sQ >= 0)
+                                    try
                                     {
-                                        int eQ = cJson.IndexOf('"', sQ + 1);
-                                        if (eQ > sQ) devIdVal = cJson.Substring(sQ + 1, eQ - sQ - 1).Trim();
-                                    }
-                                }
-                            }
-
-                            int pCid = cJson.IndexOf("\"cid\"");
-                            if (pCid >= 0)
-                            {
-                                int cCid = cJson.IndexOf(':', pCid);
-                                if (cCid >= 0)
-                                {
-                                    int sQ = cJson.IndexOf('"', cCid + 1);
-                                    if (sQ >= 0)
-                                    {
-                                        int eQ = cJson.IndexOf('"', sQ + 1);
-                                        if (eQ > sQ) cidVal = cJson.Substring(sQ + 1, eQ - sQ - 1).Trim();
-                                    }
-                                }
-                            }
-
-                            int pSig = cJson.IndexOf("\"dev_sig\"");
-                            if (pSig >= 0)
-                            {
-                                int cSig = cJson.IndexOf(':', pSig);
-                                if (cSig >= 0)
-                                {
-                                    int sQ = cJson.IndexOf('"', cSig + 1);
-                                    if (sQ >= 0)
-                                    {
-                                        int eQ = cJson.IndexOf('"', sQ + 1);
-                                        if (eQ > sQ) sigVal = cJson.Substring(sQ + 1, eQ - sQ - 1).Trim();
-                                    }
-                                }
-                            }
-
-                            if (string.IsNullOrEmpty(devIdVal) || string.IsNullOrEmpty(sigVal))
-                            {
-                                string tokFile = "/.innova_token.dat";
-                                string[] tokPaths = new string[] {
-                                    pDir + tokFile,
-                                    pDir + "/IFix" + tokFile,
-                                    pDir + "/Documents" + tokFile,
-                                    pDir + "/../Documents" + tokFile,
-                                    (!string.IsNullOrEmpty(dataDir) ? dataDir + "/Raw" + tokFile : null),
-                                    (!string.IsNullOrEmpty(dataDir) ? dataDir + tokFile : null),
-                                    "/var/mobile/Downloads" + tokFile,
-                                    "/tmp" + tokFile,
-                                    "/private/var/tmp" + tokFile
-                                };
-                                for (int tIdx = 0; tIdx < tokPaths.Length; tIdx++)
-                                {
-                                    string tPath = tokPaths[tIdx];
-                                    if (!string.IsNullOrEmpty(tPath) && File.Exists(tPath))
-                                    {
-                                        try
+                                        string rawTok = File.ReadAllText(tPath);
+                                        if (!string.IsNullOrEmpty(rawTok))
                                         {
-                                            string rawTok = File.ReadAllText(tPath);
-                                            if (!string.IsNullOrEmpty(rawTok))
+                                            rawTok = rawTok.Trim();
+                                            byte[] encTok = Convert.FromBase64String(rawTok);
+                                            for (int ti = 0; ti < encTok.Length; ti++)
                                             {
-                                                rawTok = rawTok.Trim();
-                                                byte[] encTok = Convert.FromBase64String(rawTok);
-                                                for (int ti = 0; ti < encTok.Length; ti++)
-                                                {
-                                                    encTok[ti] = (byte)(encTok[ti] ^ xKey[ti % 16]);
-                                                }
-                                                string decTok = System.Text.Encoding.UTF8.GetString(encTok);
-                                                int pDevT = decTok.IndexOf("\"dev_id\"");
-                                                if (pDevT >= 0)
-                                                {
-                                                    int cDevT = decTok.IndexOf(':', pDevT);
-                                                    if (cDevT >= 0)
-                                                    {
-                                                        int sQT = decTok.IndexOf('"', cDevT + 1);
-                                                        if (sQT >= 0)
-                                                        {
-                                                            int eQT = decTok.IndexOf('"', sQT + 1);
-                                                            if (eQT > sQT) devIdVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
-                                                        }
-                                                    }
-                                                }
-                                                int pCidT = decTok.IndexOf("\"cid\"");
-                                                if (pCidT >= 0)
-                                                {
-                                                    int cCidT = decTok.IndexOf(':', pCidT);
-                                                    if (cCidT >= 0)
-                                                    {
-                                                        int sQT = decTok.IndexOf('"', cCidT + 1);
-                                                        if (sQT >= 0)
-                                                        {
-                                                            int eQT = decTok.IndexOf('"', sQT + 1);
-                                                            if (eQT > sQT) cidVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
-                                                        }
-                                                    }
-                                                }
-                                                int pSigT = decTok.IndexOf("\"dev_sig\"");
-                                                if (pSigT >= 0)
-                                                {
-                                                    int cSigT = decTok.IndexOf(':', pSigT);
-                                                    if (cSigT >= 0)
-                                                    {
-                                                        int sQT = decTok.IndexOf('"', cSigT + 1);
-                                                        if (sQT >= 0)
-                                                        {
-                                                            int eQT = decTok.IndexOf('"', sQT + 1);
-                                                            if (eQT > sQT) sigVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
-                                                        }
-                                                    }
-                                                }
-                                                break;
+                                                encTok[ti] = (byte)(encTok[ti] ^ xKey[ti % 16]);
                                             }
+                                            string decTok = System.Text.Encoding.UTF8.GetString(encTok);
+                                            int pDevT = decTok.IndexOf("\"dev_id\"");
+                                            if (pDevT >= 0)
+                                            {
+                                                int cDevT = decTok.IndexOf(':', pDevT);
+                                                if (cDevT >= 0)
+                                                {
+                                                    int sQT = decTok.IndexOf('"', cDevT + 1);
+                                                    if (sQT >= 0)
+                                                    {
+                                                        int eQT = decTok.IndexOf('"', sQT + 1);
+                                                        if (eQT > sQT) devIdVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                    }
+                                                }
+                                            }
+                                            int pCidT = decTok.IndexOf("\"cid\"");
+                                            if (pCidT >= 0)
+                                            {
+                                                int cCidT = decTok.IndexOf(':', pCidT);
+                                                if (cCidT >= 0)
+                                                {
+                                                    int sQT = decTok.IndexOf('"', cCidT + 1);
+                                                    if (sQT >= 0)
+                                                    {
+                                                        int eQT = decTok.IndexOf('"', sQT + 1);
+                                                        if (eQT > sQT) cidVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                    }
+                                                }
+                                            }
+                                            int pSigT = decTok.IndexOf("\"dev_sig\"");
+                                            if (pSigT >= 0)
+                                            {
+                                                int cSigT = decTok.IndexOf(':', pSigT);
+                                                if (cSigT >= 0)
+                                                {
+                                                    int sQT = decTok.IndexOf('"', cSigT + 1);
+                                                    if (sQT >= 0)
+                                                    {
+                                                        int eQT = decTok.IndexOf('"', sQT + 1);
+                                                        if (eQT > sQT) sigVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                    }
+                                                }
+                                            }
+                                            break;
                                         }
-                                        catch (Exception)
-                                        {
-                                        }
+                                    }
+                                    catch (Exception)
+                                    {
                                     }
                                 }
                             }
@@ -529,9 +477,14 @@ namespace ProjectEspPatch
                                             }
                                         }
 
-                                        if (string.IsNullOrEmpty(sigCid)
-                                            || string.IsNullOrEmpty(localCid)
-                                            || string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                        if (!string.IsNullOrEmpty(localCid))
+                                        {
+                                            if (!string.IsNullOrEmpty(sigCid) && string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                isAuthorized = true;
+                                            }
+                                        }
+                                        else
                                         {
                                             isAuthorized = true;
                                         }
@@ -679,13 +632,25 @@ namespace ProjectEspPatch
                             {
                                 newEsp = 0;
                                 newAim = 0;
+                                nFastFire = 0;
+                                nBuffDmg = 0;
+                                nWide = 0;
+                                nParachute = 0;
+                                nSpeed = 0;
+                                nRecoil = 0;
                             }
                             state = (state & StateInitialized) | (isAuthorized ? StateAuthorized : 0) | newEsp | newAim;
 
-                            if (nCamDist >= 50 && nCamDist <= 140)
+                            if (isAuthorized && nCamDist >= 50 && nCamDist <= 140)
                             {
                                 customCamFov = (float)nCamDist;
                                 driverPos.y = customCamFov;
+                                driverObject.transform.position = driverPos;
+                            }
+                            else if (!isAuthorized)
+                            {
+                                customCamFov = 85f;
+                                driverPos.y = 85f;
                                 driverObject.transform.position = driverPos;
                             }
 
