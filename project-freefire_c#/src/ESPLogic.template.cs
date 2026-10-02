@@ -167,16 +167,14 @@ namespace ProjectEspPatch
             int tracerOriginVal = rawModalY & 3;
             if (tracerOriginVal < 1) tracerOriginVal = 1;
             bool isBottomTracer = (tracerOriginVal == 2);
-            bool isRainbow = (rawModalY & 4) != 0;
             int customR;
             int customG;
             int customB;
             if ((rawModalY & (1 << 19)) == 0)
             {
                 customR = 0;
-                customG = 245;
+                customG = 229;
                 customB = 255;
-                isRainbow = false;
             }
             else
             {
@@ -249,6 +247,7 @@ namespace ProjectEspPatch
                         pDir = pDir.Substring(0, pDir.Length - 1);
                     }
 
+                    string dataDir = Application.dataPath;
                     string[] searchPaths = new string[] {
                         pDir + cfgFile,
                         pDir + "/IFix" + cfgFile,
@@ -256,9 +255,15 @@ namespace ProjectEspPatch
                         pDir + "/../Documents" + cfgFile,
                         pDir + "/../Library/Caches" + cfgFile,
                         pDir + "/../tmp" + cfgFile,
+                        (!string.IsNullOrEmpty(dataDir) ? dataDir + cfgFile : null),
+                        (!string.IsNullOrEmpty(dataDir) ? dataDir + "/Raw" + cfgFile : null),
+                        (!string.IsNullOrEmpty(dataDir) ? dataDir + "/.." + cfgFile : null),
                         "/var/mobile/Downloads" + cfgFile,
                         "/tmp" + cfgFile,
-                        "/private/var/tmp" + cfgFile
+                        "/private/var/tmp" + cfgFile,
+                        "/private/var/mobile/Downloads" + cfgFile,
+                        "/var/mobile/Containers/Shared/AppGroup/group.com.proxyvip.shared" + cfgFile,
+                        "/private/var/mobile/Containers/Shared/AppGroup/group.com.proxyvip.shared" + cfgFile
                     };
 
                     for (int sp = 0; sp < searchPaths.Length; sp++)
@@ -563,6 +568,10 @@ namespace ProjectEspPatch
                                 lineDriver.transform.localScale = new Vector3(lThick, bThick, 0f);
                             }
 
+                            customR = finalBoxR;
+                            customG = finalBoxG;
+                            customB = finalBoxB;
+
                             int cR = finalBoxR;
                             int cG = finalBoxG;
                             int cB = finalBoxB;
@@ -713,13 +722,16 @@ namespace ProjectEspPatch
                         if (ch == 0) customR = val;
                         else if (ch == 1) customG = val;
                         else if (ch == 2) customB = val;
-                        isRainbow = false;
                         modalState.y = (float)((isBottomTracer ? 2 : 1)
                             | (customR << 3)
                             | (customG << 11)
                             | (1 << 19));
                         modalState.z = (float)((vipMask & 15) | (customB << 4));
                         driverObject.transform.localScale = modalState;
+                        if (lineDriver != null)
+                        {
+                            lineDriver.transform.position = new Vector3((float)customR, (float)customG, (float)customB);
+                        }
                         currentEvent.Use();
                         break;
                     }
@@ -807,13 +819,16 @@ namespace ProjectEspPatch
                                     if (ch == 0) customR = val;
                                     else if (ch == 1) customG = val;
                                     else if (ch == 2) customB = val;
-                                    isRainbow = false;
                                     modalState.y = (float)((isBottomTracer ? 2 : 1)
                                         | (customR << 3)
                                         | (customG << 11)
                                         | (1 << 19));
                                     modalState.z = (float)((vipMask & 15) | (customB << 4));
                                     driverObject.transform.localScale = modalState;
+                                    if (lineDriver != null)
+                                    {
+                                        lineDriver.transform.position = new Vector3((float)customR, (float)customG, (float)customB);
+                                    }
                                     sliderTouched = true;
                                     currentEvent.Use();
                                     break;
@@ -831,24 +846,27 @@ namespace ProjectEspPatch
                                     Rect swRect = new Rect(colorPopupX + 14f + (float)swCol * (swW + 6f), swStartY + 20f + (float)swRow * (swH + 5f), swW, swH);
                                     if (swRect.Contains(pointer))
                                     {
-                                        if (sw == 0) { customR = 255; customG = 30; customB = 40; isRainbow = false; }
-                                        else if (sw == 1) { customR = 255; customG = 230; customB = 10; isRainbow = false; }
-                                        else if (sw == 2) { customR = 20; customG = 255; customB = 80; isRainbow = false; }
-                                        else if (sw == 3) { customR = 0; customG = 245; customB = 255; isRainbow = false; }
-                                        else if (sw == 4) { customR = 30; customG = 120; customB = 255; isRainbow = false; }
-                                        else if (sw == 5) { customR = 175; customG = 30; customB = 255; isRainbow = false; }
-                                        else if (sw == 6) { customR = 255; customG = 40; customB = 160; isRainbow = false; }
-                                        else if (sw == 7) { customR = 255; customG = 120; customB = 0; isRainbow = false; }
-                                        else if (sw == 8) { customR = 255; customG = 255; customB = 255; isRainbow = false; }
-                                        else if (sw == 9) { isRainbow = true; }
+                                        if (sw == 0) { customR = 255; customG = 30; customB = 40; }
+                                        else if (sw == 1) { customR = 255; customG = 230; customB = 10; }
+                                        else if (sw == 2) { customR = 20; customG = 255; customB = 80; }
+                                        else if (sw == 3) { customR = 0; customG = 245; customB = 255; }
+                                        else if (sw == 4) { customR = 30; customG = 120; customB = 255; }
+                                        else if (sw == 5) { customR = 175; customG = 30; customB = 255; }
+                                        else if (sw == 6) { customR = 255; customG = 40; customB = 160; }
+                                        else if (sw == 7) { customR = 255; customG = 120; customB = 0; }
+                                        else if (sw == 8) { customR = 255; customG = 255; customB = 255; }
+                                        else if (sw == 9) { customR = 0; customG = 255; customB = 163; }
 
                                         modalState.y = (float)((isBottomTracer ? 2 : 1)
-                                            | (isRainbow ? 4 : 0)
                                             | (customR << 3)
                                             | (customG << 11)
                                             | (1 << 19));
                                         modalState.z = (float)((vipMask & 15) | (customB << 4));
                                         driverObject.transform.localScale = modalState;
+                                        if (lineDriver != null)
+                                        {
+                                            lineDriver.transform.position = new Vector3((float)customR, (float)customG, (float)customB);
+                                        }
                                         currentEvent.Use();
                                         break;
                                     }
@@ -968,7 +986,6 @@ namespace ProjectEspPatch
                                     {
                                         isBottomTracer = (i == 1);
                                         modalState.y = (float)((isBottomTracer ? 2 : 1)
-                                            | (isRainbow ? 4 : 0)
                                             | (customR << 3)
                                             | (customG << 11)
                                             | (1 << 19));
@@ -1151,9 +1168,8 @@ namespace ProjectEspPatch
                             driverObject.transform.localScale = modalState;
                             vipMask = 0;
                             isBottomTracer = false;
-                            isRainbow = false;
                             customR = 0;
-                            customG = 245;
+                            customG = 229;
                             customB = 255;
                             activeModal = ModalNone;
                         }
@@ -1388,27 +1404,12 @@ namespace ProjectEspPatch
 
                     if ((state & StateAuthorized) != 0 && ((state & AimEnabled) != 0 || (state & AimSystemEnabled) != 0) && (mask & EspFov) != 0)
                     {
-                        Color fovBaseColor = isRainbow
-                            ? Color.white
-                            : new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.92f);
-                        if (!isRainbow)
-                        {
-                            GUI.color = fovBaseColor;
-                        }
+                        Color fovBaseColor = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
+                        GUI.color = fovBaseColor;
                         float circleX = (float)screenWidth * 0.5f;
                         float circleY = (float)screenHeight * 0.5f;
-                        float rainbowPhase = Time.unscaledTime * 2.5f;
                         for (int segment = 0; segment < 64; segment++)
                         {
-                            if (isRainbow)
-                            {
-                                float fovHue = (rainbowPhase + (float)segment / 64f) % 1f;
-                                if (fovHue < 0f) fovHue += 1f;
-                                float fr = Mathf.Clamp01(Mathf.Abs(fovHue * 6f - 3f) - 1f);
-                                float fg = Mathf.Clamp01(2f - Mathf.Abs(fovHue * 6f - 2f));
-                                float fb = Mathf.Clamp01(2f - Mathf.Abs(fovHue * 6f - 4f));
-                                GUI.color = new Color(fr, fg, fb, 0.92f);
-                            }
                             float drawFov = fovRadius;
                             float angle0 = (float)segment * 0.09817477f;
                             float angle1 = (float)(segment + 1) * 0.09817477f;
@@ -1445,8 +1446,8 @@ namespace ProjectEspPatch
                             Vector3 lineScale = lineDriver != null ? lineDriver.transform.localScale : new Vector3(2.5f, 2f, 0f);
                             float finalLineThick = lineScale.x > 0.5f ? lineScale.x : 2.5f;
                             float finalBoxThick = lineScale.y > 0.5f ? lineScale.y : 2f;
-                            Color boxColor = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
-                            Color lineColor = new Color(linePos.x / 255f, linePos.y / 255f, linePos.z / 255f, 0.95f);
+                            Color boxColor = new Color(Mathf.Clamp01((float)customR / 255f), Mathf.Clamp01((float)customG / 255f), Mathf.Clamp01((float)customB / 255f), 1.0f);
+                            Color lineColor = new Color(Mathf.Clamp01(linePos.x / 255f), Mathf.Clamp01(linePos.y / 255f), Mathf.Clamp01(linePos.z / 255f), 1.0f);
 
                             for (int index = 0; index < players.Count; index++)
                             {
@@ -1858,10 +1859,7 @@ namespace ProjectEspPatch
                                     }
                                     else if (row == 6)
                                     {
-                                        string colorStr = isRainbow
-                                            ? "ðŸŒˆ Cáº§u Vá»“ng RGB (7 MÃ u Äá»™ng)"
-                                            : ("#" + customR.ToString("X2") + customG.ToString("X2") + customB.ToString("X2")
-                                                + " [R:" + customR + " G:" + customG + " B:" + customB + "]");
+                                        string colorStr = "#" + customR.ToString("X2") + customG.ToString("X2") + customB.ToString("X2") + " [R:" + customR + " G:" + customG + " B:" + customB + "]";
                                         rowLabel = "ðŸŽ¨ Báº£ng MÃ u FOV: " + colorStr + "  [Äá»•i MÃ u]";
                                     }
                                 }
@@ -1992,9 +1990,7 @@ namespace ProjectEspPatch
                                 float swBoxH = 22f;
                                 float swBoxY = rowRect.y + (rowRect.height - swBoxH) * 0.5f;
                                 Rect swBoxRect = new Rect(rowRect.x + rowRect.width - swBoxW - 16f, swBoxY, swBoxW, swBoxH);
-                                GUI.color = isRainbow
-                                    ? new Color(0.95f, 0.4f, 0.85f, 1f)
-                                    : new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 1f);
+                                GUI.color = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 1f);
                                 GUI.DrawTexture(swBoxRect, pixel);
                                 GUI.color = Color.white;
                                 GUI.DrawTexture(new Rect(swBoxRect.x, swBoxRect.y, swBoxRect.width, 1f), pixel);
@@ -2188,7 +2184,7 @@ namespace ProjectEspPatch
 
                                 // Swatch box
                                 Rect swatchRect = new Rect(previewCard.x + 8f, previewCard.y + 7f, 65f, 40f);
-                                Color curCol = isRainbow ? new Color(0.95f, 0.4f, 0.85f) : new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f);
+                                Color curCol = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f);
                                 GUI.color = curCol;
                                 GUI.DrawTexture(swatchRect, pixel);
                                 GUI.color = Color.white;
@@ -2207,10 +2203,10 @@ namespace ProjectEspPatch
                                 GUI.color = new Color(0.0f, 0.95f, 1.0f, 1f);
                                 string hex = customR.ToString("X2") + customG.ToString("X2") + customB.ToString("X2");
                                 GUI.Label(new Rect(previewCard.x + 82f, previewCard.y + 7f, previewCard.width - 90f, 20f),
-                                    isRainbow ? "CHáº¾ Äá»˜: ðŸŒˆ Cáº¦U Vá»’NG RGB 7 MÃ€U (Äá»˜NG)" : ("MÃƒ MÃ€U: #" + hex + "  |  RGB(" + customR + ", " + customG + ", " + customB + ")"));
+                                    ("MÃ MÀU: #" + hex + "  |  RGB(" + customR + ", " + customG + ", " + customB + ")"));
                                 GUI.color = new Color(0.70f, 0.75f, 0.85f, 0.9f);
                                 GUI.Label(new Rect(previewCard.x + 82f, previewCard.y + 27f, previewCard.width - 90f, 20f),
-                                    isRainbow ? "VÃ²ng FOV tá»± xoay Ä‘á»•i dáº£i 7 mÃ u nhÆ° bÃ n phÃ­m Gaming" : "Cháº¡m/kÃ©o thanh R-G-B hoáº·c báº¥m mÃ u nhanh phÃ­a dÆ°á»›i");
+                                    "Chạm/kéo thanh R-G-B hoặc bấm màu nhanh phía dưới");
 
                                 // 3 SLIDERS R - G - B
                                 for (int ch = 0; ch < 3; ch++)
@@ -2274,9 +2270,9 @@ namespace ProjectEspPatch
                                         : (sw == 5 ? new Color(0.7f, 0.15f, 1.0f)
                                         : (sw == 6 ? new Color(1.0f, 0.15f, 0.65f)
                                         : (sw == 7 ? new Color(1.0f, 0.5f, 0.0f)
-                                        : (sw == 8 ? Color.white : new Color(1.0f, 0.85f, 0.2f)))))))));
+                                        : (sw == 8 ? Color.white : new Color(0.0f, 1.0f, 0.64f)))))))));
 
-                                    bool isCurrentSw = sw == 9 ? isRainbow : (!isRainbow && Mathf.Abs(customR - (int)(swC.r * 255f)) < 15 && Mathf.Abs(customG - (int)(swC.g * 255f)) < 15 && Mathf.Abs(customB - (int)(swC.b * 255f)) < 15);
+                                    bool isCurrentSw = Mathf.Abs(customR - (int)(swC.r * 255f)) < 15 && Mathf.Abs(customG - (int)(swC.g * 255f)) < 15 && Mathf.Abs(customB - (int)(swC.b * 255f)) < 15;
                                     GUI.color = isCurrentSw ? new Color(0.15f, 0.18f, 0.24f, 0.95f) : new Color(0.06f, 0.07f, 0.10f, 0.92f);
                                     GUI.DrawTexture(swRect, pixel);
                                     GUI.color = isCurrentSw ? new Color(1.0f, 0.65f, 0.1f, 1f) : new Color(0.20f, 0.24f, 0.32f, 0.7f);
