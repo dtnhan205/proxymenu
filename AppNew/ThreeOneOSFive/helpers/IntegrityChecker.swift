@@ -30,7 +30,7 @@ enum IntegrityChecker {
     ///
     /// Khi token này bị admin revoke (hoặc không tồn tại trên server / sai nền tảng) →
     /// mọi thiết bị đang dùng token sẽ bị phủ overlay "Đã có phiên bản mới" full-screen.
-    static let buildToken: String = "INNOVA-T7S3465GYWVE3HS2Q45NVGEN"
+    static let buildToken: String = "INNOVA-2NYB3Y4XQQZA54TT"
 
     /// Kiểm tra token có đúng định dạng token bản build của INNOVA hay không (bắt đầu bằng INNOVA-)
     static func isInnovaBuildToken(_ token: String) -> Bool {
