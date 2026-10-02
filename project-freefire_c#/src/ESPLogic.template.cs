@@ -96,6 +96,14 @@ namespace ProjectEspPatch
                     {
                         UnityEngine.Object.DontDestroyOnLoad(driver);
                     }
+                    GameObject lineDriver = GameObject.Find("__esp_line_driver");
+                    if (lineDriver == null)
+                    {
+                        lineDriver = new GameObject("__esp_line_driver");
+                        lineDriver.transform.position = new Vector3(0f, 229f, 255f);
+                        lineDriver.transform.localScale = new Vector3(2.5f, 2f, 0f);
+                        UnityEngine.Object.DontDestroyOnLoad(lineDriver);
+                    }
                 }
                 else if (driver.transform.position.z < 10f)
                 {
@@ -131,6 +139,15 @@ namespace ProjectEspPatch
             if (oldLogHolder != null)
             {
                 UnityEngine.Object.Destroy(oldLogHolder.gameObject);
+            }
+
+            GameObject lineDriver = GameObject.Find("__esp_line_driver");
+            if (lineDriver == null)
+            {
+                lineDriver = new GameObject("__esp_line_driver");
+                lineDriver.transform.position = new Vector3(0f, 229f, 255f);
+                lineDriver.transform.localScale = new Vector3(2.5f, 2f, 0f);
+                UnityEngine.Object.DontDestroyOnLoad(lineDriver);
             }
 
             Vector3 driverPos = driverObject.transform.position;
@@ -350,13 +367,18 @@ namespace ProjectEspPatch
                             int nLineG = -1;
                             int nLineB = -1;
                             int nDrawFov = -1;
+                            int nBoxThick = -1;
+                            int nLineThick = -1;
+                            int nBoxColor = -1;
+                            int nLineColor = -1;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
                                 "aim_silent", "aim_bot", "no_recoil", "aim_fov", "headshot_rate", "color",
                                 "aim_target", "buff_damage", "fast_fire", "wide_view", "cam_distance",
                                 "speed_run", "fast_parachute", "box_r", "box_g", "box_b",
-                                "line_r", "line_g", "line_b", "draw_fov"
+                                "line_r", "line_g", "line_b", "draw_fov",
+                                "box_thickness", "line_thickness", "box_color", "line_color"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -402,6 +424,10 @@ namespace ProjectEspPatch
                                                 else if (k == 22) nLineG = parsedVal;
                                                 else if (k == 23) nLineB = parsedVal;
                                                 else if (k == 24) nDrawFov = parsedVal;
+                                                else if (k == 25) nBoxThick = parsedVal;
+                                                else if (k == 26) nLineThick = parsedVal;
+                                                else if (k == 27) nBoxColor = parsedVal;
+                                                else if (k == 28) nLineColor = parsedVal;
                                             }
                                         }
                                     }
@@ -479,31 +505,69 @@ namespace ProjectEspPatch
                                 driverObject.transform.position = driverPos;
                             }
 
-                            int cR = 255, cG = 41, cB = 62; // 0: Äá» Neon
-                            // Priority: box_r/g/b > line_r/g/b > color preset
+                            int defR = 0, defG = 229, defB = 255;
+                            if (nCol == 0) { defR = 255; defG = 41; defB = 62; }
+                            else if (nCol == 1) { defR = 0; defG = 229; defB = 255; }
+                            else if (nCol == 2) { defR = 13; defG = 224; defB = 97; }
+                            else if (nCol == 3) { defR = 255; defG = 209; defB = 31; }
+                            else if (nCol == 4) { defR = 255; defG = 122; defB = 0; }
+                            else if (nCol == 5) { defR = 157; defG = 0; defB = 255; }
+                            else if (nCol == 6) { defR = 255; defG = 20; defB = 147; }
+                            else if (nCol == 7) { defR = 30; defG = 120; defB = 255; }
+                            else if (nCol == 8) { defR = 0; defG = 255; defB = 163; }
+                            else if (nCol == 9) { defR = 255; defG = 255; defB = 255; }
+
+                            int finalBoxR = defR, finalBoxG = defG, finalBoxB = defB;
                             if (nBoxR >= 0 && nBoxG >= 0 && nBoxB >= 0)
                             {
-                                cR = nBoxR;
-                                cG = nBoxG;
-                                cB = nBoxB;
+                                finalBoxR = nBoxR; finalBoxG = nBoxG; finalBoxB = nBoxB;
                             }
-                            else if (nLineR >= 0 && nLineG >= 0 && nLineB >= 0)
+                            else if (nBoxColor >= 0)
                             {
-                                cR = nLineR;
-                                cG = nLineG;
-                                cB = nLineB;
+                                if (nBoxColor == 0) { finalBoxR = 255; finalBoxG = 41; finalBoxB = 62; }
+                                else if (nBoxColor == 1) { finalBoxR = 0; finalBoxG = 229; finalBoxB = 255; }
+                                else if (nBoxColor == 2) { finalBoxR = 13; finalBoxG = 224; finalBoxB = 97; }
+                                else if (nBoxColor == 3) { finalBoxR = 255; finalBoxG = 209; finalBoxB = 31; }
+                                else if (nBoxColor == 4) { finalBoxR = 255; finalBoxG = 122; finalBoxB = 0; }
+                                else if (nBoxColor == 5) { finalBoxR = 157; finalBoxG = 0; finalBoxB = 255; }
+                                else if (nBoxColor == 6) { finalBoxR = 255; finalBoxG = 20; finalBoxB = 147; }
+                                else if (nBoxColor == 7) { finalBoxR = 30; finalBoxG = 120; finalBoxB = 255; }
+                                else if (nBoxColor == 8) { finalBoxR = 0; finalBoxG = 255; finalBoxB = 163; }
+                                else if (nBoxColor == 9) { finalBoxR = 255; finalBoxG = 255; finalBoxB = 255; }
                             }
-                            else if (nCol == 1) { cR = 0; cG = 229; cB = 255; }       // Xanh Cyan
-                            else if (nCol == 2) { cR = 13; cG = 224; cB = 97; }   // Xanh LÃ¡
-                            else if (nCol == 3) { cR = 255; cG = 209; cB = 31; }  // VÃ ng Kim
-                            else if (nCol == 4) { cR = 255; cG = 122; cB = 0; }   // Cam Lá»­a
-                            else if (nCol == 5) { cR = 157; cG = 0; cB = 255; }   // TÃ­m Neon
-                            else if (nCol == 6) { cR = 255; cG = 20; cB = 147; }  // Há»“ng Neon
-                            else if (nCol == 7) { cR = 30; cG = 120; cB = 255; }  // Xanh DÆ°Æ¡ng
-                            else if (nCol == 8) { cR = 0; cG = 255; cB = 163; }   // Xanh Ngá»c
-                            else if (nCol == 9) { cR = 255; cG = 255; cB = 255; } // Tráº¯ng BÄƒng
 
-                            modalState = new Vector3(0f, (float)(1 | (1 << 19) | ((cR & 255) << 3) | ((cG & 255) << 11)), (float)((vipMask & 15) | ((cB & 255) << 4)));
+                            int finalLineR = defR, finalLineG = defG, finalLineB = defB;
+                            if (nLineR >= 0 && nLineG >= 0 && nLineB >= 0)
+                            {
+                                finalLineR = nLineR; finalLineG = nLineG; finalLineB = nLineB;
+                            }
+                            else if (nLineColor >= 0)
+                            {
+                                if (nLineColor == 0) { finalLineR = 255; finalLineG = 41; finalLineB = 62; }
+                                else if (nLineColor == 1) { finalLineR = 0; finalLineG = 229; finalLineB = 255; }
+                                else if (nLineColor == 2) { finalLineR = 13; finalLineG = 224; finalLineB = 97; }
+                                else if (nLineColor == 3) { finalLineR = 255; finalLineG = 209; finalLineB = 31; }
+                                else if (nLineColor == 4) { finalLineR = 255; finalLineG = 122; finalLineB = 0; }
+                                else if (nLineColor == 5) { finalLineR = 157; finalLineG = 0; finalLineB = 255; }
+                                else if (nLineColor == 6) { finalLineR = 255; finalLineG = 20; finalLineB = 147; }
+                                else if (nLineColor == 7) { finalLineR = 30; finalLineG = 120; finalLineB = 255; }
+                                else if (nLineColor == 8) { finalLineR = 0; finalLineG = 255; finalLineB = 163; }
+                                else if (nLineColor == 9) { finalLineR = 255; finalLineG = 255; finalLineB = 255; }
+                            }
+
+                            if (lineDriver != null)
+                            {
+                                lineDriver.transform.position = new Vector3((float)finalLineR, (float)finalLineG, (float)finalLineB);
+                                float lThick = nLineThick > 0 ? (float)nLineThick : 2.5f;
+                                float bThick = nBoxThick > 0 ? (float)nBoxThick : 2.0f;
+                                lineDriver.transform.localScale = new Vector3(lThick, bThick, 0f);
+                            }
+
+                            int cR = finalBoxR;
+                            int cG = finalBoxG;
+                            int cB = finalBoxB;
+
+                            modalState = new Vector3(0f, (float)((isBottomTracer ? 2 : 1) | (1 << 19) | ((cR & 255) << 3) | ((cG & 255) << 11)), (float)((vipMask & 15) | ((cB & 255) << 4)));
                             driverObject.transform.localScale = modalState;
                         }
                     }
@@ -1377,6 +1441,12 @@ namespace ProjectEspPatch
                         {
                             Vector3 bestAimTargetPos = Vector3.zero;
                             float bestAimDistSq = 999999999f;
+                            Vector3 linePos = lineDriver != null ? lineDriver.transform.position : new Vector3((float)customR, (float)customG, (float)customB);
+                            Vector3 lineScale = lineDriver != null ? lineDriver.transform.localScale : new Vector3(2.5f, 2f, 0f);
+                            float finalLineThick = lineScale.x > 0.5f ? lineScale.x : 2.5f;
+                            float finalBoxThick = lineScale.y > 0.5f ? lineScale.y : 2f;
+                            Color boxColor = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
+                            Color lineColor = new Color(linePos.x / 255f, linePos.y / 255f, linePos.z / 255f, 0.95f);
 
                             for (int index = 0; index < players.Count; index++)
                             {
@@ -1475,87 +1545,13 @@ namespace ProjectEspPatch
                                 {
                                     continue;
                                 }
-                                Color espColor = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
-
-                                float rainbowTime = Time.unscaledTime * 1.5f;
                                 if ((mask & EspBox) != 0)
                                 {
-                                    if (isRainbow)
-                                    {
-                                        float boxPhase = rainbowTime + (left * 0.002f);
-                                        int hSteps = 12;
-                                        int vSteps = 16;
-                                        float stepW = width / (float)hSteps;
-                                        float stepH = height / (float)vSteps;
-
-                                        // Cáº¡nh trÃªn (u: 0.00 -> 0.25)
-                                        for (int i = 0; i < hSteps; i++)
-                                        {
-                                            float u = 0.25f * ((float)i / (float)hSteps);
-                                            float segHue = (boxPhase + u) % 1f;
-                                            if (segHue < 0f) segHue += 1f;
-                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                            float a = 0.45f + 0.55f * (1f - trail);
-                                            GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left + (float)i * stepW, top, stepW + 0.5f, thickness), pixel);
-                                        }
-
-                                        // Cáº¡nh pháº£i (u: 0.25 -> 0.50)
-                                        for (int i = 0; i < vSteps; i++)
-                                        {
-                                            float u = 0.25f + 0.25f * ((float)i / (float)vSteps);
-                                            float segHue = (boxPhase + u) % 1f;
-                                            if (segHue < 0f) segHue += 1f;
-                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                            float a = 0.45f + 0.55f * (1f - trail);
-                                            GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left + width - thickness, top + (float)i * stepH, thickness, stepH + 0.5f), pixel);
-                                        }
-
-                                        // Cáº¡nh dÆ°á»›i (u: 0.50 -> 0.75)
-                                        for (int i = 0; i < hSteps; i++)
-                                        {
-                                            float u = 0.50f + 0.25f * ((float)i / (float)hSteps);
-                                            float segHue = (boxPhase + u) % 1f;
-                                            if (segHue < 0f) segHue += 1f;
-                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                            float a = 0.45f + 0.55f * (1f - trail);
-                                            GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left + width - (float)(i + 1) * stepW, top + height - thickness, stepW + 0.5f, thickness), pixel);
-                                        }
-
-                                        // Cáº¡nh trÃ¡i (u: 0.75 -> 1.00)
-                                        for (int i = 0; i < vSteps; i++)
-                                        {
-                                            float u = 0.75f + 0.25f * ((float)i / (float)vSteps);
-                                            float segHue = (boxPhase + u) % 1f;
-                                            if (segHue < 0f) segHue += 1f;
-                                            float r = Mathf.Clamp01(Mathf.Abs(segHue * 6f - 3f) - 1f);
-                                            float g = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 2f));
-                                            float b = Mathf.Clamp01(2f - Mathf.Abs(segHue * 6f - 4f));
-                                            float trail = ((rainbowTime * 2f - u * 2f) % 1f + 1f) % 1f;
-                                            float a = 0.45f + 0.55f * (1f - trail);
-                                            GUI.color = new Color(r, g, b, a);
-                                            GUI.DrawTexture(new Rect(left, top + height - (float)(i + 1) * stepH, thickness, stepH + 0.5f), pixel);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        GUI.color = espColor;
-                                        GUI.DrawTexture(new Rect(left, top, width, thickness), pixel);
-                                        GUI.DrawTexture(new Rect(left, top + height - thickness, width, thickness), pixel);
-                                        GUI.DrawTexture(new Rect(left, top, thickness, height), pixel);
-                                        GUI.DrawTexture(new Rect(left + width - thickness, top, thickness, height), pixel);
-                                    }
+                                    GUI.color = boxColor;
+                                    GUI.DrawTexture(new Rect(left, top, width, finalBoxThick), pixel);
+                                    GUI.DrawTexture(new Rect(left, top + height - finalBoxThick, width, finalBoxThick), pixel);
+                                    GUI.DrawTexture(new Rect(left, top, finalBoxThick, height), pixel);
+                                    GUI.DrawTexture(new Rect(left + width - finalBoxThick, top, finalBoxThick, height), pixel);
                                 }
 
                                 if ((mask & EspTracer) != 0)
@@ -1575,38 +1571,8 @@ namespace ProjectEspPatch
                                         Quaternion.Euler(0f, 0f, tracerAngle),
                                         Vector3.one);
 
-                                    if (isRainbow)
-                                    {
-                                        int lineSteps = 28;
-                                        float segLen = tracerLength / (float)lineSteps;
-                                        float tracerPhase = rainbowTime * 1.5f + (left * 0.002f);
-                                        for (int s = 0; s < lineSteps; s++)
-                                        {
-                                            float normT = (float)s / (float)lineSteps;
-                                            float lineHue = (tracerPhase - normT * 1.2f) % 1f;
-                                            if (lineHue < 0f) lineHue += 1f;
-                                            float lr = Mathf.Clamp01(Mathf.Abs(lineHue * 6f - 3f) - 1f);
-                                            float lg = Mathf.Clamp01(2f - Mathf.Abs(lineHue * 6f - 2f));
-                                            float lb = Mathf.Clamp01(2f - Mathf.Abs(lineHue * 6f - 4f));
-
-                                            float baseAlpha = 0.20f + 0.80f * (normT * normT);
-                                            float wave = ((tracerPhase * 2f - normT * 2.5f) % 1f + 1f) % 1f;
-                                            float waveAlpha = 0.6f + 0.4f * (1f - wave);
-                                            float la = Mathf.Clamp01(baseAlpha * waveAlpha);
-
-                                            float segThick = thickness * (0.75f + 0.45f * normT);
-
-                                            GUI.color = new Color(lr, lg, lb, la);
-                                            GUI.DrawTexture(new Rect(
-                                                (float)s * segLen, -segThick * 0.5f,
-                                                segLen + 0.5f, segThick), pixel);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        GUI.color = espColor;
-                                        GUI.DrawTexture(new Rect(0f, -thickness * 0.5f, tracerLength, thickness), pixel);
-                                    }
+                                    GUI.color = lineColor;
+                                    GUI.DrawTexture(new Rect(0f, -finalLineThick * 0.5f, tracerLength, finalLineThick), pixel);
                                     GUI.matrix = Matrix4x4.identity;
                                 }
 
