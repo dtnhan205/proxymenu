@@ -33,35 +33,7 @@ struct IntroVideoView: View {
                     .ignoresSafeArea()
             }
 
-            // Overlay controls (Nút bỏ qua)
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: handleSkip) {
-                        HStack(spacing: 5) {
-                            Text("BỎ QUA")
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .tracking(1.5)
-                            Image(systemName: "forward.fill")
-                                .font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundColor(.white.opacity(0.85))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(Color.black.opacity(0.45))
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(Color(red: 0.0, green: 0.94, blue: 1.0).opacity(0.5), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .padding(.top, 48)
-                    .padding(.trailing, 20)
-                }
-                Spacer()
-            }
+
         }
         .opacity(opacity)
         .onAppear {
@@ -113,11 +85,7 @@ struct IntroVideoView: View {
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
     }
 
-    private func handleSkip() {
-        let impact = UIImpactFeedbackGenerator(style: .light)
-        impact.impactOccurred()
-        handleFinish()
-    }
+
 
     private func handleFinish() {
         guard !isFinished else { return }

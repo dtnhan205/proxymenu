@@ -13,6 +13,8 @@ struct RootView: View {
     @EnvironmentObject private var supportToastModel: SupportStatusToastModel
     @State private var gateDecision: GateDecision = .introVideo
     @State private var didAnnounceSupport: Bool = false
+    @State private var isVideoFinished: Bool = false
+    @State private var autoVerifySuccess: Bool? = nil
 
     enum GateDecision {
         case introVideo
@@ -26,8 +28,13 @@ struct RootView: View {
             switch gateDecision {
             case .introVideo:
                 IntroVideoView(onFinish: {
+                    isVideoFinished = true
                     withAnimation(.easeInOut(duration: 0.35)) {
-                        gateDecision = .needsKey
+                        if let success = autoVerifySuccess {
+                            gateDecision = success ? .unlocked : .needsKey
+                        } else {
+                            gateDecision = .checking
+                        }
                     }
                 })
                 .transition(.opacity)
@@ -149,7 +156,18 @@ struct RootView: View {
     }
 
     private func evaluate() async {
-        guard let key = store.savedKey, !key.isEmpty else { return }
+        guard let key = store.savedKey, !key.isEmpty else {
+            await MainActor.run {
+                autoVerifySuccess = false
+                if isVideoFinished {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        gateDecision = .needsKey
+                    }
+                }
+            }
+            return
+        }
+
         do {
             let serial = DeviceIdentity.serial()
             let status = try await PatchHubService.verifyKey(key: key, deviceSerial: serial)
@@ -158,8 +176,8 @@ struct RootView: View {
                 store.setBuildBlocked(false)
                 // Cập nhật lại key và status mới nhất từ server vào cache
                 store.save(key: key, status: status)
-                // Chỉ chuyển trực tiếp sang unlocked nếu đang ở trạng thái checking
-                if gateDecision == .checking {
+                autoVerifySuccess = true
+                if isVideoFinished {
                     withAnimation(.easeInOut(duration: 0.3)) {
                         gateDecision = .unlocked
                     }
@@ -179,8 +197,35 @@ struct RootView: View {
                     store.clear()
                 }
             }
+            await MainActor.run {
+                autoVerifySuccess = false
+                if isVideoFinished {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        gateDecision = .needsKey
+                    }
+                }
+            }
         } catch {
-            // Lỗi mạng tạm thời, không clear
+            // Lỗi mạng hoặc server không phản hồi kịp thời:
+            // Kiểm tra nếu key đã lưu cục bộ còn hạn sử dụng
+            let isLocallyValid = (store.expiresAt == nil || store.expiresAt! > Date())
+            await MainActor.run {
+                if isLocallyValid {
+                    autoVerifySuccess = true
+                    if isVideoFinished {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            gateDecision = .unlocked
+                        }
+                    }
+                } else {
+                    autoVerifySuccess = false
+                    if isVideoFinished {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            gateDecision = .needsKey
+                        }
+                    }
+                }
+            }
         }
     }
 }
