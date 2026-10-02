@@ -60,7 +60,7 @@ namespace ProjectEspPatch
         private const int AuxTickShift = 3;
         private const float AuxStateMarker = 1000000f;
         private const ulong SpeedRunningKey = 4995421289296778564UL;
-        private const int DefaultAimState = AimEnabled | (2 << AimModeShift)
+        private const int DefaultAimState = (2 << AimModeShift)
             | (3 << HeadRateShift);
 
         public static bool Bootstrap(Player self)
@@ -1418,7 +1418,7 @@ namespace ProjectEspPatch
                                     continue;
                                 }
 
-                                if ((state & AimSystemEnabled) != 0)
+                                if ((state & AimSystemEnabled) != 0 && !dying && health > 0)
                                 {
                                     Vector3 aimTargetPoint = ((state & AimSystemHead) != 0)
                                         ? head.position
@@ -1431,7 +1431,8 @@ namespace ProjectEspPatch
                                         float adx = screenAim.x - (float)screenWidth * 0.5f;
                                         float ady = screenAim.y - (float)screenHeight * 0.5f;
                                         float adistSq = adx * adx + ady * ady;
-                                        if (adistSq < bestAimDistSq)
+                                        float fovLimit = fovRadius > 10f ? fovRadius : 140f;
+                                        if (adistSq <= fovLimit * fovLimit && adistSq < bestAimDistSq)
                                         {
                                             bestAimDistSq = adistSq;
                                             bestAimTargetPos = aimTargetPoint;
@@ -1741,7 +1742,7 @@ namespace ProjectEspPatch
                                 if (aimDirection.sqrMagnitude > 0.01f)
                                 {
                                     Quaternion targetAimRot = Quaternion.LookRotation(aimDirection);
-                                    camera.transform.rotation = Quaternion.Slerp(camera.transform.rotation, targetAimRot, 20f * Time.deltaTime);
+                                    camera.transform.rotation = Quaternion.Slerp(camera.transform.rotation, targetAimRot, Mathf.Clamp01(30f * Time.deltaTime));
                                 }
                             }
                         }
@@ -2639,7 +2640,8 @@ namespace ProjectEspPatch
                 }
             }
 
-            bool isAimSilent = (state & AimEnabled) != 0;
+            // Silent Aim ONLY runs if AimEnabled is set AND AimSystemEnabled (Aimbot) is NOT set
+            bool isAimSilent = (state & AimEnabled) != 0 && (state & AimSystemEnabled) == 0;
             if (!isAimSilent)
             {
                 return info;

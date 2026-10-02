@@ -499,6 +499,11 @@ final class CheatMenuState: ObservableObject {
         self.aimBotTarget = AimBotTarget(rawValue: targetStr) ?? .head
         self.aimLine = ud.object(forKey: "cheat.aimLine") as? Bool ?? false
 
+        if self.aimBot && self.aimSilent {
+            self.aimSilent = false
+            ud.set(false, forKey: "cheat.aimSilent")
+        }
+
         self.boxESP = ud.object(forKey: "cheat.boxESP") as? Bool ?? true
         self.lineESP = ud.object(forKey: "cheat.lineESP") as? Bool ?? true
         self.healthBar = ud.object(forKey: "cheat.healthBar") as? Bool ?? true
