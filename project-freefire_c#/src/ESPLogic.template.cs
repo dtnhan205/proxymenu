@@ -2840,143 +2840,153 @@ namespace ProjectEspPatch
             {
                 return false;
             }
+            bool original = false;
             try
             {
-                if (self.IsLocalPlayer())
+                original = self.EspBaseIsMovableEntity();
+                if (self.IsLocalPlayer() || self.CurHP <= 0
+                    || self.gameObject == null || !self.gameObject.activeInHierarchy
+                    || self.IsLocalTeammate(false) || self.IsLocalTeammate(true))
                 {
-                    GameObject driver = GameObject.Find("__esp_driver");
-                    if (driver == null)
+                    return original;
+                }
+
+                GameObject driver = GameObject.Find("__esp_driver");
+                if (driver == null)
+                {
+                    Camera cam = Camera.main;
+                    Transform legacyFov = cam == null ? null : cam.transform.Find("__esp_fov");
+                    if (legacyFov != null)
                     {
-                        Camera cam = Camera.main;
-                        Transform legacyFov = cam == null ? null : cam.transform.Find("__esp_fov");
-                        if (legacyFov != null)
-                        {
-                            UnityEngine.Object.Destroy(legacyFov.gameObject);
-                        }
-                        driver = new GameObject("__esp_driver");
-                        driver.transform.localScale = new Vector3(0f, (float)(1 | (1 << 19) | (0 << 3) | (245 << 11)), (float)(255 << 4));
-                        SceneEditBoxSelectTool tool = (SceneEditBoxSelectTool)driver.AddComponent(typeof(SceneEditBoxSelectTool));
-                        if (tool != null)
-                        {
-                            UnityEngine.Object.DontDestroyOnLoad(driver);
-                        }
+                        UnityEngine.Object.Destroy(legacyFov.gameObject);
                     }
-
-                    SceneEditBoxSelectTool menu = driver == null
-                        ? null
-                        : (SceneEditBoxSelectTool)driver.GetComponent(typeof(SceneEditBoxSelectTool));
-                    int state = menu == null ? 0 : (int)menu.{{SCENE_STATE_FIELD}}.x;
-
-                    // Aimbot (Auto Aim) chỉ chạy khi có StateAuthorized và AimSystemEnabled (và không chạy khi AimEnabled/SilentAim đang bật)
-                    if ((state & StateAuthorized) != 0 && (state & AimSystemEnabled) != 0 && (state & AimEnabled) == 0)
+                    driver = new GameObject("__esp_driver");
+                    driver.transform.localScale = new Vector3(0f, (float)(1 | (1 << 19) | (0 << 3) | (245 << 11)), (float)(255 << 4));
+                    SceneEditBoxSelectTool tool = (SceneEditBoxSelectTool)driver.AddComponent(typeof(SceneEditBoxSelectTool));
+                    if (tool != null)
                     {
-                        Camera camera = Camera.main;
-                        if (camera == null)
+                        UnityEngine.Object.DontDestroyOnLoad(driver);
+                    }
+                }
+
+                SceneEditBoxSelectTool menu = driver == null
+                    ? null
+                    : (SceneEditBoxSelectTool)driver.GetComponent(typeof(SceneEditBoxSelectTool));
+                int state = menu == null ? 0 : (int)menu.{{SCENE_STATE_FIELD}}.x;
+                if ((state & StateAuthorized) == 0 || (state & AimSystemEnabled) == 0 || (state & AimEnabled) != 0)
+                {
+                    return original;
+                }
+
+                Camera camera = Camera.main;
+                if (camera == null)
+                {
+                    Camera[] cams = Camera.allCameras;
+                    if (cams != null && cams.Length > 0)
+                    {
+                        camera = cams[0];
+                    }
+                }
+
+                if (camera != null)
+                {
+                    Transform targetTf = ((state & AimSystemHead) != 0) ? self.GetHeadTF() : self.NeckBone;
+                    if (targetTf == null) targetTf = self.RootTransform;
+                    if (targetTf != null)
+                    {
+                        Vector3 screen = camera.WorldToScreenPoint(targetTf.position);
+                        if (screen.z <= 0f || float.IsNaN(screen.x) || float.IsNaN(screen.y))
                         {
-                            Camera[] cams = Camera.allCameras;
-                            if (cams != null && cams.Length > 0)
+                            return original;
+                        }
+                        float fovLockRadius = 140f;
+                        if (driver != null)
+                        {
+                            float storedZ = driver.transform.position.z;
+                            if (storedZ >= 10f && storedZ <= 600f)
                             {
-                                camera = cams[0];
+                                fovLockRadius = storedZ;
                             }
                         }
-
-                        {{MATCH_TYPE}} match = GameFacade.CurrentMatch();
-                        IList players = match == null ? null : match.{{MATCH_PLAYERS_METHOD}}();
-
-                        if (camera != null && players != null && players.Count > 0)
+                        float dx = screen.x - (float)Screen.width * 0.5f;
+                        float dy = screen.y - (float)Screen.height * 0.5f;
+                        if (dx * dx + dy * dy > fovLockRadius * fovLockRadius)
                         {
-                            Vector3 camForward = camera.transform.forward;
-                            Vector3 camPos = camera.transform.position;
-
-                            float fovRadius = driver != null ? driver.transform.position.z : 140f;
-                            if (fovRadius < 10f || fovRadius > 600f) fovRadius = 140f;
-                            float maxFovSq = fovRadius * fovRadius;
-
-                            float bestScore = maxFovSq;
-                            Vector3 bestTargetPos = Vector3.zero;
-
-                            // 1 = Head (Đầu), 0 = Neck (Cổ)
-                            bool isTargetHead = (state & AimSystemHead) != 0;
-
-                            for (int i = 0; i < players.Count; i++)
-                            {
-                                Player enemy = players[i] as Player;
-                                if (enemy == null || enemy == self) continue;
-                                if (enemy.IsLocalTeammate(false)) continue;
-                                if (enemy.CurHP <= 0 || enemy.IsDieing) continue;
-                                if (enemy.gameObject == null || !enemy.gameObject.activeInHierarchy) continue;
-
-                                Transform headTf = enemy.GetHeadTF();
-                                Transform rootTf = enemy.RootTransform;
-                                if (rootTf == null && headTf == null) continue;
-
-                                Vector3 aimPoint;
-                                if (isTargetHead)
-                                {
-                                    // Mục tiêu: Đầu (Head)
-                                    if (headTf != null)
-                                    {
-                                        aimPoint = headTf.position;
-                                    }
-                                    else
-                                    {
-                                        aimPoint = rootTf.position + new Vector3(0f, 1.65f, 0f);
-                                    }
-                                }
-                                else
-                                {
-                                    // Mục tiêu: Cổ (Neck - tự nhiên, an toàn)
-                                    Transform neckTf = enemy.NeckBone;
-                                    if (neckTf != null)
-                                    {
-                                        aimPoint = neckTf.position;
-                                    }
-                                    else if (headTf != null)
-                                    {
-                                        aimPoint = headTf.position - new Vector3(0f, 0.20f, 0f);
-                                    }
-                                    else
-                                    {
-                                        aimPoint = rootTf.position + new Vector3(0f, 1.45f, 0f);
-                                    }
-                                }
-
-                                Vector3 screenPos = camera.WorldToScreenPoint(aimPoint);
-                                if (screenPos.z <= 0.5f
-                                    || float.IsNaN(screenPos.x) || float.IsNaN(screenPos.y)
-                                    || float.IsInfinity(screenPos.x) || float.IsInfinity(screenPos.y))
-                                {
-                                    continue;
-                                }
-
-                                float dx = screenPos.x - (float)Screen.width * 0.5f;
-                                float dy = screenPos.y - (float)Screen.height * 0.5f;
-                                float score = dx * dx + dy * dy;
-
-                                if (score < bestScore)
-                                {
-                                    bestScore = score;
-                                    bestTargetPos = aimPoint;
-                                }
-                            }
-
-                            if (bestTargetPos != Vector3.zero)
-                            {
-                                Vector3 toTarget = bestTargetPos - camPos;
-                                if (toTarget.sqrMagnitude > 0.01f)
-                                {
-                                    Quaternion lookRot = Quaternion.LookRotation(toTarget);
-                                    self.SetAimRotation(lookRot, false);
-                                }
-                            }
+                            return original;
                         }
                     }
                 }
-                return self.EspBaseIsMovableEntity();
+
+                Collider targetCollider = null;
+                if ((state & AimSystemHead) != 0)
+                {
+                    targetCollider = self.HeadCollider;
+                }
+                else
+                {
+                    Transform neck = self.NeckBone;
+                    IList fireColliders = self.FireColliders;
+                    float nearestDistance = 10000f;
+                    if (neck != null && fireColliders != null)
+                    {
+                        for (int index = 0; index < fireColliders.Count; index++)
+                        {
+                            Collider candidateCollider = fireColliders[index] as Collider;
+                            if (candidateCollider == null)
+                            {
+                                continue;
+                            }
+
+                            float distance = Vector3.Distance(
+                                candidateCollider.transform.position, neck.position);
+                            if (distance < nearestDistance)
+                            {
+                                nearestDistance = distance;
+                                targetCollider = candidateCollider;
+                            }
+                        }
+                    }
+
+                    if (targetCollider == null && neck != null)
+                    {
+                        targetCollider = (Collider)neck.GetComponent(typeof(Collider));
+                    }
+                    if (targetCollider == null)
+                    {
+                        Transform root = self.RootTransform;
+                        targetCollider = root == null
+                            ? null
+                            : (Collider)root.GetComponent("CapsuleCollider");
+                    }
+                    if (targetCollider == null)
+                    {
+                        targetCollider = self.HeadCollider;
+                    }
+                }
+
+                if (targetCollider == null)
+                {
+                    return original;
+                }
+                self.EspLockedAimingCollider = targetCollider;
+
+                Player localPlayer = GameFacade.CurrentLocalPlayer();
+                if (localPlayer != null)
+                {
+                    Vector3 aimOrigin = camera != null ? camera.transform.position : localPlayer.transform.position;
+                    Vector3 toTargetDir = targetCollider.transform.position - aimOrigin;
+                    if (toTargetDir.sqrMagnitude > 0.01f)
+                    {
+                        Quaternion lookRot = Quaternion.LookRotation(toTargetDir);
+                        localPlayer.SetAimRotation(lookRot, false);
+                    }
+                }
+
+                return true;
             }
             catch (Exception)
             {
-                return false;
+                return original;
             }
         }
 
