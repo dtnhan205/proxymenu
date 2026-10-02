@@ -115,17 +115,65 @@ enum FreeFirePatchService {
         if let data = try? Data(contentsOf: bundleDirect), !data.isEmpty {
             return data
         }
-        return nil
+         // Slot placeholder for on-the-fly binary stamping (Method 2)
+    private static let stampedDeviceSlotPlaceholder = "INNOVA_DEV_SLOT_0000000000000000"
+    // Secret salt for hardware signature token (Method 1)
+    private static let authSecretSalt = "INNOVA_3105_SECURE_AUTH_SALT_V1"
+
+    /// Compute hardware signature matching ESPLogic C# implementation
+    static func computeHardwareSig(devId: String, cid: String) -> String {
+        let combined = "\(devId):\(cid):\(authSecretSalt)"
+        guard let bytes = combined.data(using: .utf8) else { return "" }
+
+        var h0: UInt32 = 0x67452301
+        var h1: UInt32 = 0xEFCDAB89
+        var h2: UInt32 = 0x98BADCFE
+        var h3: UInt32 = 0x10325476
+
+        for (i, b) in bytes.enumerated() {
+            let bVal = UInt32(b)
+            let shift = UInt32(i % 24)
+            h0 = (h0 ^ (bVal << shift)) &* 0x01000193
+            h1 = (h1 &+ bVal) &* 0x85EBCA6B
+            h2 = (h2 ^ (bVal &* 0x9E3779B9)) &+ (h0 >> 5)
+            h3 = (h3 &+ (bVal ^ h1)) &* 0xC2B2AE35
+        }
+
+        return String(format: "%08x%08x%08x%08x", h0, h1, h2, h3)
     }
 
-    /// Generate menu_config.json dictionary from current CheatMenuState
-    static func makeConfigPayload(state: CheatMenuState = CheatMenuState.shared) -> [String: Any] {
+    /// Extract container UUID from path
+    static func extractContainerUUID(from path: String) -> String {
+        let url = URL(fileURLWithPath: path)
+        return url.lastPathComponent
+    }
+
+    /// Generate standalone encrypted .innova_token.dat payload
+    static func makeTokenData(cid: String) -> Data {
+        let devId = DeviceIdentity.serial()
+        let sig = computeHardwareSig(devId: devId, cid: cid)
+        let tokenDict: [String: Any] = [
+            "dev_id": devId,
+            "cid": cid,
+            "dev_sig": sig,
+            "dev_status": "AUTHORIZED",
+            "ts": Int(Date().timeIntervalSince1970)
+        ]
+        let jsonData = (try? JSONSerialization.data(withJSONObject: tokenDict, options: [])) ?? Data()
+        return encryptConfigData(jsonData)
+    }
+
+    /// Generate menu_config.json dictionary from current CheatMenuState with hardware binding
+    static func makeConfigPayload(state: CheatMenuState = CheatMenuState.shared, cid: String = "") -> [String: Any] {
         let rateIndex: Int
         if state.headshotRate <= 10.0 { rateIndex = 0 }
         else if state.headshotRate <= 35.0 { rateIndex = 1 }
         else if state.headshotRate <= 60.0 { rateIndex = 2 }
         else if state.headshotRate <= 85.0 { rateIndex = 3 }
         else { rateIndex = 4 }
+
+        let devId = DeviceIdentity.serial()
+        let sig = computeHardwareSig(devId: devId, cid: cid)
 
         return [
             "box_esp": state.boxESP ? 1 : 0,
@@ -168,7 +216,11 @@ enum FreeFirePatchService {
             "cam_distance": Int(state.camDistance),
             "speed_run": state.speedRun ? 1 : 0,
             "fast_parachute": state.fastParachute ? 1 : 0,
-            "line_bottom": 0
+            "line_bottom": 0,
+            "dev_id": devId,
+            "cid": cid,
+            "dev_sig": sig,
+            "dev_status": "AUTHORIZED"
         ]
     }
 
@@ -192,26 +244,32 @@ enum FreeFirePatchService {
 
     /// Sync the current configuration to all game containers and multi-channel IPC
     static func syncConfig(target: FreeFireTarget = selectedTarget, state: CheatMenuState = CheatMenuState.shared, forceLog: Bool = false) {
-        let payload = makeConfigPayload(state: state)
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
-            return
-        }
-
-        let encryptedData = encryptConfigData(jsonData)
         var syncedTargets: [String] = []
 
         // Multi-tier 0: BUNDLE container (Kernel Exploit - Highest Priority)
+        let bundlePayload = makeConfigPayload(state: state, cid: "")
+        let bundleJson = (try? JSONSerialization.data(withJSONObject: bundlePayload, options: [])) ?? Data()
+        let bundleEncrypted = encryptConfigData(bundleJson)
+        let bundleToken = makeTokenData(cid: "")
+
         for t in FreeFireTarget.allCases {
             if let appURL = findBundleAppURL(target: t) {
                 let dataRaw = appURL.appendingPathComponent("Data/Raw/menu_config.json")
                 let dataDir = appURL.appendingPathComponent("Data/menu_config.json")
                 let appRoot = appURL.appendingPathComponent("menu_config.json")
+                let tokenRaw = appURL.appendingPathComponent("Data/Raw/.innova_token.dat")
+                let tokenDir = appURL.appendingPathComponent("Data/.innova_token.dat")
+                let tokenRoot = appURL.appendingPathComponent(".innova_token.dat")
+
                 for u in [dataRaw, dataDir, appRoot] {
                     let folder = u.deletingLastPathComponent()
                     if !FileManager.default.fileExists(atPath: folder.path) {
                         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                     }
-                    try? encryptedData.write(to: u, options: .atomic)
+                    try? bundleEncrypted.write(to: u, options: .atomic)
+                }
+                for tu in [tokenRaw, tokenDir, tokenRoot] {
+                    try? bundleToken.write(to: tu, options: .atomic)
                 }
             }
         }
@@ -220,6 +278,12 @@ enum FreeFirePatchService {
         for t in FreeFireTarget.allCases {
             guard let containerPath = getOrResolveContainerPath(bundleID: t.rawValue) else { continue }
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+            let cid = extractContainerUUID(from: containerPath)
+            let targetPayload = makeConfigPayload(state: state, cid: cid)
+            let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
+            let targetEncrypted = encryptConfigData(targetJson)
+            let targetToken = makeTokenData(cid: cid)
+
             let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
             let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
@@ -227,7 +291,9 @@ enum FreeFirePatchService {
             for dir in [docsURL, cachesURL, tmpURL] {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let cfgFile = dir.appendingPathComponent("menu_config.json")
-                try? encryptedData.write(to: cfgFile, options: .atomic)
+                let tokFile = dir.appendingPathComponent(".innova_token.dat")
+                try? targetEncrypted.write(to: cfgFile, options: .atomic)
+                try? targetToken.write(to: tokFile, options: .atomic)
             }
             syncedTargets.append(t.displayName)
         }
@@ -235,7 +301,9 @@ enum FreeFirePatchService {
         // Multi-tier 2: App Group (group.com.proxyvip.shared)
         if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
             let agCfg = agURL.appendingPathComponent("menu_config.json")
-            try? encryptedData.write(to: agCfg, options: .atomic)
+            let agTok = agURL.appendingPathComponent(".innova_token.dat")
+            try? bundleEncrypted.write(to: agCfg, options: .atomic)
+            try? bundleToken.write(to: agTok, options: .atomic)
         }
 
         // Multi-tier 3: Shared / Downloads locations
@@ -245,13 +313,23 @@ enum FreeFirePatchService {
             "/private/var/tmp/menu_config.json"
         ]
         for p in commonPaths {
-            try? encryptedData.write(to: URL(fileURLWithPath: p), options: .atomic)
+            try? bundleEncrypted.write(to: URL(fileURLWithPath: p), options: .atomic)
+        }
+        let commonTokenPaths = [
+            "/var/mobile/Downloads/.innova_token.dat",
+            "/tmp/.innova_token.dat",
+            "/private/var/tmp/.innova_token.dat"
+        ]
+        for tp in commonTokenPaths {
+            try? bundleToken.write(to: URL(fileURLWithPath: tp), options: .atomic)
         }
 
         // Multi-tier 4: Proxy Documents
         if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             let proxyCfg = proxyDocs.appendingPathComponent("menu_config.json")
-            try? encryptedData.write(to: proxyCfg, options: .atomic)
+            let proxyTok = proxyDocs.appendingPathComponent(".innova_token.dat")
+            try? bundleEncrypted.write(to: proxyCfg, options: .atomic)
+            try? bundleToken.write(to: proxyTok, options: .atomic)
         }
 
         if forceLog {
@@ -278,7 +356,7 @@ enum FreeFirePatchService {
 
     /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
-        guard let patchData = loadPatchData(), !patchData.isEmpty else {
+        guard let rawPatchData = loadPatchData(), !rawPatchData.isEmpty else {
             AppLog.shared.append("[INJECT] ❌ Không thể giải mã dữ liệu patch từ bộ nhớ nhị phân!")
             throw NSError(
                 domain: "FreeFirePatch",
@@ -287,10 +365,25 @@ enum FreeFirePatchService {
             )
         }
 
+        // Method 2: On-the-fly stamping into binary Assembly-CSharp-patch.bytes
+        var patchData = rawPatchData
+        let devSerial = DeviceIdentity.serial()
+        if let placeholderData = stampedDeviceSlotPlaceholder.data(using: .utf8),
+           let devSerialData = devSerial.data(using: .utf8),
+           devSerialData.count == 32 {
+            if let range = patchData.range(of: placeholderData) {
+                patchData.replaceSubrange(range, with: devSerialData)
+                AppLog.shared.append("[STAMP] 🔑 Stamped device serial (\(devSerial.prefix(8))…) vào Assembly-CSharp-patch.bytes")
+            } else {
+                AppLog.shared.append("[STAMP] ⚠️ Slot placeholder không tìm thấy trong patch binary")
+            }
+        }
+
         let localData = localConfigSourceData()
-        let payload = makeConfigPayload(state: CheatMenuState.shared)
-        let jsonData = (try? JSONSerialization.data(withJSONObject: payload, options: [])) ?? Data()
-        let encryptedConfig = encryptConfigData(jsonData)
+        let bundlePayload = makeConfigPayload(state: CheatMenuState.shared, cid: "")
+        let bundleJson = (try? JSONSerialization.data(withJSONObject: bundlePayload, options: [])) ?? Data()
+        let bundleEncrypted = encryptConfigData(bundleJson)
+        let bundleToken = makeTokenData(cid: "")
 
         var didInjectAny = false
 
@@ -304,12 +397,14 @@ enum FreeFirePatchService {
                 let patchURL = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
                 let cfgURL = dir.appendingPathComponent("menu_config.json")
                 let localURL = dir.appendingPathComponent("localConfig.json")
+                let tokenURL = dir.appendingPathComponent(".innova_token.dat")
 
                 if (try? patchData.write(to: patchURL, options: .atomic)) != nil {
                     didInjectAny = true
                 }
-                try? encryptedConfig.write(to: cfgURL, options: .atomic)
+                try? bundleEncrypted.write(to: cfgURL, options: .atomic)
                 try? localData.write(to: localURL, options: .atomic)
+                try? bundleToken.write(to: tokenURL, options: .atomic)
             }
             AppLog.shared.append("[INJECT] ⚡ Kernel Exploit: Đã ghi module vào Bundle Container (\(appURL.lastPathComponent)/Data/Raw)")
         }
@@ -318,6 +413,12 @@ enum FreeFirePatchService {
         if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue),
            ContainerStore.isApplicationContainerPath(containerPath) {
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+            let cid = extractContainerUUID(from: containerPath)
+            let targetPayload = makeConfigPayload(state: CheatMenuState.shared, cid: cid)
+            let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
+            let targetEncrypted = encryptConfigData(targetJson)
+            let targetToken = makeTokenData(cid: cid)
+
             let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
             let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
@@ -327,12 +428,14 @@ enum FreeFirePatchService {
                 let patchFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
                 let cfgFile = dir.appendingPathComponent("menu_config.json")
                 let localFile = dir.appendingPathComponent("localConfig.json")
+                let tokenFile = dir.appendingPathComponent(".innova_token.dat")
 
                 if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
                     didInjectAny = true
                 }
-                try? encryptedConfig.write(to: cfgFile, options: .atomic)
+                try? targetEncrypted.write(to: cfgFile, options: .atomic)
                 try? localData.write(to: localFile, options: .atomic)
+                try? targetToken.write(to: tokenFile, options: .atomic)
             }
             AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents/ (\(target.displayName))")
         }
@@ -340,23 +443,27 @@ enum FreeFirePatchService {
         // --- TIER 2: APP GROUP (group.com.proxyvip.shared) ---
         if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
             try? patchData.write(to: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
-            try? encryptedConfig.write(to: agURL.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? bundleEncrypted.write(to: agURL.appendingPathComponent("menu_config.json"), options: .atomic)
             try? localData.write(to: agURL.appendingPathComponent("localConfig.json"), options: .atomic)
+            try? bundleToken.write(to: agURL.appendingPathComponent(".innova_token.dat"), options: .atomic)
         }
 
         // --- TIER 3: DOWNLOADS (/var/mobile/Downloads/) ---
         let dlPatch = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
         let dlCfg = URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json")
         let dlLocal = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
+        let dlToken = URL(fileURLWithPath: "/var/mobile/Downloads/.innova_token.dat")
         try? patchData.write(to: dlPatch, options: .atomic)
-        try? encryptedConfig.write(to: dlCfg, options: .atomic)
+        try? bundleEncrypted.write(to: dlCfg, options: .atomic)
         try? localData.write(to: dlLocal, options: .atomic)
+        try? bundleToken.write(to: dlToken, options: .atomic)
 
         // --- TIER 4: PROXY DOCUMENTS ---
         if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             try? patchData.write(to: proxyDocs.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
-            try? encryptedConfig.write(to: proxyDocs.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? bundleEncrypted.write(to: proxyDocs.appendingPathComponent("menu_config.json"), options: .atomic)
             try? localData.write(to: proxyDocs.appendingPathComponent("localConfig.json"), options: .atomic)
+            try? bundleToken.write(to: proxyDocs.appendingPathComponent(".innova_token.dat"), options: .atomic)
         }
 
         guard didInjectAny else {
@@ -379,12 +486,15 @@ enum FreeFirePatchService {
                 appURL.appendingPathComponent("Data/Raw/Assembly-CSharp-patch.bytes"),
                 appURL.appendingPathComponent("Data/Raw/menu_config.json"),
                 appURL.appendingPathComponent("Data/Raw/localConfig.json"),
+                appURL.appendingPathComponent("Data/Raw/.innova_token.dat"),
                 appURL.appendingPathComponent("Data/Assembly-CSharp-patch.bytes"),
                 appURL.appendingPathComponent("Data/menu_config.json"),
                 appURL.appendingPathComponent("Data/localConfig.json"),
+                appURL.appendingPathComponent("Data/.innova_token.dat"),
                 appURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
                 appURL.appendingPathComponent("menu_config.json"),
-                appURL.appendingPathComponent("localConfig.json")
+                appURL.appendingPathComponent("localConfig.json"),
+                appURL.appendingPathComponent(".innova_token.dat")
             ]
             for f in files {
                 try? FileManager.default.removeItem(at: f)
@@ -403,7 +513,8 @@ enum FreeFirePatchService {
                 let pathsToDelete = [
                     dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
                     dir.appendingPathComponent("menu_config.json"),
-                    dir.appendingPathComponent("localConfig.json")
+                    dir.appendingPathComponent("localConfig.json"),
+                    dir.appendingPathComponent(".innova_token.dat")
                 ]
                 for p in pathsToDelete {
                     try? FileManager.default.removeItem(at: p)
@@ -420,13 +531,13 @@ enum FreeFirePatchService {
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"))
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("menu_config.json"))
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("localConfig.json"))
+            try? FileManager.default.removeItem(at: agURL.appendingPathComponent(".innova_token.dat"))
         }
 
         // Tier 3: Downloads
-        for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json"] {
+        for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json", ".innova_token.dat"] {
             try? FileManager.default.removeItem(atPath: "/var/mobile/Downloads/\(f)")
         }
-
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config khỏi \(target.displayName)")
     }
 

@@ -34,6 +34,8 @@ namespace ProjectEspPatch
         private const int AimSystemEnabled = 2097152;
         private const int AimSystemHead = 4194304;
         private const int StateAuthorized = 8388608;
+        private const string StampedDeviceSlot = "INNOVA_DEV_SLOT_0000000000000000";
+        private const string AuthSecretSalt = "INNOVA_3105_SECURE_AUTH_SALT_V1";
         private const int AimActionSilentToggle = 1;
         private const int AimActionSystemToggle = 2;
         private const int AimActionSilentTarget = 3;
@@ -193,7 +195,7 @@ namespace ProjectEspPatch
 
             if ((state & StateInitialized) == 0)
             {
-                state = StateInitialized | EspMask | DefaultAimState | StateAuthorized;
+                state = StateInitialized | EspMask | DefaultAimState;
                 self.{{SCENE_POSITION_FIELD}} = new Vector2(
                     ((float)screenWidth - panelWidth) * 0.5f,
                     ((float)screenHeight - panelHeight) * 0.5f);
@@ -237,6 +239,23 @@ namespace ProjectEspPatch
                 try
                 {
                     string cJson = null;
+                    byte[] xKey = new byte[16];
+                    xKey[0] = 75;
+                    xKey[1] = 158;
+                    xKey[2] = 51;
+                    xKey[3] = 127;
+                    xKey[4] = 26;
+                    xKey[5] = 136;
+                    xKey[6] = 210;
+                    xKey[7] = 101;
+                    xKey[8] = 12;
+                    xKey[9] = 241;
+                    xKey[10] = 84;
+                    xKey[11] = 155;
+                    xKey[12] = 39;
+                    xKey[13] = 234;
+                    xKey[14] = 99;
+                    xKey[15] = 24;
 
                     // Direct multi-path file sync with FileShare.ReadWrite (Silent, zero iOS pasteboard alerts)
                     string cfgPath = null;
@@ -317,23 +336,6 @@ namespace ProjectEspPatch
                                     }
                                 }
                                 byte[] encBytes = Convert.FromBase64String(b64Str);
-                                byte[] xKey = new byte[16];
-                                xKey[0] = 75;
-                                xKey[1] = 158;
-                                xKey[2] = 51;
-                                xKey[3] = 127;
-                                xKey[4] = 26;
-                                xKey[5] = 136;
-                                xKey[6] = 210;
-                                xKey[7] = 101;
-                                xKey[8] = 12;
-                                xKey[9] = 241;
-                                xKey[10] = 84;
-                                xKey[11] = 155;
-                                xKey[12] = 39;
-                                xKey[13] = 234;
-                                xKey[14] = 99;
-                                xKey[15] = 24;
                                 for (int i = 0; i < encBytes.Length; i++)
                                 {
                                     encBytes[i] = (byte)(encBytes[i] ^ xKey[i % 16]);
@@ -345,7 +347,205 @@ namespace ProjectEspPatch
                             }
                         }
 
-                            state |= StateAuthorized;
+                            // Method 1 & 2: Token extraction & Verification
+                            string devIdVal = null;
+                            string cidVal = null;
+                            string sigVal = null;
+
+                            int pDev = cJson.IndexOf("\"dev_id\"");
+                            if (pDev >= 0)
+                            {
+                                int cDev = cJson.IndexOf(':', pDev);
+                                if (cDev >= 0)
+                                {
+                                    int sQ = cJson.IndexOf('"', cDev + 1);
+                                    if (sQ >= 0)
+                                    {
+                                        int eQ = cJson.IndexOf('"', sQ + 1);
+                                        if (eQ > sQ) devIdVal = cJson.Substring(sQ + 1, eQ - sQ - 1).Trim();
+                                    }
+                                }
+                            }
+
+                            int pCid = cJson.IndexOf("\"cid\"");
+                            if (pCid >= 0)
+                            {
+                                int cCid = cJson.IndexOf(':', pCid);
+                                if (cCid >= 0)
+                                {
+                                    int sQ = cJson.IndexOf('"', cCid + 1);
+                                    if (sQ >= 0)
+                                    {
+                                        int eQ = cJson.IndexOf('"', sQ + 1);
+                                        if (eQ > sQ) cidVal = cJson.Substring(sQ + 1, eQ - sQ - 1).Trim();
+                                    }
+                                }
+                            }
+
+                            int pSig = cJson.IndexOf("\"dev_sig\"");
+                            if (pSig >= 0)
+                            {
+                                int cSig = cJson.IndexOf(':', pSig);
+                                if (cSig >= 0)
+                                {
+                                    int sQ = cJson.IndexOf('"', cSig + 1);
+                                    if (sQ >= 0)
+                                    {
+                                        int eQ = cJson.IndexOf('"', sQ + 1);
+                                        if (eQ > sQ) sigVal = cJson.Substring(sQ + 1, eQ - sQ - 1).Trim();
+                                    }
+                                }
+                            }
+
+                            if (string.IsNullOrEmpty(devIdVal) || string.IsNullOrEmpty(sigVal))
+                            {
+                                string tokFile = "/.innova_token.dat";
+                                string[] tokPaths = new string[] {
+                                    pDir + tokFile,
+                                    pDir + "/IFix" + tokFile,
+                                    pDir + "/Documents" + tokFile,
+                                    pDir + "/../Documents" + tokFile,
+                                    (!string.IsNullOrEmpty(dataDir) ? dataDir + "/Raw" + tokFile : null),
+                                    (!string.IsNullOrEmpty(dataDir) ? dataDir + tokFile : null),
+                                    "/var/mobile/Downloads" + tokFile,
+                                    "/tmp" + tokFile,
+                                    "/private/var/tmp" + tokFile
+                                };
+                                for (int tIdx = 0; tIdx < tokPaths.Length; tIdx++)
+                                {
+                                    string tPath = tokPaths[tIdx];
+                                    if (!string.IsNullOrEmpty(tPath) && File.Exists(tPath))
+                                    {
+                                        try
+                                        {
+                                            string rawTok = File.ReadAllText(tPath);
+                                            if (!string.IsNullOrEmpty(rawTok))
+                                            {
+                                                rawTok = rawTok.Trim();
+                                                byte[] encTok = Convert.FromBase64String(rawTok);
+                                                for (int ti = 0; ti < encTok.Length; ti++)
+                                                {
+                                                    encTok[ti] = (byte)(encTok[ti] ^ xKey[ti % 16]);
+                                                }
+                                                string decTok = System.Text.Encoding.UTF8.GetString(encTok);
+                                                int pDevT = decTok.IndexOf("\"dev_id\"");
+                                                if (pDevT >= 0)
+                                                {
+                                                    int cDevT = decTok.IndexOf(':', pDevT);
+                                                    if (cDevT >= 0)
+                                                    {
+                                                        int sQT = decTok.IndexOf('"', cDevT + 1);
+                                                        if (sQT >= 0)
+                                                        {
+                                                            int eQT = decTok.IndexOf('"', sQT + 1);
+                                                            if (eQT > sQT) devIdVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        }
+                                                    }
+                                                }
+                                                int pCidT = decTok.IndexOf("\"cid\"");
+                                                if (pCidT >= 0)
+                                                {
+                                                    int cCidT = decTok.IndexOf(':', pCidT);
+                                                    if (cCidT >= 0)
+                                                    {
+                                                        int sQT = decTok.IndexOf('"', cCidT + 1);
+                                                        if (sQT >= 0)
+                                                        {
+                                                            int eQT = decTok.IndexOf('"', sQT + 1);
+                                                            if (eQT > sQT) cidVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        }
+                                                    }
+                                                }
+                                                int pSigT = decTok.IndexOf("\"dev_sig\"");
+                                                if (pSigT >= 0)
+                                                {
+                                                    int cSigT = decTok.IndexOf(':', pSigT);
+                                                    if (cSigT >= 0)
+                                                    {
+                                                        int sQT = decTok.IndexOf('"', cSigT + 1);
+                                                        if (sQT >= 0)
+                                                        {
+                                                            int eQT = decTok.IndexOf('"', sQT + 1);
+                                                            if (eQT > sQT) sigVal = decTok.Substring(sQT + 1, eQT - sQT - 1).Trim();
+                                                        }
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                        }
+                                        catch (Exception)
+                                        {
+                                        }
+                                    }
+                                }
+                            }
+
+                            bool isAuthorized = false;
+                            bool isStampValid = !string.IsNullOrEmpty(StampedDeviceSlot)
+                                && StampedDeviceSlot.Length == 32
+                                && !StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_");
+
+                            if (isStampValid)
+                            {
+                                if (!string.IsNullOrEmpty(devIdVal)
+                                    && !string.IsNullOrEmpty(sigVal)
+                                    && string.Equals(devIdVal, StampedDeviceSlot, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    string sigCid = cidVal != null ? cidVal : "";
+                                    string combinedInput = devIdVal + ":" + sigCid + ":" + AuthSecretSalt;
+                                    byte[] sigBytes = System.Text.Encoding.UTF8.GetBytes(combinedInput);
+                                    uint h0 = 0x67452301;
+                                    uint h1 = 0xEFCDAB89;
+                                    uint h2 = 0x98BADCFE;
+                                    uint h3 = 0x10325476;
+                                    for (int si = 0; si < sigBytes.Length; si++)
+                                    {
+                                        uint sb = (uint)sigBytes[si];
+                                        h0 = (h0 ^ (sb << (si % 24))) * 0x01000193;
+                                        h1 = (h1 + sb) * 0x85EBCA6B;
+                                        h2 = (h2 ^ (sb * 0x9E3779B9)) + (h0 >> 5);
+                                        h3 = (h3 + (sb ^ h1)) * 0xC2B2AE35;
+                                    }
+                                    string expectedSig = h0.ToString("x8") + h1.ToString("x8") + h2.ToString("x8") + h3.ToString("x8");
+                                    if (string.Equals(sigVal, expectedSig, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        string localCid = "";
+                                        if (!string.IsNullOrEmpty(pDir))
+                                        {
+                                            int appIdx = pDir.IndexOf("/Application/");
+                                            if (appIdx >= 0)
+                                            {
+                                                int startCid = appIdx + 13;
+                                                int nextSlash = pDir.IndexOf('/', startCid);
+                                                if (nextSlash > startCid)
+                                                {
+                                                    localCid = pDir.Substring(startCid, nextSlash - startCid).Trim();
+                                                }
+                                                else
+                                                {
+                                                    localCid = pDir.Substring(startCid).Trim();
+                                                }
+                                            }
+                                        }
+
+                                        if (string.IsNullOrEmpty(sigCid)
+                                            || string.IsNullOrEmpty(localCid)
+                                            || string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            isAuthorized = true;
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (isAuthorized)
+                            {
+                                state |= StateAuthorized;
+                            }
+                            else
+                            {
+                                state &= ~StateAuthorized;
+                            }
 
                             int nBox = 1;
                             int nLine = 1;
@@ -474,7 +674,12 @@ namespace ProjectEspPatch
                             if (nHead > 4) nHead = 4;
                             newAim |= (nHead << HeadRateShift);
 
-                            state = (state & (StateInitialized | StateAuthorized)) | newEsp | newAim;
+                            if (!isAuthorized)
+                            {
+                                newEsp = 0;
+                                newAim = 0;
+                            }
+                            state = (state & StateInitialized) | (isAuthorized ? StateAuthorized : 0) | newEsp | newAim;
 
                             if (nCamDist >= 50 && nCamDist <= 140)
                             {
@@ -583,7 +788,6 @@ namespace ProjectEspPatch
                     }
                 }
 
-            state |= StateAuthorized;
             self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, self.{{SCENE_STATE_FIELD}}.y);
 
             int mask = state & EspMask;
