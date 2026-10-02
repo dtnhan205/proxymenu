@@ -490,19 +490,22 @@ final class CheatMenuState: ObservableObject {
 
     init() {
         let ud = UserDefaults.standard
-        self.aimSilent = ud.object(forKey: "cheat.aimSilent") as? Bool ?? false
+        let rawAimBot = ud.object(forKey: "cheat.aimBot") as? Bool ?? false
+        var rawAimSilent = ud.object(forKey: "cheat.aimSilent") as? Bool ?? false
+
+        if rawAimBot && rawAimSilent {
+            rawAimSilent = false
+            ud.set(false, forKey: "cheat.aimSilent")
+        }
+
+        self.aimSilent = rawAimSilent
         self.drawFOV = ud.object(forKey: "cheat.drawFOV") as? Bool ?? true
         self.silentFOV = ud.object(forKey: "cheat.silentFOV") as? Double ?? 180.0
         self.headshotRate = ud.object(forKey: "cheat.headshotRate") as? Double ?? 100.0
-        self.aimBot = ud.object(forKey: "cheat.aimBot") as? Bool ?? false
+        self.aimBot = rawAimBot
         let targetStr = ud.string(forKey: "cheat.aimBotTarget") ?? "head"
         self.aimBotTarget = AimBotTarget(rawValue: targetStr) ?? .head
         self.aimLine = ud.object(forKey: "cheat.aimLine") as? Bool ?? false
-
-        if self.aimBot && self.aimSilent {
-            self.aimSilent = false
-            ud.set(false, forKey: "cheat.aimSilent")
-        }
 
         self.boxESP = ud.object(forKey: "cheat.boxESP") as? Bool ?? true
         self.lineESP = ud.object(forKey: "cheat.lineESP") as? Bool ?? true
