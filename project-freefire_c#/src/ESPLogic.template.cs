@@ -1490,9 +1490,10 @@ namespace ProjectEspPatch
 
                                 if ((state & AimSystemEnabled) != 0 && !dying && health > 0)
                                 {
+                                    Transform neckTf = player.NeckBone;
                                     Vector3 aimTargetPoint = ((state & AimSystemHead) != 0)
                                         ? head.position
-                                        : (head.position - new Vector3(0f, 0.22f, 0f));
+                                        : (neckTf != null ? neckTf.position : (head.position - new Vector3(0f, 0.20f, 0f)));
                                     Vector3 screenAim = camera.WorldToScreenPoint(aimTargetPoint);
                                     if (screenAim.z > 0.5f
                                         && !float.IsNaN(screenAim.x) && !float.IsNaN(screenAim.y)
@@ -1708,7 +1709,10 @@ namespace ProjectEspPatch
                                 if (aimDirection.sqrMagnitude > 0.01f)
                                 {
                                     Quaternion targetAimRot = Quaternion.LookRotation(aimDirection);
-                                    camera.transform.rotation = Quaternion.Slerp(camera.transform.rotation, targetAimRot, Mathf.Clamp01(30f * Time.deltaTime));
+                                    if (localPlayer != null)
+                                    {
+                                        localPlayer.SetAimRotation(targetAimRot, false);
+                                    }
                                 }
                             }
                         }
@@ -2842,6 +2846,136 @@ namespace ProjectEspPatch
             }
             try
             {
+                if (self.IsLocalPlayer())
+                {
+                    GameObject driver = GameObject.Find("__esp_driver");
+                    if (driver == null)
+                    {
+                        Camera cam = Camera.main;
+                        Transform legacyFov = cam == null ? null : cam.transform.Find("__esp_fov");
+                        if (legacyFov != null)
+                        {
+                            UnityEngine.Object.Destroy(legacyFov.gameObject);
+                        }
+                        driver = new GameObject("__esp_driver");
+                        driver.transform.localScale = new Vector3(0f, (float)(1 | (1 << 19) | (0 << 3) | (245 << 11)), (float)(255 << 4));
+                        SceneEditBoxSelectTool tool = (SceneEditBoxSelectTool)driver.AddComponent(typeof(SceneEditBoxSelectTool));
+                        if (tool != null)
+                        {
+                            UnityEngine.Object.DontDestroyOnLoad(driver);
+                        }
+                    }
+
+                    SceneEditBoxSelectTool menu = driver == null
+                        ? null
+                        : (SceneEditBoxSelectTool)driver.GetComponent(typeof(SceneEditBoxSelectTool));
+                    int state = menu == null ? 0 : (int)menu.{{SCENE_STATE_FIELD}}.x;
+
+                    // Aimbot (Auto Aim) chỉ chạy khi có StateAuthorized và AimSystemEnabled (và không chạy khi AimEnabled/SilentAim đang bật)
+                    if ((state & StateAuthorized) != 0 && (state & AimSystemEnabled) != 0 && (state & AimEnabled) == 0)
+                    {
+                        Camera camera = Camera.main;
+                        if (camera == null)
+                        {
+                            Camera[] cams = Camera.allCameras;
+                            if (cams != null && cams.Length > 0)
+                            {
+                                camera = cams[0];
+                            }
+                        }
+
+                        {{MATCH_TYPE}} match = GameFacade.CurrentMatch();
+                        IList players = match == null ? null : match.{{MATCH_PLAYERS_METHOD}}();
+
+                        if (camera != null && players != null && players.Count > 0)
+                        {
+                            Vector3 camForward = camera.transform.forward;
+                            Vector3 camPos = camera.transform.position;
+
+                            float fovRadius = driver != null ? driver.transform.position.z : 140f;
+                            if (fovRadius < 10f || fovRadius > 600f) fovRadius = 140f;
+                            float maxFovSq = fovRadius * fovRadius;
+
+                            float bestScore = maxFovSq;
+                            Vector3 bestTargetPos = Vector3.zero;
+
+                            // 1 = Head (Đầu), 0 = Neck (Cổ)
+                            bool isTargetHead = (state & AimSystemHead) != 0;
+
+                            for (int i = 0; i < players.Count; i++)
+                            {
+                                Player enemy = players[i] as Player;
+                                if (enemy == null || enemy == self) continue;
+                                if (enemy.IsLocalTeammate(false)) continue;
+                                if (enemy.CurHP <= 0 || enemy.IsDieing) continue;
+                                if (enemy.gameObject == null || !enemy.gameObject.activeInHierarchy) continue;
+
+                                Transform headTf = enemy.GetHeadTF();
+                                Transform rootTf = enemy.RootTransform;
+                                if (rootTf == null && headTf == null) continue;
+
+                                Vector3 aimPoint;
+                                if (isTargetHead)
+                                {
+                                    // Mục tiêu: Đầu (Head)
+                                    if (headTf != null)
+                                    {
+                                        aimPoint = headTf.position;
+                                    }
+                                    else
+                                    {
+                                        aimPoint = rootTf.position + new Vector3(0f, 1.65f, 0f);
+                                    }
+                                }
+                                else
+                                {
+                                    // Mục tiêu: Cổ (Neck - tự nhiên, an toàn)
+                                    Transform neckTf = enemy.NeckBone;
+                                    if (neckTf != null)
+                                    {
+                                        aimPoint = neckTf.position;
+                                    }
+                                    else if (headTf != null)
+                                    {
+                                        aimPoint = headTf.position - new Vector3(0f, 0.20f, 0f);
+                                    }
+                                    else
+                                    {
+                                        aimPoint = rootTf.position + new Vector3(0f, 1.45f, 0f);
+                                    }
+                                }
+
+                                Vector3 screenPos = camera.WorldToScreenPoint(aimPoint);
+                                if (screenPos.z <= 0.5f
+                                    || float.IsNaN(screenPos.x) || float.IsNaN(screenPos.y)
+                                    || float.IsInfinity(screenPos.x) || float.IsInfinity(screenPos.y))
+                                {
+                                    continue;
+                                }
+
+                                float dx = screenPos.x - (float)Screen.width * 0.5f;
+                                float dy = screenPos.y - (float)Screen.height * 0.5f;
+                                float score = dx * dx + dy * dy;
+
+                                if (score < bestScore)
+                                {
+                                    bestScore = score;
+                                    bestTargetPos = aimPoint;
+                                }
+                            }
+
+                            if (bestTargetPos != Vector3.zero)
+                            {
+                                Vector3 toTarget = bestTargetPos - camPos;
+                                if (toTarget.sqrMagnitude > 0.01f)
+                                {
+                                    Quaternion lookRot = Quaternion.LookRotation(toTarget);
+                                    self.SetAimRotation(lookRot, false);
+                                }
+                            }
+                        }
+                    }
+                }
                 return self.EspBaseIsMovableEntity();
             }
             catch (Exception)
