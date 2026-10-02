@@ -184,14 +184,29 @@ enum FreeFirePatchService {
         return String(format: "%08x%08x%08x%08x", h0, h1, h2, h3)
     }
 
-    /// Extract container UUID from path
+    /// Extract container UUID from path strictly (Zero permissive fallbacks)
     static func extractContainerUUID(from path: String) -> String {
-        let url = URL(fileURLWithPath: path)
-        return url.lastPathComponent
+        let canonical = ContainerDiscoveryMerger.canonicalPath(path)
+        let clean = canonical.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        let last = (clean as NSString).lastPathComponent
+        if UUID(uuidString: last) != nil {
+            return last
+        }
+        let components = clean.components(separatedBy: "/")
+        if let appIdx = components.firstIndex(of: "Application"), appIdx + 1 < components.count {
+            let candidate = components[appIdx + 1]
+            if UUID(uuidString: candidate) != nil {
+                return candidate
+            }
+        }
+        return ""
     }
 
     /// Generate standalone encrypted .innova_token.dat payload with expiration
     static func makeTokenData(cid: String) -> Data {
+        guard !cid.isEmpty, UUID(uuidString: cid) != nil else {
+            return makeRevokedTokenData(cid: "00000000-0000-0000-0000-000000000000")
+        }
         let devId = DeviceIdentity.serial()
         let nowTs = Int(Date().timeIntervalSince1970)
         let expTs = resolveLicenseExpirationTimestamp()
@@ -327,6 +342,9 @@ enum FreeFirePatchService {
             guard let containerPath = getOrResolveContainerPath(bundleID: t.rawValue) else { continue }
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
             let cid = extractContainerUUID(from: containerPath)
+            guard !cid.isEmpty, UUID(uuidString: cid) != nil else {
+                continue
+            }
             let targetPayload = makeConfigPayload(state: state)
             let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
             let targetEncrypted = encryptConfigData(targetJson)
@@ -459,6 +477,10 @@ enum FreeFirePatchService {
            ContainerStore.isApplicationContainerPath(containerPath) {
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
             let cid = extractContainerUUID(from: containerPath)
+            guard !cid.isEmpty, UUID(uuidString: cid) != nil else {
+                AppLog.shared.append("[INJECT] ⚠️ Container không có UUID hợp lệ, bỏ qua Tier 1: \(containerPath)")
+                return
+            }
             let targetPayload = makeConfigPayload(state: CheatMenuState.shared)
             let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
             let targetEncrypted = encryptConfigData(targetJson)
@@ -546,11 +568,10 @@ enum FreeFirePatchService {
         if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) {
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
             let cid = extractContainerUUID(from: containerPath)
+            let effectiveCid = cid.isEmpty ? "00000000-0000-0000-0000-000000000000" : cid
 
             // Ghi đè token bằng trạng thái REVOKED / EXPIRED (exp = 0) để game lập tức thu hồi quyền nếu đang chạy
-            let revokedToken = makeRevokedTokenData(cid: cid)
-            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-            try? revokedToken.write(to: docsURL.appendingPathComponent(tokenFileName), options: .atomic)
+            let revokedToken = makeRevokedTokenData(cid: effectiveCid)
 
             let dirs = [
                 containerURL.appendingPathComponent("Documents", isDirectory: true),
@@ -558,6 +579,7 @@ enum FreeFirePatchService {
                 containerURL.appendingPathComponent("tmp", isDirectory: true)
             ]
             for dir in dirs {
+                try? revokedToken.write(to: dir.appendingPathComponent(tokenFileName), options: .atomic)
                 let pathsToDelete = [
                     dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
                     dir.appendingPathComponent("menu_config.json"),

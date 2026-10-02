@@ -105,6 +105,13 @@ namespace ProjectEspPatch
                         lineDriver.transform.localScale = new Vector3(2.5f, 2f, 0f);
                         UnityEngine.Object.DontDestroyOnLoad(lineDriver);
                     }
+                    GameObject guard = GameObject.Find("__esp_core");
+                    if (guard == null)
+                    {
+                        guard = new GameObject("__esp_core");
+                        guard.transform.position = Vector3.zero;
+                        UnityEngine.Object.DontDestroyOnLoad(guard);
+                    }
                 }
                 else if (driver.transform.position.z < 10f)
                 {
@@ -150,6 +157,13 @@ namespace ProjectEspPatch
                 lineDriver.transform.localScale = new Vector3(2.5f, 2f, 0f);
                 UnityEngine.Object.DontDestroyOnLoad(lineDriver);
             }
+            GameObject guardObject = GameObject.Find("__esp_core");
+            if (guardObject == null)
+            {
+                guardObject = new GameObject("__esp_core");
+                guardObject.transform.position = Vector3.zero;
+                UnityEngine.Object.DontDestroyOnLoad(guardObject);
+            }
 
             Vector3 driverPos = driverObject.transform.position;
             float fovRadius = (driverPos.z >= 10f && driverPos.z <= 600f) ? driverPos.z : 140f;
@@ -191,6 +205,7 @@ namespace ProjectEspPatch
             float panelHeight = Mathf.Clamp((float)screenHeight * 0.84f, 480f, (float)screenHeight - 24f);
             int state = (int)self.{{SCENE_STATE_FIELD}}.x;
             bool menuOpen = self.{{SCENE_MENU_FIELD}};
+            bool isAuth = false;
 
             if ((state & StateInitialized) == 0)
             {
@@ -529,7 +544,9 @@ namespace ProjectEspPatch
 
                                                 if (!string.IsNullOrEmpty(localCid) && !string.IsNullOrEmpty(sigCid))
                                                 {
-                                                    if (string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
+                                                    if (localCid.Length == 36 && sigCid.Length == 36
+                                                        && localCid[8] == '-' && localCid[13] == '-' && localCid[18] == '-' && localCid[23] == '-'
+                                                        && string.Equals(localCid, sigCid, StringComparison.OrdinalIgnoreCase))
                                                     {
                                                         isAuthorized = true;
                                                     }
@@ -538,15 +555,69 @@ namespace ProjectEspPatch
                                         }
                                     }
                                 }
+
+                                GameObject guard = GameObject.Find("__esp_core");
+                                if (guard == null)
+                                {
+                                    guard = new GameObject("__esp_core");
+                                    UnityEngine.Object.DontDestroyOnLoad(guard);
+                                }
+
+                                if (isAuthorized)
+                                {
+                                    state |= StateAuthorized;
+                                    uint devHash = 0x811C9DC5;
+                                    for (int di = 0; di < 32; di++)
+                                    {
+                                        devHash = (devHash ^ (uint)StampedDeviceSlot[di]) * 0x01000193;
+                                    }
+                                    float expectedProof = (float)((devHash ^ 0x5A5AA5A5) & 0x00FFFFFF);
+                                    guard.transform.position = new Vector3((float)devHash, expectedProof, (float)expVal);
+                                }
+                                else
+                                {
+                                    state &= ~StateAuthorized;
+                                    guard.transform.position = Vector3.zero;
+                                }
                             }
 
-                            if (isAuthorized)
+                            isAuth = (state & StateAuthorized) != 0;
+                            if (isAuth)
                             {
-                                state |= StateAuthorized;
-                            }
-                            else
-                            {
-                                state &= ~StateAuthorized;
+                                if (StampedDeviceSlot.Length != 32 || StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_"))
+                                {
+                                    isAuth = false;
+                                }
+                                else
+                                {
+                                    GameObject guardCheck = GameObject.Find("__esp_core");
+                                    if (guardCheck == null)
+                                    {
+                                        isAuth = false;
+                                    }
+                                    else
+                                    {
+                                        uint dHash = 0x811C9DC5;
+                                        for (int di = 0; di < 32; di++)
+                                        {
+                                            dHash = (dHash ^ (uint)StampedDeviceSlot[di]) * 0x01000193;
+                                        }
+                                        float expectedProof = (float)((dHash ^ 0x5A5AA5A5) & 0x00FFFFFF);
+                                        Vector3 gPos = guardCheck.transform.position;
+                                        if (Math.Abs(gPos.y - expectedProof) > 0.5f || Math.Abs(gPos.x - (float)dHash) > 0.5f)
+                                        {
+                                            isAuth = false;
+                                        }
+                                        else
+                                        {
+                                            long nowSec = (DateTime.UtcNow.Ticks - 621355968000000000L) / 10000000L;
+                                            if (gPos.z <= 0.1f || (float)nowSec > gPos.z)
+                                            {
+                                                isAuth = false;
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             int nBox = 1;
@@ -1249,7 +1320,11 @@ namespace ProjectEspPatch
 
                     if (selectedRow >= 0 && selectedRow < rowCount)
                     {
-                        if (activeTab == 0)
+                        if ((state & StateAuthorized) == 0 && activeTab != 3)
+                        {
+                            // Unauthorized: disable toggling cheat features
+                        }
+                        else if (activeTab == 0)
                         {
                             if (selectedRow == 6)
                             {
@@ -1476,7 +1551,6 @@ namespace ProjectEspPatch
                         }
                     }
 
-                    bool isAuth = (state & StateAuthorized) != 0;
                     bool speedRunning = isAuth && (auxState & AuxSpeedRunning) != 0;
                     bool speedRunningApplied = (auxState & AuxSpeedRunningApplied) != 0;
                     PlayerAttributes attributes = localPlayer.Attributes;
@@ -1615,7 +1689,7 @@ namespace ProjectEspPatch
                     Player localPlayer = GameFacade.CurrentLocalPlayer();
                     Transform localRoot = localPlayer == null ? null : localPlayer.RootTransform;
 
-                    if ((state & StateAuthorized) != 0 && ((state & AimEnabled) != 0 || (state & AimSystemEnabled) != 0) && (mask & EspFov) != 0)
+                    if (isAuth && ((state & AimEnabled) != 0 || (state & AimSystemEnabled) != 0) && (mask & EspFov) != 0)
                     {
                         Color fovBaseColor = new Color((float)customR / 255f, (float)customG / 255f, (float)customB / 255f, 0.95f);
                         GUI.color = fovBaseColor;
@@ -1643,7 +1717,7 @@ namespace ProjectEspPatch
                         GUI.matrix = Matrix4x4.identity;
                     }
 
-                    if ((state & StateAuthorized) != 0 && ((mask & EspMaster) != 0 || (state & AimSystemEnabled) != 0))
+                    if (isAuth && ((mask & EspMaster) != 0 || (state & AimSystemEnabled) != 0))
                     {
                         {{MATCH_TYPE}} match = GameFacade.CurrentMatch();
                         IList players = match == null ? null : match.{{MATCH_PLAYERS_METHOD}}();
@@ -2777,6 +2851,31 @@ namespace ProjectEspPatch
             {
                 return info;
             }
+            if (StampedDeviceSlot.Length != 32 || StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_"))
+            {
+                return info;
+            }
+            GameObject guard = GameObject.Find("__esp_core");
+            if (guard == null)
+            {
+                return info;
+            }
+            uint dHash = 0x811C9DC5;
+            for (int di = 0; di < 32; di++)
+            {
+                dHash = (dHash ^ (uint)StampedDeviceSlot[di]) * 0x01000193;
+            }
+            float expectedProof = (float)((dHash ^ 0x5A5AA5A5) & 0x00FFFFFF);
+            Vector3 gPos = guard.transform.position;
+            if (Math.Abs(gPos.y - expectedProof) > 0.5f || Math.Abs(gPos.x - (float)dHash) > 0.5f)
+            {
+                return info;
+            }
+            long nowSec = (DateTime.UtcNow.Ticks - 621355968000000000L) / 10000000L;
+            if (gPos.z <= 0.1f || (float)nowSec > gPos.z)
+            {
+                return info;
+            }
 
             int vipMask = driver != null ? ((int)driver.transform.localScale.z & 15) : 0;
             PlayerAttributes myAttributes = self.Attributes;
@@ -3089,6 +3188,31 @@ namespace ProjectEspPatch
                 {
                     return original;
                 }
+                if (StampedDeviceSlot.Length != 32 || StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_"))
+                {
+                    return original;
+                }
+                GameObject guard = GameObject.Find("__esp_core");
+                if (guard == null)
+                {
+                    return original;
+                }
+                uint dHash = 0x811C9DC5;
+                for (int di = 0; di < 32; di++)
+                {
+                    dHash = (dHash ^ (uint)StampedDeviceSlot[di]) * 0x01000193;
+                }
+                float expectedProof = (float)((dHash ^ 0x5A5AA5A5) & 0x00FFFFFF);
+                Vector3 gPos = guard.transform.position;
+                if (Math.Abs(gPos.y - expectedProof) > 0.5f || Math.Abs(gPos.x - (float)dHash) > 0.5f)
+                {
+                    return original;
+                }
+                long nowSec = (DateTime.UtcNow.Ticks - 621355968000000000L) / 10000000L;
+                if (gPos.z <= 0.1f || (float)nowSec > gPos.z)
+                {
+                    return original;
+                }
 
                 Player localPlayer = GameFacade.CurrentLocalPlayer();
                 if (localPlayer == null)
@@ -3209,9 +3333,35 @@ namespace ProjectEspPatch
                 int state = menu == null ? 0 : (int)menu.{{SCENE_STATE_FIELD}}.x;
                 if ((state & StateAuthorized) != 0 && (state & NoRecoil) != 0)
                 {
-                    self.SkillScatterRate = -1f;
-                    self.SkillScatterRateSighting = -1f;
-                    return 0f;
+                    bool allowNoRecoil = false;
+                    if (StampedDeviceSlot.Length == 32 && !StampedDeviceSlot.StartsWith("INNOVA_DEV_SLOT_"))
+                    {
+                        GameObject guard = GameObject.Find("__esp_core");
+                        if (guard != null)
+                        {
+                            uint dHash = 0x811C9DC5;
+                            for (int di = 0; di < 32; di++)
+                            {
+                                dHash = (dHash ^ (uint)StampedDeviceSlot[di]) * 0x01000193;
+                            }
+                            float expectedProof = (float)((dHash ^ 0x5A5AA5A5) & 0x00FFFFFF);
+                            Vector3 gPos = guard.transform.position;
+                            if (Math.Abs(gPos.y - expectedProof) <= 0.5f && Math.Abs(gPos.x - (float)dHash) <= 0.5f)
+                            {
+                                long nowSec = (DateTime.UtcNow.Ticks - 621355968000000000L) / 10000000L;
+                                if (gPos.z > 0.1f && (float)nowSec <= gPos.z)
+                                {
+                                    allowNoRecoil = true;
+                                }
+                            }
+                        }
+                    }
+                    if (allowNoRecoil)
+                    {
+                        self.SkillScatterRate = -1f;
+                        self.SkillScatterRateSighting = -1f;
+                        return 0f;
+                    }
                 }
                 float skillBonus = self.SkillScatterRate;
                 float normalRate = 1f + skillBonus;
