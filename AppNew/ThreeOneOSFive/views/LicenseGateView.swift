@@ -506,29 +506,11 @@ struct LicenseGateView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             HStack(spacing: 8) {
                 featurePill(icon: "lock.shield", text: "1 KEY / 1 HWID")
                 featurePill(icon: "shield.lefthalf.filled", text: "KERNEL V2.5")
                 featurePill(icon: "bolt.badge.checkmark", text: "AUTO BYPASS")
-            }
-
-            Button(action: openTelegramSupport) {
-                HStack(spacing: 6) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 11))
-                    Text("CẦN MUA KEY HOẶC HỖ TRỢ? LIÊN HỆ TELEGRAM")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .tracking(0.8)
-                }
-                .foregroundColor(AppTheme.neonIce.opacity(0.85))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.05))
-                        .overlay(Capsule().strokeBorder(AppTheme.neonCyan.opacity(0.25), lineWidth: 0.8))
-                )
             }
 
             Text("// Ứng dụng chỉ chấp nhận License Key INNOVA chính thức")
@@ -624,18 +606,6 @@ struct LicenseGateView: View {
                     isCopiedHWID = false
                 }
             }
-        }
-    }
-
-    private func openTelegramSupport() {
-        if let telegramURL = URL(string: "https://t.me/innova_support"), UIApplication.shared.canOpenURL(telegramURL) {
-            UIApplication.shared.open(telegramURL)
-        } else {
-            UIPasteboard.general.string = "@innova_support"
-            let gen = UIImpactFeedbackGenerator(style: .medium)
-            gen.prepare()
-            gen.impactOccurred()
-            showError("Đã sao chép Telegram: @innova_support", isError: false)
         }
     }
 
