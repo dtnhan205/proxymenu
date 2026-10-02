@@ -85,7 +85,7 @@ struct LicenseGateView: View {
                 .foregroundColor(Color(red: 0.0, green: 0.94, blue: 1.0))
                 .shadow(color: Color(red: 0.0, green: 0.94, blue: 1.0).opacity(0.55), radius: 10)
 
-            Text("Nhập license key để mở khoá ứng dụng")
+            Text("Nhập license key INNOVA để mở khoá ứng dụng")
                 .font(.system(size: 13, weight: .regular, design: .monospaced))
                 .foregroundColor(Color(white: 0.6))
                 .multilineTextAlignment(.center)
@@ -94,12 +94,12 @@ struct LicenseGateView: View {
 
     private var inputCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("LICENSE.KEY")
+            Text("INNOVA.KEY")
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .tracking(2)
                 .foregroundColor(Color(white: 0.55))
 
-            TextField("NHAP-XXXX-XXXX-XXXX-XXXX", text: $keyInput)
+            TextField("INNOVA-1D-XXXX-XXXX", text: $keyInput)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled(true)
                 .font(.system(size: 16, weight: .medium, design: .monospaced))
@@ -222,7 +222,7 @@ struct LicenseGateView: View {
     }
 
     private var footer: some View {
-        Text("// Mỗi key chỉ dùng được 1 thiết bị cố định\n// Liên hệ admin để được reset key")
+        Text("// Mỗi key chỉ dùng được 1 thiết bị cố định\n// Ứng dụng chỉ chấp nhận Key INNOVA\n// Liên hệ admin để được hỗ trợ key")
             .font(.system(size: 10, weight: .regular, design: .monospaced))
             .foregroundColor(Color(white: 0.35))
             .multilineTextAlignment(.center)
@@ -361,7 +361,8 @@ struct LicenseGateView: View {
             return true
         case .keyNotFound, .revoked, .expired, .notActivated,
              .deviceLimitReached, .deviceNotBound,
-             .buildMissing, .buildRevoked, .buildUnknown:
+             .buildMissing, .buildRevoked, .buildUnknown,
+             .innovaKeyRequired, .proxyKeyNotAllowed:
             return false
         }
     }

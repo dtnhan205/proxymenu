@@ -51,12 +51,23 @@ final class LicenseStore: ObservableObject {
         encryptDataForDevice(data)
     }
 
-    /// Đọc key đã lưu từ UserDefaults hoặc file cache cục bộ trong app IPA
+    /// Kiểm tra định dạng key có phải là Key INNOVA hay không (bắt đầu bằng INNOVA-)
+    static func isInnovaKey(_ raw: String) -> Bool {
+        let upper = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return upper.hasPrefix("INNOVA-")
+    }
+
+    /// Đọc key đã lưu từ UserDefaults hoặc file cache cục bộ trong app IPA (Chỉ chấp nhận Key INNOVA)
     static func loadCachedKey() -> String? {
         // 1. Đọc từ UserDefaults
         if let key = UserDefaults.standard.string(forKey: "license.savedKey")?
             .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
-            return key
+            if isInnovaKey(key) {
+                return key
+            } else {
+                removeCachedKey()
+                return nil
+            }
         }
         // 2. Đọc từ file cache cục bộ (được mã hóa gắn liền với phần cứng thiết bị)
         if let fileURL = cacheFileURL,
@@ -64,14 +75,24 @@ final class LicenseStore: ObservableObject {
             let decrypted = decryptDataForDevice(data)
             if let key = String(data: decrypted, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !key.isEmpty {
-                UserDefaults.standard.set(key, forKey: "license.savedKey")
-                return key
+                if isInnovaKey(key) {
+                    UserDefaults.standard.set(key, forKey: "license.savedKey")
+                    return key
+                } else {
+                    removeCachedKey()
+                    return nil
+                }
             }
             // Fallback phòng khi cache là dạng plaintext cũ từ bản trước
             if let plainKey = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !plainKey.isEmpty {
-                persistCachedKey(plainKey)
-                return plainKey
+                if isInnovaKey(plainKey) {
+                    persistCachedKey(plainKey)
+                    return plainKey
+                } else {
+                    removeCachedKey()
+                    return nil
+                }
             }
         }
         return nil

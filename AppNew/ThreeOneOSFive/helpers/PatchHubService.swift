@@ -79,6 +79,8 @@ enum LicenseKeyError: Error, LocalizedError {
     case buildMissing
     case buildRevoked
     case buildUnknown
+    case innovaKeyRequired
+    case proxyKeyNotAllowed(type: String)
 
     /// DEBUG: lưu chi tiết lỗi mới nhất để hiển thị trên UI khi gặp
     /// invalidResponse. Tạm thời — sẽ xoá sau khi debug xong.
@@ -105,6 +107,10 @@ enum LicenseKeyError: Error, LocalizedError {
         case .buildMissing: return "Phiên bản chưa được đăng ký. Liên hệ admin"
         case .buildRevoked: return "Đã có phiên bản mới. Vui lòng liên hệ admin cập nhật bản mới!"
         case .buildUnknown: return "Đã có phiên bản mới. Vui lòng liên hệ admin cập nhật bản mới!"
+        case .innovaKeyRequired:
+            return "Ứng dụng chỉ chấp nhận Key INNOVA!\n(Định dạng: INNOVA-1D-XXXX-XXXX)"
+        case .proxyKeyNotAllowed(let type):
+            return "Key bạn nhập là Key \(type)!\nỨng dụng này chỉ chấp nhận Key INNOVA."
         }
     }
 }
@@ -541,16 +547,29 @@ enum PatchHubService {
     /// Activates a license key on the server, binding the current device. Returns
     /// the parsed response on success, throws `LicenseKeyError` on any failure.
     static func activate(key: String, deviceSerial: String) async throws -> RemoteKeyStatus {
+        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard LicenseStore.isInnovaKey(trimmedKey) else {
+            if trimmedKey.uppercased().hasPrefix("PROXYAPK-") {
+                throw LicenseKeyError.proxyKeyNotAllowed(type: "Proxy Android (APK)")
+            } else if trimmedKey.uppercased().contains("-IPA-") {
+                throw LicenseKeyError.proxyKeyNotAllowed(type: "Proxy iOS")
+            } else {
+                throw LicenseKeyError.innovaKeyRequired
+            }
+        }
+
         let url = baseURL.appendingPathComponent("api/activate")
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 12
         let body: [String: Any] = [
-            "key": key,
+            "key": trimmedKey,
             "deviceSerial": deviceSerial,
             "buildToken": IntegrityChecker.buildToken,
-            "bundleId": IntegrityChecker.bundleIdentifier
+            "bundleId": IntegrityChecker.bundleIdentifier,
+            "platform": "innova",
+            "appType": "innova"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -565,10 +584,12 @@ enum PatchHubService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 12
         let body: [String: Any] = [
-            "key": key,
+            "key": key.trimmingCharacters(in: .whitespacesAndNewlines),
             "deviceSerial": deviceSerial,
             "bundleId": bundleID,
-            "buildToken": IntegrityChecker.buildToken
+            "buildToken": IntegrityChecker.buildToken,
+            "platform": "innova",
+            "appType": "innova"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -595,16 +616,29 @@ enum PatchHubService {
     /// Verifies the key is still active and bound to this device. Never mutates
     /// state on the server. Used before every patch toggle.
     static func verifyKey(key: String, deviceSerial: String) async throws -> RemoteKeyStatus {
+        let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard LicenseStore.isInnovaKey(trimmedKey) else {
+            if trimmedKey.uppercased().hasPrefix("PROXYAPK-") {
+                throw LicenseKeyError.proxyKeyNotAllowed(type: "Proxy Android (APK)")
+            } else if trimmedKey.uppercased().contains("-IPA-") {
+                throw LicenseKeyError.proxyKeyNotAllowed(type: "Proxy iOS")
+            } else {
+                throw LicenseKeyError.innovaKeyRequired
+            }
+        }
+
         let url = baseURL.appendingPathComponent("api/keys/verify")
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 10
         let body: [String: Any] = [
-            "key": key,
+            "key": trimmedKey,
             "deviceSerial": deviceSerial,
             "buildToken": IntegrityChecker.buildToken,
-            "bundleId": IntegrityChecker.bundleIdentifier
+            "bundleId": IntegrityChecker.bundleIdentifier,
+            "platform": "innova",
+            "appType": "innova"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
@@ -672,6 +706,7 @@ enum PatchHubService {
         case "build_missing": return .buildMissing
         case "build_revoked": return .buildRevoked
         case "build_unknown": return .buildUnknown
+        case "innova_only", "platform_not_allowed": return .innovaKeyRequired
         default: return .invalidResponse
         }
     }
