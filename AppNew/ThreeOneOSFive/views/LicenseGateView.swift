@@ -143,14 +143,15 @@ struct LicenseGateView: View {
     }
 
     private var activateButton: some View {
-        Button(action: activate) {
+        let isSavedKey = (LicenseStore.loadCachedKey() != nil && LicenseStore.loadCachedKey() == keyInput.trimmingCharacters(in: .whitespacesAndNewlines))
+        return Button(action: activate) {
             HStack(spacing: 10) {
                 if isBusy {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .tint(.white)
                 }
-                Text(isBusy ? "ĐANG XÁC THỰC…" : "⚡ KÍCH HOẠT")
+                Text(isBusy ? "ĐANG XÁC THỰC…" : (isSavedKey ? "⚡ VÀO TRANG CHỦ" : "⚡ KÍCH HOẠT"))
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .tracking(2)
             }
@@ -236,6 +237,11 @@ struct LicenseGateView: View {
     // MARK: - Lifecycle
 
     private func handleAppear() {
+        if keyInput.isEmpty {
+            if let cached = LicenseStore.loadCachedKey(), !cached.isEmpty {
+                keyInput = cached
+            }
+        }
         if remainingSeconds == totalTimeoutSeconds {
             startTimer()
         }

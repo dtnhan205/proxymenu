@@ -11,10 +11,11 @@ struct RootView: View {
     @StateObject private var store = LicenseStore.shared
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var supportToastModel: SupportStatusToastModel
-    @State private var gateDecision: GateDecision = .checking
+    @State private var gateDecision: GateDecision = .introVideo
     @State private var didAnnounceSupport: Bool = false
 
     enum GateDecision {
+        case introVideo
         case checking
         case unlocked
         case needsKey
@@ -23,6 +24,13 @@ struct RootView: View {
     var body: some View {
         ZStack {
             switch gateDecision {
+            case .introVideo:
+                IntroVideoView(onFinish: {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        gateDecision = .needsKey
+                    }
+                })
+                .transition(.opacity)
             case .unlocked:
                 ContentView()
                     .environmentObject(store)
@@ -33,7 +41,7 @@ struct RootView: View {
                     .transition(.opacity)
             case .needsKey:
                 LicenseGateView(onUnlock: {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(.easeInOut(duration: 0.35)) {
                         gateDecision = .unlocked
                     }
                 })
@@ -141,14 +149,7 @@ struct RootView: View {
     }
 
     private func evaluate() async {
-        guard let key = store.savedKey, !key.isEmpty else {
-            await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    gateDecision = .needsKey
-                }
-            }
-            return
-        }
+        guard let key = store.savedKey, !key.isEmpty else { return }
         do {
             let serial = DeviceIdentity.serial()
             let status = try await PatchHubService.verifyKey(key: key, deviceSerial: serial)
@@ -157,54 +158,29 @@ struct RootView: View {
                 store.setBuildBlocked(false)
                 // Cập nhật lại key và status mới nhất từ server vào cache
                 store.save(key: key, status: status)
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    gateDecision = .unlocked
+                // Chỉ chuyển trực tiếp sang unlocked nếu đang ở trạng thái checking
+                if gateDecision == .checking {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        gateDecision = .unlocked
+                    }
                 }
             }
         } catch let error as LicenseKeyError {
-            // Key không còn hợp lệ (hết hạn / bị revoke / sai thiết bị /
-            // build bị admin revoke). Trước khi chuyển về gate, REVERT MỌI
-            // patch đang active trên disk về file gốc để:
-            //   - Tắt hoàn toàn chức năng patch (đúng yêu cầu "tự động tắt").
-            //   - Không để app rơi vào trạng thái nửa vời: file đã patch vẫn
-            //     nằm trên thiết bị nhưng key đã mất → rò rỉ nội dung.
-            //   - User gia hạn key → toggle sẽ tự apply lại từ cùng project.
-            // Chạy detached để không block main actor (nhiều project + file I/O).
             Task.detached(priority: .userInitiated) {
                 DevicePatchService.restoreAllAppliedPatches()
             }
-
-            // Build bị revoke / unknown → bật overlay và KHÔNG clear key.
-            // User vẫn thấy overlay kể cả khi restart app.
             switch error {
             case .buildRevoked, .buildUnknown, .buildMissing:
                 await MainActor.run {
                     store.setBuildBlocked(true)
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        gateDecision = .needsKey
-                    }
                 }
-                return
             default:
-                break
-            }
-            // Verify fail (key hết hạn, bị thu hồi, sai thiết bị...) — xoá key local trong cache, đẩy về gate để nhập key mới.
-            await MainActor.run {
-                store.clear()
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    gateDecision = .needsKey
+                await MainActor.run {
+                    store.clear()
                 }
             }
         } catch {
-            // Verify fail (lỗi kết nối hoặc lỗi server) — KHÔNG revert patch
-            // (chưa chắc key invalid, chỉ là mất mạng). Vẫn xoá key local và
-            // đẩy về gate để user nhập lại — re-evaluate lần sau sẽ verify lại.
-            await MainActor.run {
-                store.clear()
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    gateDecision = .needsKey
-                }
-            }
+            // Lỗi mạng tạm thời, không clear
         }
     }
 }

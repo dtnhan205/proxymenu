@@ -89,6 +89,8 @@
 		3105A211 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3105A031; };
 		FF000001 /* FreeFirePatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000002; };
 		FF000007 /* EmbeddedPatchData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000008; };
+		3105N219 /* IntroVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N119; };
+		3105A212 /* intro.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105A032; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -192,6 +194,8 @@
 		3105B123 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		FF000002 /* FreeFirePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeFirePatchService.swift; sourceTree = "<group>"; };
 		FF000008 /* EmbeddedPatchData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedPatchData.swift; sourceTree = "<group>"; };
+		3105N119 /* IntroVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroVideoView.swift; sourceTree = "<group>"; };
+		3105A032 /* intro.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = intro.mp4; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,6 +230,7 @@
 				3105A406 /* kexploit */,
 				3105A120 /* Localizable.strings */,
 				3105A031 /* Assets.xcassets */,
+				3105A032 /* intro.mp4 */,
 			);
 			path = ThreeOneOSFive;
 			sourceTree = "<group>";
@@ -276,6 +281,7 @@
 				3105N106 /* GamePatchesView.swift */,
 				3105N107 /* BuildBlockedOverlay.swift */,
 				3105N108 /* AppCompat.swift */,
+				3105N119 /* IntroVideoView.swift */,
 			);
 			path = views;
 			sourceTree = "<group>";
@@ -414,6 +420,7 @@
 			files = (
 				3105A211,
 				3105A228,
+				3105A212,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -493,6 +500,7 @@
 				3105N216,
 				3105N217,
 				3105N218,
+				3105N219,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
