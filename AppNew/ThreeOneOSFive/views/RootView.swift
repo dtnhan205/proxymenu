@@ -160,7 +160,9 @@ struct RootView: View {
     }
 
     private func evaluate() async {
-        guard let key = store.savedKey, !key.isEmpty else {
+        // Luôn đảm bảo nạp key từ Keychain/cache nếu store.savedKey chưa có
+        let currentKey = store.savedKey ?? LicenseStore.loadCachedKey()
+        guard let key = currentKey, !key.isEmpty else {
             await MainActor.run {
                 autoVerifySuccess = false
                 if isVideoFinished {
@@ -172,6 +174,22 @@ struct RootView: View {
             return
         }
 
+        // 1. Kiểm tra hạn sử dụng local trước
+        if let exp = store.expiresAt, exp <= Date() {
+            NSLog("[RootView] Key đã hết hạn cục bộ (\(exp.description) <= \(Date().description)). Xóa key và yêu cầu nhập lại.")
+            await MainActor.run {
+                store.clear()
+                autoVerifySuccess = false
+                if isVideoFinished {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        gateDecision = .needsKey
+                    }
+                }
+            }
+            return
+        }
+
+        // 2. Xác thực ngầm với máy chủ
         do {
             let serial = DeviceIdentity.serial()
             let status = try await PatchHubService.verifyKey(key: key, deviceSerial: serial)
@@ -188,33 +206,70 @@ struct RootView: View {
                 }
             }
         } catch let error as LicenseKeyError {
-            Task.detached(priority: .userInitiated) {
-                DevicePatchService.restoreAllAppliedPatches()
-            }
+            NSLog("[RootView] verifyKey trả lỗi: \(error)")
             switch error {
-            case .buildRevoked, .buildUnknown, .buildMissing, .buildWrongPlatform:
-                await MainActor.run {
-                    store.setBuildBlocked(true)
+            case .keyNotFound, .revoked, .expired, .notActivated,
+                 .deviceLimitReached, .deviceNotBound,
+                 .innovaKeyRequired, .proxyKeyNotAllowed:
+                // Key thật sự không còn hợp lệ trên máy chủ (bị xóa, hết hạn, bị thu hồi hoặc sai thiết bị)
+                Task.detached(priority: .userInitiated) {
+                    DevicePatchService.restoreAllAppliedPatches()
                 }
-            default:
                 await MainActor.run {
                     store.clear()
+                    autoVerifySuccess = false
+                    if isVideoFinished {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            gateDecision = .needsKey
+                        }
+                    }
                 }
-            }
-            await MainActor.run {
-                autoVerifySuccess = false
-                if isVideoFinished {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        gateDecision = .needsKey
+            case .buildRevoked, .buildUnknown, .buildMissing, .buildWrongPlatform:
+                // Phiên bản ứng dụng bị chặn
+                Task.detached(priority: .userInitiated) {
+                    DevicePatchService.restoreAllAppliedPatches()
+                }
+                await MainActor.run {
+                    store.setBuildBlocked(true)
+                    autoVerifySuccess = false
+                    if isVideoFinished {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            gateDecision = .needsKey
+                        }
+                    }
+                }
+            case .internalError, .missingKey, .invalidResponse:
+                // Lỗi mạng hoặc máy chủ phản hồi tạm thời không đúng định dạng:
+                // Nếu hạn dùng local còn hiệu lực, cho phép user vào thẳng app bình thường!
+                let isLocallyValid = (store.expiresAt == nil || store.expiresAt! > Date())
+                await MainActor.run {
+                    if isLocallyValid {
+                        NSLog("[RootView] Máy chủ bận nhưng key local còn hạn -> Vào thẳng trang chủ")
+                        autoVerifySuccess = true
+                        if isVideoFinished {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                gateDecision = .unlocked
+                            }
+                        }
+                    } else {
+                        store.clear()
+                        autoVerifySuccess = false
+                        if isVideoFinished {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                gateDecision = .needsKey
+                            }
+                        }
                     }
                 }
             }
         } catch {
-            // Lỗi mạng hoặc server không phản hồi kịp thời:
-            // Kiểm tra nếu key đã lưu cục bộ còn hạn sử dụng
+            // Lỗi mạng URLSession (offline, mất mạng, timeout):
+            // Nếu hạn dùng local còn hiệu lực, cho phép user vào thẳng app bình thường!
+            NSLog("[RootView] Lỗi kết nối mạng: \(error.localizedDescription)")
             let isLocallyValid = (store.expiresAt == nil || store.expiresAt! > Date())
             await MainActor.run {
                 if isLocallyValid {
+                    NSLog("[RootView] Mất mạng nhưng key local còn hạn -> Vào thẳng trang chủ")
                     autoVerifySuccess = true
                     if isVideoFinished {
                         withAnimation(.easeInOut(duration: 0.3)) {
@@ -222,6 +277,7 @@ struct RootView: View {
                         }
                     }
                 } else {
+                    store.clear()
                     autoVerifySuccess = false
                     if isVideoFinished {
                         withAnimation(.easeInOut(duration: 0.3)) {
