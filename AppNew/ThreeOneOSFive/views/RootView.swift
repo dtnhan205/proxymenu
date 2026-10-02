@@ -75,7 +75,7 @@ struct RootView: View {
             case .needsKey:
                 // Reset để lần unlock kế tiếp lại toast.
                 didAnnounceSupport = false
-            case .checking:
+            case .checking, .introVideo:
                 break
             }
         }
