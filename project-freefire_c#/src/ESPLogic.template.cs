@@ -1704,14 +1704,24 @@ namespace ProjectEspPatch
                                 }
                             }
 
-                            if ((state & AimSystemEnabled) != 0 && bestAimTargetPos != Vector3.zero && camera != null)
+                            if ((state & AimSystemEnabled) != 0 && bestAimTargetPos != Vector3.zero && camera != null && localPlayer != null)
                             {
-                                Vector3 aimDirection = bestAimTargetPos - camera.transform.position;
-                                if (aimDirection.sqrMagnitude > 0.01f)
+                                bool isEngaging = false;
+                                try
                                 {
-                                    Quaternion targetAimRot = Quaternion.LookRotation(aimDirection);
-                                    if (localPlayer != null)
+                                    isEngaging = localPlayer.IsFiring() || localPlayer.GetSightingState() || localPlayer.IsHoldingFireForSingleShot();
+                                }
+                                catch (Exception)
+                                {
+                                    try { isEngaging = localPlayer.IsFiring(); } catch (Exception) {}
+                                }
+
+                                if (isEngaging)
+                                {
+                                    Vector3 aimDirection = bestAimTargetPos - camera.transform.position;
+                                    if (aimDirection.sqrMagnitude > 0.01f)
                                     {
+                                        Quaternion targetAimRot = Quaternion.LookRotation(aimDirection);
                                         localPlayer.SetAimRotation(targetAimRot, false);
                                     }
                                 }
@@ -2878,6 +2888,27 @@ namespace ProjectEspPatch
                     return original;
                 }
 
+                Player localPlayer = GameFacade.CurrentLocalPlayer();
+                if (localPlayer == null)
+                {
+                    return original;
+                }
+
+                bool isShooting = false;
+                try
+                {
+                    isShooting = localPlayer.IsFiring() || localPlayer.GetSightingState() || localPlayer.IsHoldingFireForSingleShot();
+                }
+                catch (Exception)
+                {
+                    try { isShooting = localPlayer.IsFiring(); } catch (Exception) {}
+                }
+
+                if (!isShooting)
+                {
+                    return original;
+                }
+
                 Camera camera = Camera.main;
                 if (camera == null)
                 {
@@ -2969,19 +3000,6 @@ namespace ProjectEspPatch
                     return original;
                 }
                 self.EspLockedAimingCollider = targetCollider;
-
-                Player localPlayer = GameFacade.CurrentLocalPlayer();
-                if (localPlayer != null)
-                {
-                    Vector3 aimOrigin = camera != null ? camera.transform.position : localPlayer.transform.position;
-                    Vector3 toTargetDir = targetCollider.transform.position - aimOrigin;
-                    if (toTargetDir.sqrMagnitude > 0.01f)
-                    {
-                        Quaternion lookRot = Quaternion.LookRotation(toTargetDir);
-                        localPlayer.SetAimRotation(lookRot, false);
-                    }
-                }
-
                 return true;
             }
             catch (Exception)

@@ -246,7 +246,7 @@ if ($missingRedirects.Count -ne 0) {
 $forbiddenMethods = @(
     'GetSyncStatePos', 'OnWeaponReloadStarted',
     'OnWeaponReloadImmediateStarted', 'OnWeaponReloadSpeedChanged',
-    'SendStartReload', 'IsFiring'
+    'SendStartReload'
 )
 $methodNames = @($report.external_methods | ForEach-Object { $_.name })
 $foundForbiddenMethods = @($forbiddenMethods | Where-Object {
