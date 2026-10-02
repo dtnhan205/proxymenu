@@ -41,6 +41,17 @@ struct RemoteGameSessionToken: Decodable, Equatable {
     let expiresAt: String?
 }
 
+struct RemoteInnovaPayloadResponse: Decodable, Equatable {
+    let ok: Bool
+    let sha256: String?
+    let payloadBase64: String?
+    let payloadSize: Int?
+    let configRaw: String?
+    let timestamp: Int?
+    let reason: String?
+    let message: String?
+}
+
 struct RemoteKeyStatus: Decodable, Equatable {
     let ok: Bool
     let reason: String?
@@ -612,6 +623,47 @@ enum PatchHubService {
             decoded = try SignedResponse.verifyAndDecode(RemoteGameSessionToken.self, from: data)
         } catch {
             if let fallback = try? JSONDecoder().decode(RemoteGameSessionToken.self, from: data) {
+                decoded = fallback
+            } else {
+                throw LicenseKeyError.invalidResponse
+            }
+        }
+        guard (200...299).contains(http.statusCode), decoded.ok else {
+            let reason = decoded.reason ?? "invalid_response"
+            throw mapReason(reason, decoded: nil)
+        }
+        return decoded
+    }
+
+    /// Yêu cầu Server cấp Payload Assembly-CSharp-patch.bytes và localConfig.json đã được mã hóa động & đóng dấu HWID
+    static func fetchInnovaPayload(key: String, deviceSerial: String) async throws -> RemoteInnovaPayloadResponse {
+        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else {
+            throw LicenseKeyError.buildWrongPlatform
+        }
+
+        let url = baseURL.appendingPathComponent("api/innova/payload")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 18
+        let body: [String: Any] = [
+            "key": key.trimmingCharacters(in: .whitespacesAndNewlines),
+            "deviceSerial": deviceSerial,
+            "buildToken": IntegrityChecker.buildToken,
+            "bundleId": IntegrityChecker.bundleIdentifier,
+            "platform": "innova",
+            "appType": "innova"
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else {
+            throw LicenseKeyError.invalidResponse
+        }
+        let decoded: RemoteInnovaPayloadResponse
+        do {
+            decoded = try SignedResponse.verifyAndDecode(RemoteInnovaPayloadResponse.self, from: data)
+        } catch {
+            if let fallback = try? JSONDecoder().decode(RemoteInnovaPayloadResponse.self, from: data) {
                 decoded = fallback
             } else {
                 throw LicenseKeyError.invalidResponse

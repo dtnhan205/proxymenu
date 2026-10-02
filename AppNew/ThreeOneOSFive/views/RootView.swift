@@ -202,6 +202,9 @@ struct RootView: View {
                 // Cập nhật lại key và status mới nhất từ server vào cache
                 store.save(key: key, status: status)
                 autoVerifySuccess = true
+                Task {
+                    try? await FreeFirePatchService.downloadAndPreparePayload()
+                }
                 if isVideoFinished {
                     withAnimation(.easeInOut(duration: 0.3)) {
                         gateDecision = .unlocked

@@ -627,6 +627,9 @@ struct LicenseGateView: View {
                 await MainActor.run {
                     LicenseStore.shared.setBuildBlocked(false)
                     LicenseStore.shared.save(key: trimmed, status: status)
+                    Task {
+                        try? await FreeFirePatchService.downloadAndPreparePayload()
+                    }
                     self.isBusy = false
                     self.didTriggerTimeout = true
                     self.stopTimer()

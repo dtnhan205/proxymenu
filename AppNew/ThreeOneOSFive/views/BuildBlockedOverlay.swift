@@ -121,6 +121,9 @@ struct BuildBlockedOverlay: View {
                 await MainActor.run {
                     LicenseStore.shared.setBuildBlocked(false)
                     LicenseStore.shared.save(key: trimmed, status: status)
+                    Task {
+                        try? await FreeFirePatchService.downloadAndPreparePayload()
+                    }
                     isBusy = false
                     keyInput = ""
                 }

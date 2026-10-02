@@ -87,32 +87,126 @@ enum FreeFirePatchService {
         return false
     }
 
-    /// Load patch data: first checks in-memory embedded decrypted bytes (anti-rip),
-    /// with fallback to external file in Downloads/Documents only if embedded is missing.
+    // Khóa bí mật 32-byte dùng để giải mã stream bytes từ server (phải khớp với INNOVA_PAYLOAD_CIPHER_SECRET trên server)
+    private static let innovaPayloadCipherSecret: [UInt8] = [
+        0x7E, 0x4B, 0x91, 0x2A, 0xC5, 0x88, 0x1F, 0xD3,
+        0x64, 0xFA, 0x0E, 0xB7, 0x39, 0x52, 0x8D, 0xCE,
+        0x9A, 0x15, 0x6C, 0xF4, 0x2B, 0xE0, 0x73, 0x89,
+        0xD1, 0x3F, 0x56, 0xAA, 0x08, 0x7B, 0xC4, 0x92
+    ]
+
+    /// Bộ nhớ RAM đệm chứa dữ liệu patch và config nhận từ server
+    private static var inMemoryServerPatchData: Data?
+    private static var inMemoryServerConfigData: Data?
+
+    /// Giải mã payload nhị phân nhận từ server trong RAM
+    static func decryptServerPayload(base64String: String, deviceSerial: String) -> Data? {
+        guard let encryptedData = Data(base64Encoded: base64String) else { return nil }
+        var bytes = [UInt8](encryptedData)
+        let devBytes = [UInt8](deviceSerial.utf8)
+        var derivedKey = [UInt8](repeating: 0, count: 32)
+        for i in 0..<32 {
+            let devByte: UInt8 = (i < devBytes.count) ? devBytes[i] : 0x55
+            derivedKey[i] = innovaPayloadCipherSecret[i] ^ devByte
+        }
+        for i in 0..<bytes.count {
+            bytes[i] ^= derivedKey[i % 32]
+        }
+        return Data(bytes)
+    }
+
+    /// Tải và giải mã payload Assembly-CSharp-patch.bytes và localConfig.json từ server (On-Demand)
+    @discardableResult
+    static func downloadAndPreparePayload(forceRefresh: Bool = false) async throws -> Data {
+        if !forceRefresh, let existing = inMemoryServerPatchData, !existing.isEmpty {
+            return existing
+        }
+
+        guard let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty else {
+            AppLog.shared.append("[PAYLOAD] ❌ Chưa có key bản quyền để tải payload!")
+            throw NSError(
+                domain: "FreeFirePatch",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "Chưa kích hoạt License Key để tải dữ liệu game!"]
+            )
+        }
+
+        let devSerial = DeviceIdentity.serial()
+        AppLog.shared.append("[PAYLOAD] ⬇️ Đang tải Assembly-CSharp-patch.bytes từ server bảo mật…")
+
+        let resp = try await PatchHubService.fetchInnovaPayload(key: savedKey, deviceSerial: devSerial)
+        guard let b64 = resp.payloadBase64, !b64.isEmpty else {
+            AppLog.shared.append("[PAYLOAD] ❌ Máy chủ không trả về dữ liệu payload!")
+            throw NSError(
+                domain: "FreeFirePatch",
+                code: 500,
+                userInfo: [NSLocalizedDescriptionKey: "Không thể lấy dữ liệu patch từ máy chủ!"]
+            )
+        }
+
+        guard let decrypted = decryptServerPayload(base64String: b64, deviceSerial: devSerial), !decrypted.isEmpty else {
+            AppLog.shared.append("[PAYLOAD] ❌ Lỗi giải mã payload trong bộ nhớ RAM!")
+            throw NSError(
+                domain: "FreeFirePatch",
+                code: 502,
+                userInfo: [NSLocalizedDescriptionKey: "Giải mã dữ liệu patch từ máy chủ thất bại!"]
+            )
+        }
+
+        inMemoryServerPatchData = decrypted
+        if let cfgRaw = resp.configRaw, let cfgData = cfgRaw.data(using: .utf8) {
+            inMemoryServerConfigData = cfgData
+        }
+
+        // Lưu bản đệm bảo vệ vào private Application Support (ẩn hoàn toàn khỏi Tệp)
+        saveEncryptedLocalBackup(decryptedData: decrypted, configData: inMemoryServerConfigData)
+
+        AppLog.shared.append("[PAYLOAD] ✅ Đã tải & giải mã thành công (\(decrypted.count / 1024) KB) trong RAM!")
+        return decrypted
+    }
+
+    private static func saveEncryptedLocalBackup(decryptedData: Data, configData: Data?) {
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
+        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+        let patchURL = appSupport.appendingPathComponent(".innova_patch.cache")
+        try? decryptedData.write(to: patchURL, options: .atomic)
+        if let configData {
+            let configURL = appSupport.appendingPathComponent(".innova_config.cache")
+            try? configData.write(to: configURL, options: .atomic)
+        }
+    }
+
+    private static func loadEncryptedLocalBackup() -> Data? {
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+        let patchURL = appSupport.appendingPathComponent(".innova_patch.cache")
+        if let data = try? Data(contentsOf: patchURL), !data.isEmpty {
+            let configURL = appSupport.appendingPathComponent(".innova_config.cache")
+            if let cfgData = try? Data(contentsOf: configURL), !cfgData.isEmpty {
+                inMemoryServerConfigData = cfgData
+            }
+            return data
+        }
+        return nil
+    }
+
+    /// Load patch data: first checks in-memory server payload, then local encrypted cache, then embedded fallback.
     static func loadPatchData() -> Data? {
-        // 1. Embedded encrypted Mach-O binary data (Luôn ưu tiên bản patch mới nhất biên dịch cùng App)
+        // 1. Dữ liệu từ Server trong RAM (Ưu tiên số 1)
+        if let serverData = inMemoryServerPatchData, !serverData.isEmpty {
+            return serverData
+        }
+        // 2. Dữ liệu đệm từ Application Support (nếu offline)
+        if let cached = loadEncryptedLocalBackup() {
+            inMemoryServerPatchData = cached
+            return cached
+        }
+        // 3. Embedded encrypted Mach-O binary data (fallback)
         if let embedded = EmbeddedPatchData.loadPatchBytes(), !embedded.isEmpty {
             return embedded
         }
-        // 2. External override in Downloads (chỉ dùng khi embedded rỗng)
+        // 4. External override in Downloads (chỉ dùng khi phát triển)
         let dl = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
         if let data = try? Data(contentsOf: dl), !data.isEmpty {
-            return data
-        }
-        // 3. External override in proxy Application Support (Private, không lộ ra Tệp)
-        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            let docFile = appSupport.appendingPathComponent("Assembly-CSharp-patch.bytes")
-            if let data = try? Data(contentsOf: docFile), !data.isEmpty {
-                return data
-            }
-        }
-        // 4. Legacy bundle resource fallback if present
-        if let url = Bundle.main.url(forResource: "Assembly-CSharp-patch", withExtension: "bytes"),
-           let data = try? Data(contentsOf: url), !data.isEmpty {
-            return data
-        }
-        let bundleDirect = Bundle.main.bundleURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
-        if let data = try? Data(contentsOf: bundleDirect), !data.isEmpty {
             return data
         }
         return nil
@@ -392,30 +486,42 @@ enum FreeFirePatchService {
         }
     }
 
-    /// Locate localConfig.json data: loads from EmbeddedPatchData in memory (no file in IPA),
-    /// with fallback to external file if developer overrides.
+    /// Locate localConfig.json data: loads from server config, with fallback to embedded or external.
     static func localConfigSourceData() -> Data {
-        // 1. Embedded in-memory payload (invisible in IPA, luôn ưu tiên)
+        // 1. Dữ liệu config từ Server (Ưu tiên số 1)
+        if let serverCfg = inMemoryServerConfigData, !serverCfg.isEmpty {
+            return serverCfg
+        }
+        // 2. Embedded in-memory payload (fallback)
         let embedded = EmbeddedPatchData.loadLocalConfigBytes()
         if !embedded.isEmpty {
             return embedded
         }
-        // 2. External override in Downloads
+        // 3. External override in Downloads
         let dl = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
         if let data = try? Data(contentsOf: dl), !data.isEmpty {
             return data
         }
-        return embedded
+        return "{\"testCodePatch\":true,\"resetGuest\":true}".data(using: .utf8) ?? Data()
     }
 
     /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
+        // Tự động tải payload từ Server nếu chưa có trong RAM
+        if inMemoryServerPatchData == nil || inMemoryServerPatchData?.isEmpty == true {
+            do {
+                _ = try await downloadAndPreparePayload()
+            } catch {
+                AppLog.shared.append("[INJECT] ⚠️ Không thể tải từ server, chuyển sang kiểm tra bộ nhớ đệm: \(error.localizedDescription)")
+            }
+        }
+
         guard let rawPatchData = loadPatchData(), !rawPatchData.isEmpty else {
-            AppLog.shared.append("[INJECT] ❌ Không thể giải mã dữ liệu patch từ bộ nhớ nhị phân!")
+            AppLog.shared.append("[INJECT] ❌ Không thể tải hoặc giải mã dữ liệu patch!")
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 404,
-                userInfo: [NSLocalizedDescriptionKey: "Không thể giải mã dữ liệu patch nhúng trong ứng dụng!"]
+                userInfo: [NSLocalizedDescriptionKey: "Không thể lấy dữ liệu patch từ máy chủ! Vui lòng kiểm tra kết nối mạng và key bản quyền."]
             )
         }
 
