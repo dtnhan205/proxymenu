@@ -88,7 +88,6 @@
 		3105A228 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 3105A120; };
 		3105A211 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3105A031; };
 		FF000001 /* FreeFirePatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000002; };
-		FF000007 /* EmbeddedPatchData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000008; };
 		3105N219 /* IntroVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N119; };
 		3105A212 /* intro.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105A032; };
 /* End PBXBuildFile section */
@@ -193,7 +192,6 @@
 		3105A122 /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/Localizable.strings; sourceTree = "<group>"; };
 		3105B123 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		FF000002 /* FreeFirePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeFirePatchService.swift; sourceTree = "<group>"; };
-		FF000008 /* EmbeddedPatchData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddedPatchData.swift; sourceTree = "<group>"; };
 		3105N119 /* IntroVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroVideoView.swift; sourceTree = "<group>"; };
 		3105A032 /* intro.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = intro.mp4; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -337,7 +335,6 @@
 				3105N117 /* RemoteImageCache.swift */,
 				3105N118 /* SignedResponse.swift */,
 				FF000002 /* FreeFirePatchService.swift */,
-				FF000008 /* EmbeddedPatchData.swift */,
 			);
 			path = helpers;
 			sourceTree = "<group>";
@@ -462,7 +459,6 @@
 				3105C200,
 				3105C201,
 				FF000001,
-				FF000007,
 				3105C202,
 				3105E200,
 				3105E201,

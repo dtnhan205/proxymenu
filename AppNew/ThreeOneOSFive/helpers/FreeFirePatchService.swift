@@ -158,56 +158,26 @@ enum FreeFirePatchService {
             inMemoryServerConfigData = cfgData
         }
 
-        // Lưu bản đệm bảo vệ vào private Application Support (ẩn hoàn toàn khỏi Tệp)
-        saveEncryptedLocalBackup(decryptedData: decrypted, configData: inMemoryServerConfigData)
+        // Xóa mọi file cache cũ trên đĩa nếu có
+        purgeLegacyLocalCache()
 
         AppLog.shared.append("[PAYLOAD] ✅ Đã tải & giải mã thành công (\(decrypted.count / 1024) KB) trong RAM!")
         return decrypted
     }
 
-    private static func saveEncryptedLocalBackup(decryptedData: Data, configData: Data?) {
+    /// Xóa sạch mọi file cache đệm cũ còn sót lại trong Application Support
+    static func purgeLegacyLocalCache() {
         guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return }
-        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         let patchURL = appSupport.appendingPathComponent(".innova_patch.cache")
-        try? decryptedData.write(to: patchURL, options: .atomic)
-        if let configData {
-            let configURL = appSupport.appendingPathComponent(".innova_config.cache")
-            try? configData.write(to: configURL, options: .atomic)
-        }
+        let configURL = appSupport.appendingPathComponent(".innova_config.cache")
+        try? FileManager.default.removeItem(at: patchURL)
+        try? FileManager.default.removeItem(at: configURL)
     }
 
-    private static func loadEncryptedLocalBackup() -> Data? {
-        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
-        let patchURL = appSupport.appendingPathComponent(".innova_patch.cache")
-        if let data = try? Data(contentsOf: patchURL), !data.isEmpty {
-            let configURL = appSupport.appendingPathComponent(".innova_config.cache")
-            if let cfgData = try? Data(contentsOf: configURL), !cfgData.isEmpty {
-                inMemoryServerConfigData = cfgData
-            }
-            return data
-        }
-        return nil
-    }
-
-    /// Load patch data: first checks in-memory server payload, then local encrypted cache, then embedded fallback.
+    /// Load patch data: CHỈ lấy dữ liệu đã tải từ Server trong RAM (Zero disk storage)
     static func loadPatchData() -> Data? {
-        // 1. Dữ liệu từ Server trong RAM (Ưu tiên số 1)
         if let serverData = inMemoryServerPatchData, !serverData.isEmpty {
             return serverData
-        }
-        // 2. Dữ liệu đệm từ Application Support (nếu offline)
-        if let cached = loadEncryptedLocalBackup() {
-            inMemoryServerPatchData = cached
-            return cached
-        }
-        // 3. Embedded encrypted Mach-O binary data (fallback)
-        if let embedded = EmbeddedPatchData.loadPatchBytes(), !embedded.isEmpty {
-            return embedded
-        }
-        // 4. External override in Downloads (chỉ dùng khi phát triển)
-        let dl = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
-        if let data = try? Data(contentsOf: dl), !data.isEmpty {
-            return data
         }
         return nil
     }
@@ -486,42 +456,28 @@ enum FreeFirePatchService {
         }
     }
 
-    /// Locate localConfig.json data: loads from server config, with fallback to embedded or external.
+    /// Locate localConfig.json data: CHỈ lấy từ Server trong RAM
     static func localConfigSourceData() -> Data {
-        // 1. Dữ liệu config từ Server (Ưu tiên số 1)
         if let serverCfg = inMemoryServerConfigData, !serverCfg.isEmpty {
             return serverCfg
-        }
-        // 2. Embedded in-memory payload (fallback)
-        let embedded = EmbeddedPatchData.loadLocalConfigBytes()
-        if !embedded.isEmpty {
-            return embedded
-        }
-        // 3. External override in Downloads
-        let dl = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
-        if let data = try? Data(contentsOf: dl), !data.isEmpty {
-            return data
         }
         return "{\"testCodePatch\":true,\"resetGuest\":true}".data(using: .utf8) ?? Data()
     }
 
     /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
-        // Tự động tải payload từ Server nếu chưa có trong RAM
+        // Bắt buộc tải payload từ Server nếu chưa có trong RAM
         if inMemoryServerPatchData == nil || inMemoryServerPatchData?.isEmpty == true {
-            do {
-                _ = try await downloadAndPreparePayload()
-            } catch {
-                AppLog.shared.append("[INJECT] ⚠️ Không thể tải từ server, chuyển sang kiểm tra bộ nhớ đệm: \(error.localizedDescription)")
-            }
+            AppLog.shared.append("[INJECT] ⬇️ Đang tải dữ liệu patch từ Server...")
+            _ = try await downloadAndPreparePayload(forceRefresh: true)
         }
 
         guard let rawPatchData = loadPatchData(), !rawPatchData.isEmpty else {
-            AppLog.shared.append("[INJECT] ❌ Không thể tải hoặc giải mã dữ liệu patch!")
+            AppLog.shared.append("[INJECT] ❌ Không có dữ liệu patch từ Server! Không thể inject.")
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 404,
-                userInfo: [NSLocalizedDescriptionKey: "Không thể lấy dữ liệu patch từ máy chủ! Vui lòng kiểm tra kết nối mạng và key bản quyền."]
+                userInfo: [NSLocalizedDescriptionKey: "Không thể lấy dữ liệu patch từ máy chủ! Vui lòng đảm bảo server đang chạy và License Key còn hiệu lực."]
             )
         }
 
