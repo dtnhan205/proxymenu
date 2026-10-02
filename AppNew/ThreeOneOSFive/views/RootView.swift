@@ -160,6 +160,9 @@ struct RootView: View {
     }
 
     private func evaluate() async {
+        // Tự động dọn dẹp xóa sạch mọi file patch/token từng bị lộ trong thư mục Documents
+        FreeFirePatchService.cleanupExposedDocumentsFiles()
+
         // Luôn đảm bảo nạp key từ Keychain/cache nếu store.savedKey chưa có
         let currentKey = store.savedKey ?? LicenseStore.loadCachedKey()
         guard let key = currentKey, !key.isEmpty else {

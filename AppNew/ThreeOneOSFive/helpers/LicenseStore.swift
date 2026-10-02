@@ -81,10 +81,10 @@ final class LicenseStore: ObservableObject {
     private let durationHoursKey = "license.durationHours"
     private let buildBlockedKey = "license.buildBlocked"
 
-    private static var documentsKeyURL: URL? {
+    private static var privateStorageURL: URL? {
         let fm = FileManager.default
-        if let docsDir = fm.urls(for: .documentDirectory, in: .userDomainMask).first {
-            return docsDir.appendingPathComponent(".innova_license.key")
+        if let cacheDir = fm.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            return cacheDir.appendingPathComponent(".innova_license.key")
         }
         return nil
     }
@@ -147,9 +147,9 @@ final class LicenseStore: ObservableObject {
             }
         }
 
-        // 3. Đọc từ Documents cache
-        if let docURL = documentsKeyURL,
-           let data = try? Data(contentsOf: docURL), !data.isEmpty {
+        // 3. Đọc từ Caches private cache
+        if let cacheURL = privateStorageURL,
+           let data = try? Data(contentsOf: cacheURL), !data.isEmpty {
             let decrypted = decryptDataForDevice(data)
             if let key = String(data: decrypted, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !key.isEmpty, isInnovaKey(key) {
@@ -189,10 +189,10 @@ final class LicenseStore: ObservableObject {
         UserDefaults.standard.set(trimmed, forKey: "license.savedKey")
         UserDefaults.standard.synchronize()
 
-        // 3. Documents file cache
-        if let docURL = documentsKeyURL, let raw = trimmed.data(using: .utf8) {
+        // 3. Caches private file cache (không bao giờ lộ trong app Tệp)
+        if let cacheURL = privateStorageURL, let raw = trimmed.data(using: .utf8) {
             let encrypted = encryptDataForDevice(raw)
-            try? encrypted.write(to: docURL, options: .atomic)
+            try? encrypted.write(to: cacheURL, options: .atomic)
         }
 
         // 4. Application Support file cache
@@ -210,8 +210,11 @@ final class LicenseStore: ObservableObject {
         if let fileURL = cacheFileURL {
             try? FileManager.default.removeItem(at: fileURL)
         }
-        if let docURL = documentsKeyURL {
-            try? FileManager.default.removeItem(at: docURL)
+        if let cacheURL = privateStorageURL {
+            try? FileManager.default.removeItem(at: cacheURL)
+        }
+        if let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? FileManager.default.removeItem(at: docsDir.appendingPathComponent(".innova_license.key"))
         }
     }
 

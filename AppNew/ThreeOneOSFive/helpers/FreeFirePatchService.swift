@@ -99,9 +99,9 @@ enum FreeFirePatchService {
         if let data = try? Data(contentsOf: dl), !data.isEmpty {
             return data
         }
-        // 3. External override in proxy Documents
-        if let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let docFile = docs.appendingPathComponent("Assembly-CSharp-patch.bytes")
+        // 3. External override in proxy Application Support (Private, không lộ ra Tệp)
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            let docFile = appSupport.appendingPathComponent("Assembly-CSharp-patch.bytes")
             if let data = try? Data(contentsOf: docFile), !data.isEmpty {
                 return data
             }
@@ -379,9 +379,10 @@ enum FreeFirePatchService {
             try? bundleEncrypted.write(to: URL(fileURLWithPath: p), options: .atomic)
         }
 
-        // Multi-tier 4: Proxy Documents
-        if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            let proxyCfg = proxyDocs.appendingPathComponent("menu_config.json")
+        // Multi-tier 4: Proxy Application Support (Private, không lộ ra Tệp)
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+            let proxyCfg = appSupport.appendingPathComponent("menu_config.json")
             try? bundleEncrypted.write(to: proxyCfg, options: .atomic)
         }
 
@@ -521,12 +522,15 @@ enum FreeFirePatchService {
         try? bundleEncrypted.write(to: dlCfg, options: .atomic)
         try? localData.write(to: dlLocal, options: .atomic)
 
-        // --- TIER 4: PROXY DOCUMENTS ---
-        if let proxyDocs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
-            try? patchData.write(to: proxyDocs.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
-            try? bundleEncrypted.write(to: proxyDocs.appendingPathComponent("menu_config.json"), options: .atomic)
-            try? localData.write(to: proxyDocs.appendingPathComponent("localConfig.json"), options: .atomic)
+        // --- TIER 4: PROXY APPLICATION SUPPORT (Private, không lộ ra Tệp) ---
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+            try? patchData.write(to: appSupport.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
+            try? bundleEncrypted.write(to: appSupport.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? localData.write(to: appSupport.appendingPathComponent("localConfig.json"), options: .atomic)
         }
+        // Xóa ngay nếu từng có file trong Documents để không bị lộ
+        cleanupExposedDocumentsFiles()
 
         guard didInjectAny else {
             AppLog.shared.append("[INJECT] ❌ Không thể can thiệp container của \(target.displayName) qua cả MHA-C2 và Kernel Exploit")
@@ -606,7 +610,36 @@ enum FreeFirePatchService {
         for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json", tokenFileName] {
             try? FileManager.default.removeItem(atPath: "/var/mobile/Downloads/\(f)")
         }
+
+        // Tier 4: Dọn dẹp cả Documents lẫn Application Support của app
+        cleanupExposedDocumentsFiles()
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json", tokenFileName, "token.json"] {
+                try? FileManager.default.removeItem(at: appSupport.appendingPathComponent(f))
+            }
+        }
+
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config khỏi \(target.displayName)")
+    }
+
+    /// Xóa sạch mọi file patch / token từng bị lưu vào Documents để không hiển thị trong app Tệp (Files).
+    static func cleanupExposedDocumentsFiles() {
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let exposedFiles = [
+            "Assembly-CSharp-patch.bytes",
+            "menu_config.json",
+            "localConfig.json",
+            "token.json",
+            tokenFileName,
+            ".innova_license.key"
+        ]
+        for name in exposedFiles {
+            let fileURL = docs.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try? FileManager.default.removeItem(at: fileURL)
+                NSLog("[FreeFirePatch] 🧹 Đã dọn dẹp file lộ khỏi Documents: %@", name)
+            }
+        }
     }
 
     /// Tự động mở game trực tiếp qua LSApplicationWorkspace (Bundle ID) hoặc URL Scheme

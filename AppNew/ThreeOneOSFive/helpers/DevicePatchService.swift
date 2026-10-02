@@ -341,10 +341,15 @@ enum DevicePatchService {
                 AppLog.shared.append("[token] ✅ Wrote token.json → /var/mobile/Downloads")
             }
 
-            // 4. Documents của ProxyApp → Files app "On My iPhone → ProxyApp"
-            let proxyDocsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            try? jsonData.write(to: proxyDocsURL.appendingPathComponent("token.json"), options: .atomic)
-            AppLog.shared.append("[token] ✅ Wrote token.json → ProxyApp/Documents")
+            // 4. Application Support của app (Private, không lộ ra Tệp)
+            if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+                try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+                try? jsonData.write(to: appSupport.appendingPathComponent("token.json"), options: .atomic)
+            }
+            // Dọn dẹp nếu từng có trong Documents để không bị lộ trong Tệp
+            if let proxyDocsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                try? FileManager.default.removeItem(at: proxyDocsURL.appendingPathComponent("token.json"))
+            }
 
         } catch {
             AppLog.shared.append("[token] ❌ Failed: \(error.localizedDescription)")
@@ -365,6 +370,12 @@ enum DevicePatchService {
                 try? FileManager.default.removeItem(at: tokenFileURL)
                 AppLog.shared.append("[token] Deleted token.json from \(bundleID)")
             }
+        }
+        if let proxyDocsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? FileManager.default.removeItem(at: proxyDocsURL.appendingPathComponent("token.json"))
+        }
+        if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            try? FileManager.default.removeItem(at: appSupport.appendingPathComponent("token.json"))
         }
     }
 }
