@@ -304,33 +304,22 @@ struct GamesHomeView: View {
             // Brand bar: Logo & App name + Bell / Settings
             HStack {
                 HStack(spacing: 8) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [AppTheme.neonCyan, AppTheme.neonMagenta],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1.5
-                            )
-                            .frame(width: 32, height: 32)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(Color.white.opacity(0.04))
-                            )
-                        Image(systemName: "cpu.fill")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [AppTheme.neonCyan, AppTheme.neonIce],
-                                    startPoint: .top,
-                                    endPoint: .bottom
+                    AppLogo(size: 34)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [AppTheme.neonCyan, AppTheme.neonMagenta],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1.2
                                 )
-                            )
-                    }
+                        )
+                        .shadow(color: AppTheme.neonCyan.opacity(0.4), radius: 6)
 
-                    Text("PROXYIPA OB55")
+                    Text("INNOVA CHEAT")
                         .font(.system(size: 20, weight: .black, design: .monospaced))
                         .foregroundStyle(
                             LinearGradient(

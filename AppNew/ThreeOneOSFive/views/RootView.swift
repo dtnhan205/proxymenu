@@ -116,19 +116,23 @@ struct RootView: View {
                         )
                         .frame(width: 88, height: 88)
 
-                    Image(systemName: "key.fill")
-                        .font(.system(size: 34, weight: .semibold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.0, green: 0.94, blue: 1.0),
-                                    Color(red: 1.0, green: 0.0, blue: 0.83)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+                    AppLogo(size: 68)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.0, green: 0.94, blue: 1.0),
+                                            Color(red: 1.0, green: 0.0, blue: 0.83)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1.5
+                                )
                         )
-                        .shadow(color: Color(red: 0.0, green: 0.94, blue: 1.0).opacity(0.8), radius: 10)
+                        .shadow(color: Color(red: 0.0, green: 0.94, blue: 1.0).opacity(0.8), radius: 12)
                 }
 
                 VStack(spacing: 8) {

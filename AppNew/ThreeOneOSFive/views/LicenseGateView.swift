@@ -91,30 +91,25 @@ struct LicenseGateView: View {
                 .rotationEffect(.degrees(45))
                 .shadow(color: AppTheme.neonCyan.opacity(0.65), radius: 12)
 
-            // Dark inner plate
-            Circle()
-                .fill(Color.black.opacity(0.75))
-                .frame(width: 74, height: 74)
+            // App Logo in center of cyber frame
+            AppLogo(size: 66)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(
-                    Circle()
-                        .strokeBorder(AppTheme.neonCyan.opacity(0.35), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    AppTheme.neonCyan,
+                                    AppTheme.neonIce,
+                                    AppTheme.neonMagenta
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.5
+                        )
                 )
-
-            // Shield / Bolt VIP icon
-            Image(systemName: "bolt.shield.fill")
-                .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            AppTheme.neonIce,
-                            AppTheme.neonCyan,
-                            AppTheme.neonMagenta
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .shadow(color: AppTheme.neonCyan.opacity(0.85), radius: 8)
+                .shadow(color: AppTheme.neonCyan.opacity(0.85), radius: 10)
         }
         .padding(.top, 4)
     }

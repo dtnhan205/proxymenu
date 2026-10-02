@@ -557,18 +557,20 @@ struct AppLogo: View {
 
     var body: some View {
         Group {
-            if let icon = UIImage(named: "AppIcon60x60")
-                ?? Bundle.main.path(forResource: "AppIcon60x60@2x", ofType: "png").flatMap(UIImage.init(contentsOfFile:))
-                ?? UIImage(named: "AppIcon") {
+            if let icon = UIImage(named: "AppLogo")
+                ?? UIImage(named: "AppIcon-1024")
+                ?? UIImage(named: "AppIcon")
+                ?? Bundle.main.path(forResource: "AppIcon-1024", ofType: "png").flatMap(UIImage.init(contentsOfFile:))
+                ?? (Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any])
+                    .flatMap({ ($0["CFBundlePrimaryIcon"] as? [String: Any])?["CFBundleIconFiles"] as? [String] })?
+                    .last.flatMap({ UIImage(named: $0) }) {
                 Image(uiImage: icon)
                     .resizable()
                     .scaledToFill()
             } else {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppTheme.accent)
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFill()
             }
         }
         .frame(width: size, height: size)
