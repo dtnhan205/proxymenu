@@ -425,4 +425,49 @@ enum FreeFirePatchService {
 
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config khỏi \(target.displayName)")
     }
+
+    /// Tự động mở game trực tiếp qua LSApplicationWorkspace (Bundle ID) hoặc URL Scheme
+    static func launchGame(target: FreeFireTarget = selectedTarget) {
+        let bundleID = target.rawValue
+        AppLog.shared.append("[GAME] 🚀 Đang khởi chạy game \(target.displayName) (\(bundleID))...")
+
+        // 1. Mở trực tiếp bằng LSApplicationWorkspace (TrollStore / Sandbox Escape / Jailbreak)
+        if openApplicationForBundleID(bundleID) {
+            AppLog.shared.append("[GAME] ✅ Đã mở game thành công: \(bundleID)")
+            return
+        }
+
+        // 2. Mở qua URL scheme dự phòng
+        let schemes: [String]
+        switch target {
+        case .freeFireTH:
+            schemes = ["freefireth://", "freefire://"]
+        case .freeFireMAX:
+            schemes = ["freefiremax://", "freefirethmax://"]
+        }
+
+        for s in schemes {
+            if let url = URL(string: s) {
+                if UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url, options: [:]) { success in
+                        if success {
+                            AppLog.shared.append("[GAME] ✅ Đã mở game qua URL Scheme: \(s)")
+                        }
+                    }
+                    return
+                }
+            }
+        }
+
+        // 3. Ép mở URL scheme đầu tiên
+        if let first = schemes.first, let url = URL(string: first) {
+            UIApplication.shared.open(url, options: [:]) { success in
+                if success {
+                    AppLog.shared.append("[GAME] ✅ Đã ép mở game qua scheme: \(first)")
+                } else {
+                    AppLog.shared.append("[GAME] ⚠️ Không thể mở game tự động, vui lòng mở game thủ công: \(target.displayName)")
+                }
+            }
+        }
+    }
 }

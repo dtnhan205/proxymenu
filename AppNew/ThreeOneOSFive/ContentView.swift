@@ -3296,8 +3296,8 @@ struct ContentView: View {
                     self.isInjected = true
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.success)
-                    self.injectionAlertText = "✅ Đã Inject Cheat thành công."
-                    self.showInjectionAlert = true
+                    self.showToast("⚡ Đã Inject thành công! Đang mở \(self.selectedTarget.displayName)...")
+                    FreeFirePatchService.launchGame(target: self.selectedTarget)
                 }
             } catch {
                 await MainActor.run {
