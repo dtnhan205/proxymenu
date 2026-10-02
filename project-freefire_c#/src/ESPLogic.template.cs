@@ -1809,11 +1809,11 @@ namespace ProjectEspPatch
                                 }
                                 Transform root = player.RootTransform;
                                 if (player.IsLocalPlayer()
-                                    || player.IsLocalTeammate(false))
+                                    || player.IsLocalTeammate(false)
+                                    || !player.IsVisible())
                                 {
                                     continue;
                                 }
-                                bool isPlayerVis = player.IsVisible();
 
                                 bool dying = player.IsDieing;
                                 int health = player.CurHP;
