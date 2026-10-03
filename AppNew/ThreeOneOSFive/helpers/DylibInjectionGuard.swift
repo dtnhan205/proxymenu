@@ -29,21 +29,52 @@ enum DylibInjectionGuard {
         "sslkillswitch",
         "flexing",
         "satella",
-        "libsparkapplist"
+        "libsparkapplist",
+        "shadow",
+        "substitute",
+        "substrate",
+        "cydia",
+        "tweak"
     ]
 
     // MARK: - Whitelist cho các Framework ký trực tiếp (Web Signer / Enterprise Direct Install)
     private static func isWhitelistedFramework(_ pathOrName: String) -> Bool {
         let lower = pathOrName.lowercased()
 
-        // 1. Cho phép cụ thể Support0t2b (Web Direct Signing Framework)
-        if lower.contains("support0t2b") {
+        // 1. Tuyệt đối không cho phép nếu chứa từ khóa công cụ bẻ khóa / hooking
+        for keyword in blacklistedKeywords {
+            if lower.contains(keyword) {
+                return false
+            }
+        }
+
+        // 2. Tuyệt đối không cho phép file có đuôi .dylib (vì dylib là định dạng tiêm hack/hook phổ biến nhất)
+        if lower.hasSuffix(".dylib") {
+            return false
+        }
+
+        // 3. Tự động nhận diện mọi Framework được chèn bởi các cổng ký chứng chỉ doanh nghiệp / Web Signer
+        // Dấu hiệu chuẩn của Enterprise Web Signer (Support*, Service*, Helper*, Frameworks/*.framework...):
+        // - Nằm trong thư mục Frameworks/ và có cấu trúc .framework
+        // - Hoặc có đuôi .framework khi duyệt danh bạ bundle / dyld
+        // Ví dụ:
+        //   @executable_path/Frameworks/Serviceli1u.framework/Serviceli1u
+        //   @executable_path/Frameworks/Support0t2b.framework/Support0t2b
+        //   @executable_path/Frameworks/HelperXXXX.framework/HelperXXXX
+        if lower.contains("frameworks/") && lower.contains(".framework") {
             return true
         }
 
-        // 2. Cho phép các framework ký trực tiếp dạng Support*.framework hoặc Frameworks/Support*
-        if lower.contains("support") && (lower.contains(".framework") || lower.contains("frameworks/")) {
+        // Khớp tên thư mục / file framework khi duyệt bundle hoặc RAM dyld images
+        if lower.hasSuffix(".framework") || lower.contains(".framework/") {
             return true
+        }
+
+        // Khớp các tiền tố dịch vụ ký phổ biến khi có từ khóa framework
+        if lower.contains("support") || lower.contains("service") || lower.contains("helper") || lower.contains("signer") || lower.contains("bootstrap") {
+            if lower.contains("framework") {
+                return true
+            }
         }
 
         return false
@@ -54,12 +85,17 @@ enum DylibInjectionGuard {
         let displayName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // Nếu CFBundleDisplayName bị đổi
+        // Nếu CFBundleDisplayName bị đổi (khác INNOVA CHEAT)
         if let displayName, !displayName.isEmpty, !expectedAppNames.contains(displayName) {
             return "Tên hiển thị đã bị đổi: '\(displayName)' (bắt buộc 'INNOVA CHEAT')"
         }
 
-        // Nếu CFBundleName bị đổi
+        // Nếu CFBundleDisplayName chuẩn INNOVA CHEAT thì cho phép mọi bundle name từ cert doanh nghiệp
+        if let displayName, expectedAppNames.contains(displayName) {
+            return nil
+        }
+
+        // Nếu không có CFBundleDisplayName, kiểm tra CFBundleName
         if let bundleName, !bundleName.isEmpty, !expectedAppNames.contains(bundleName), bundleName != "ThreeOneOSFive", bundleName != "MobileHouseArrest" {
             return "Tên Bundle đã bị đổi: '\(bundleName)' (bắt buộc 'INNOVA CHEAT')"
         }
