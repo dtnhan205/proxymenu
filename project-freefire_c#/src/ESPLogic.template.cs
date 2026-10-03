@@ -312,7 +312,8 @@ namespace ProjectEspPatch
                     // Direct multi-path file sync with FileShare.ReadWrite (Silent, zero iOS pasteboard alerts)
                     string cfgPath = null;
                     string cfgFile = "/menu_config.json";
-                    string resConfSub = "/contentcache/Compulsory/ios/gameassetbundles/config/splitedresconfs";
+                    string resConfSub = "/contentcache/Compulsory/ios/gameassetbundles/config";
+                    string legacySplit = "/contentcache/Compulsory/ios/gameassetbundles/config/splitedresconfs";
                     string pDir = Application.persistentDataPath;
                     if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
                     {
@@ -324,6 +325,9 @@ namespace ProjectEspPatch
                         pDir + resConfSub + cfgFile,
                         pDir + "/Documents" + resConfSub + cfgFile,
                         pDir + "/../Documents" + resConfSub + cfgFile,
+                        pDir + legacySplit + cfgFile,
+                        pDir + "/Documents" + legacySplit + cfgFile,
+                        pDir + "/../Documents" + legacySplit + cfgFile,
                         pDir + cfgFile,
                         pDir + "/IFix" + cfgFile,
                         pDir + "/Documents" + cfgFile,
@@ -430,6 +434,9 @@ namespace ProjectEspPatch
                                     pDir + resConfSub + tokFile,
                                     pDir + "/Documents" + resConfSub + tokFile,
                                     pDir + "/../Documents" + resConfSub + tokFile,
+                                    pDir + legacySplit + tokFile,
+                                    pDir + "/Documents" + legacySplit + tokFile,
+                                    pDir + "/../Documents" + legacySplit + tokFile,
                                     pDir + tokFile,
                                     pDir + "/Documents" + tokFile,
                                     pDir + "/../Documents" + tokFile
