@@ -98,11 +98,13 @@ enum FreeFirePatchService {
     /// Bộ nhớ RAM đệm chứa dữ liệu patch và config nhận từ server
     private static var inMemoryServerPatchData: Data?
     private static var inMemoryServerConfigData: Data?
+    private static var inMemoryServerTokenData: [String: Data] = [:]
 
     /// Xóa sạch toàn bộ dữ liệu nhạy cảm trong RAM ngay lập tức khi phát hiện can thiệp
     static func wipeSensitiveMemory() {
         inMemoryServerPatchData = nil
         inMemoryServerConfigData = nil
+        inMemoryServerTokenData.removeAll()
         purgeLegacyLocalCache()
     }
 
@@ -124,7 +126,7 @@ enum FreeFirePatchService {
 
     /// Tải và giải mã payload Assembly-CSharp-patch.bytes và localConfig.json từ server (On-Demand)
     @discardableResult
-    static func downloadAndPreparePayload(forceRefresh: Bool = false) async throws -> Data {
+    static func downloadAndPreparePayload(targetContainerId: String? = nil, forceRefresh: Bool = false) async throws -> Data {
         if !forceRefresh, let existing = inMemoryServerPatchData, !existing.isEmpty {
             return existing
         }
@@ -141,7 +143,7 @@ enum FreeFirePatchService {
         let devSerial = DeviceIdentity.serial()
         AppLog.shared.append("[PAYLOAD] ⬇️ Đang tải Assembly-CSharp-patch.bytes từ server bảo mật…")
 
-        let resp = try await PatchHubService.fetchInnovaPayload(key: savedKey, deviceSerial: devSerial)
+        let resp = try await PatchHubService.fetchInnovaPayload(key: savedKey, deviceSerial: devSerial, containerId: targetContainerId)
         guard let b64 = resp.payloadBase64, !b64.isEmpty else {
             AppLog.shared.append("[PAYLOAD] ❌ Máy chủ không trả về dữ liệu payload!")
             throw NSError(
@@ -165,11 +167,34 @@ enum FreeFirePatchService {
             inMemoryServerConfigData = cfgData
         }
 
+        if let cid = targetContainerId, let tokB64 = resp.tokenBase64, let tokData = tokB64.data(using: .utf8) {
+            inMemoryServerTokenData[cid] = tokData
+            AppLog.shared.append("[TOKEN] 🛡️ Đã nhận token .innova_token.dat do Server ký trực tiếp")
+        }
+
         // Xóa mọi file cache cũ trên đĩa nếu có
         purgeLegacyLocalCache()
 
         AppLog.shared.append("[PAYLOAD] ✅ Đã tải & giải mã thành công (\(decrypted.count / 1024) KB) trong RAM!")
         return decrypted
+    }
+
+    /// Lấy token .innova_token.dat: Ưu tiên Server ký và cấp trực tiếp, có fallback nội bộ nếu mất mạng
+    static func obtainTokenData(cid: String) async -> Data {
+        if let cached = inMemoryServerTokenData[cid], !cached.isEmpty {
+            return cached
+        }
+        if let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty {
+            let devSerial = DeviceIdentity.serial()
+            if let tokenBase64 = try? await PatchHubService.fetchInnovaToken(key: savedKey, deviceSerial: devSerial, containerId: cid),
+               let tokenData = tokenBase64.data(using: .utf8) {
+                inMemoryServerTokenData[cid] = tokenData
+                AppLog.shared.append("[TOKEN] 🛡️ Server đã ký & cấp token cho container \(cid.prefix(8))…")
+                return tokenData
+            }
+        }
+        // Fallback nội bộ
+        return makeTokenData(cid: cid)
     }
 
     /// Xóa sạch mọi file cache đệm cũ còn sót lại trong Application Support
@@ -418,7 +443,7 @@ enum FreeFirePatchService {
             let targetPayload = makeConfigPayload(state: state)
             let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
             let targetEncrypted = encryptConfigData(targetJson)
-            let targetToken = makeTokenData(cid: cid)
+            let targetToken = inMemoryServerTokenData[cid] ?? makeTokenData(cid: cid)
 
             let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
@@ -476,10 +501,14 @@ enum FreeFirePatchService {
         // Kiểm tra chống tiêm dylib / can thiệp nhị phân trước khi giải mã nạp game
         DylibInjectionGuard.enforceAllProtections()
 
+        // Lấy container UUID để cấp token chính xác từ server
+        let resolvedContainerPath = getOrResolveContainerPath(bundleID: target.rawValue)
+        let resolvedCid = (resolvedContainerPath != nil) ? extractContainerUUID(from: resolvedContainerPath!) : ""
+
         // Bắt buộc tải payload từ Server nếu chưa có trong RAM
         if inMemoryServerPatchData == nil || inMemoryServerPatchData?.isEmpty == true {
             AppLog.shared.append("[INJECT] ⬇️ Đang tải dữ liệu patch từ Server...")
-            _ = try await downloadAndPreparePayload(forceRefresh: true)
+            _ = try await downloadAndPreparePayload(targetContainerId: resolvedCid.isEmpty ? nil : resolvedCid, forceRefresh: true)
         }
 
         guard let rawPatchData = loadPatchData(), !rawPatchData.isEmpty else {
@@ -553,7 +582,7 @@ enum FreeFirePatchService {
                 let targetPayload = makeConfigPayload(state: CheatMenuState.shared)
                 let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
                 let targetEncrypted = encryptConfigData(targetJson)
-                let targetToken = makeTokenData(cid: cid)
+                let targetToken = await obtainTokenData(cid: cid)
 
                 let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
                 let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)

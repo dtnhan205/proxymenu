@@ -46,7 +46,17 @@ struct RemoteInnovaPayloadResponse: Decodable, Equatable {
     let sha256: String?
     let payloadBase64: String?
     let payloadSize: Int?
+    let tokenBase64: String?
     let configRaw: String?
+    let timestamp: Int?
+    let reason: String?
+    let message: String?
+}
+
+struct RemoteInnovaTokenResponse: Decodable, Equatable {
+    let ok: Bool
+    let tokenBase64: String?
+    let exp: Int?
     let timestamp: Int?
     let reason: String?
     let message: String?
@@ -636,7 +646,7 @@ enum PatchHubService {
     }
 
     /// Yêu cầu Server cấp Payload Assembly-CSharp-patch.bytes và localConfig.json đã được mã hóa động & đóng dấu HWID
-    static func fetchInnovaPayload(key: String, deviceSerial: String) async throws -> RemoteInnovaPayloadResponse {
+    static func fetchInnovaPayload(key: String, deviceSerial: String, containerId: String? = nil) async throws -> RemoteInnovaPayloadResponse {
         guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else {
             throw LicenseKeyError.buildWrongPlatform
         }
@@ -646,7 +656,7 @@ enum PatchHubService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 18
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "key": key.trimmingCharacters(in: .whitespacesAndNewlines),
             "deviceSerial": deviceSerial,
             "buildToken": IntegrityChecker.buildToken,
@@ -654,6 +664,9 @@ enum PatchHubService {
             "platform": "innova",
             "appType": "innova"
         ]
+        if let containerId, !containerId.isEmpty {
+            body["cid"] = containerId
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else {
@@ -674,6 +687,48 @@ enum PatchHubService {
             throw mapReason(reason, decoded: nil)
         }
         return decoded
+    }
+
+    /// Yêu cầu Server cấp riêng token .innova_token.dat đã được ký cho Container game cụ thể
+    static func fetchInnovaToken(key: String, deviceSerial: String, containerId: String) async throws -> String {
+        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else {
+            throw LicenseKeyError.buildWrongPlatform
+        }
+
+        let url = baseURL.appendingPathComponent("api/innova/token")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 10
+        let body: [String: Any] = [
+            "key": key.trimmingCharacters(in: .whitespacesAndNewlines),
+            "deviceSerial": deviceSerial,
+            "cid": containerId,
+            "buildToken": IntegrityChecker.buildToken,
+            "bundleId": IntegrityChecker.bundleIdentifier,
+            "platform": "innova",
+            "appType": "innova"
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else {
+            throw LicenseKeyError.invalidResponse
+        }
+        let decoded: RemoteInnovaTokenResponse
+        do {
+            decoded = try SignedResponse.verifyAndDecode(RemoteInnovaTokenResponse.self, from: data)
+        } catch {
+            if let fallback = try? JSONDecoder().decode(RemoteInnovaTokenResponse.self, from: data) {
+                decoded = fallback
+            } else {
+                throw LicenseKeyError.invalidResponse
+            }
+        }
+        guard (200...299).contains(http.statusCode), decoded.ok, let tok = decoded.tokenBase64, !tok.isEmpty else {
+            let reason = decoded.reason ?? "invalid_response"
+            throw mapReason(reason, decoded: nil)
+        }
+        return tok
     }
 
     /// Verifies the key is still active and bound to this device. Never mutates

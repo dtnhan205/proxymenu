@@ -311,21 +311,73 @@ enum DylibInjectionGuard {
                 let bundlePath = Bundle.main.bundlePath.lowercased()
 
                 if path.contains(bundlePath) && path.hasSuffix(".dylib") {
-                    DylibInjectionGuard.triggerTamperReaction(reason: "Dynamic dylib loaded: \(path)")
+                    DylibInjectionGuard.triggerTamperReaction(reason: "Dynamic dylib loaded: \(path)", violationType: "RUNTIME_DYLIB_INJECTION")
                 }
                 for kw in DylibInjectionGuard.blacklistedKeywords {
                     if path.contains(kw) {
-                        DylibInjectionGuard.triggerTamperReaction(reason: "Blacklisted dylib loaded: \(path)")
+                        DylibInjectionGuard.triggerTamperReaction(reason: "Blacklisted dylib loaded: \(path)", violationType: "DYLIB_INJECTION")
                     }
                 }
             }
         }
     }
 
+    // MARK: - Gửi báo cáo can thiệp / crack về Server (Anti-Crack Telemetry)
+    private static func reportTamperToServer(violationType: String, details: String) {
+        let key = LicenseStore.shared.savedKey ?? ""
+        let devSerial = DeviceIdentity.serial()
+        let idfv = UIDevice.current.identifierForVendor?.uuidString ?? ""
+        let devModel = UIDevice.current.model
+        let sysVersion = "\(UIDevice.current.systemName) \(UIDevice.current.systemVersion)"
+        let devName = UIDevice.current.name
+        let bundleId = Bundle.main.bundleIdentifier ?? ""
+        let appName = (Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String)
+            ?? (Bundle.main.infoDictionary?["CFBundleName"] as? String) ?? "Unknown"
+        let locale = Locale.current.identifier
+        let timezone = TimeZone.current.identifier
+        let screen = "\(Int(UIScreen.main.bounds.width))x\(Int(UIScreen.main.bounds.height))@\(Int(UIScreen.main.scale))x"
+
+        let payload: [String: Any] = [
+            "key": key,
+            "deviceSerial": devSerial,
+            "idfv": idfv,
+            "deviceModel": devModel,
+            "systemVersion": sysVersion,
+            "deviceName": devName,
+            "bundleId": bundleId,
+            "appName": appName,
+            "locale": locale,
+            "timezone": timezone,
+            "screenResolution": screen,
+            "violationType": violationType,
+            "details": details,
+            "timestamp": Int(Date().timeIntervalSince1970)
+        ]
+
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return }
+
+        let url = PatchHubService.baseURL.appendingPathComponent("api/security/tamper-report")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 1.5
+        req.httpBody = jsonData
+
+        let sema = DispatchSemaphore(value: 0)
+        let task = URLSession.shared.dataTask(with: req) { _, _, _ in
+            sema.signal()
+        }
+        task.resume()
+        _ = sema.wait(timeout: .now() + 1.2)
+    }
+
     // MARK: - Phản ứng phòng vệ tức thì: Wiping secrets & Tự hủy tiến trình
     @inline(never)
-    static func triggerTamperReaction(reason: String) -> Never {
-        NSLog("[DylibInjectionGuard] 🚨 PHÁT HIỆN CAN THIỆP / BẺ KHÓA: \(reason)")
+    static func triggerTamperReaction(reason: String, violationType: String = "TAMPER_DETECTED") -> Never {
+        NSLog("[DylibInjectionGuard] 🚨 PHÁT HIỆN CAN THIỆP / BẺ KHÓA [%@]: %@", violationType, reason)
+
+        // Báo cáo chi tiết về Server AntiCrack Hub trước khi thoát
+        reportTamperToServer(violationType: violationType, details: reason)
 
         // 1. Xóa sạch RAM và cache
         FreeFirePatchService.wipeSensitiveMemory()
@@ -344,17 +396,17 @@ enum DylibInjectionGuard {
     static func enforceAllProtections() {
         // 1. Chống đổi tên app
         if let err = checkAppName() {
-            triggerTamperReaction(reason: err)
+            triggerTamperReaction(reason: err, violationType: "APP_NAME_TAMPER")
         }
 
         // 2. Chống thay đổi logo / icon app
         if let err = checkAppLogo() {
-            triggerTamperReaction(reason: err)
+            triggerTamperReaction(reason: err, violationType: "APP_LOGO_TAMPER")
         }
 
         // 3. Kiểm tra debugger
         if checkDebugger() {
-            triggerTamperReaction(reason: "Active debugger / tracing tool attached (P_TRACED)")
+            triggerTamperReaction(reason: "Active debugger / tracing tool attached (P_TRACED)", violationType: "DEBUGGER_ATTACHED")
         }
 
         // 4. Chặn gắn debugger
@@ -362,22 +414,22 @@ enum DylibInjectionGuard {
 
         // 5. Kiểm tra biến môi trường DYLD_INSERT_LIBRARIES
         if let err = checkDyldEnvironment() {
-            triggerTamperReaction(reason: err)
+            triggerTamperReaction(reason: err, violationType: "DYLD_INSERT_LIBRARIES")
         }
 
         // 6. Kiểm tra Header Mach-O xem có bị optool chèn LC_LOAD_DYLIB
         if let err = checkMachOLoadCommands() {
-            triggerTamperReaction(reason: err)
+            triggerTamperReaction(reason: err, violationType: "MACHO_HEADER_TAMPER")
         }
 
         // 7. Kiểm tra tệp .dylib lạ trong Bundle
         if let err = checkBundleIntegrity() {
-            triggerTamperReaction(reason: err)
+            triggerTamperReaction(reason: err, violationType: "BUNDLE_DYLIB_FOUND")
         }
 
         // 8. Kiểm tra các dylib đang nạp trong RAM
         if let err = checkLoadedDyldImages() {
-            triggerTamperReaction(reason: err)
+            triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
         }
 
         // 9. Kích hoạt giám sát thời gian thực (chống dlopen muộn)
