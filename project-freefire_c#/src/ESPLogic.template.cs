@@ -311,15 +311,7 @@ namespace ProjectEspPatch
 
                     // Direct multi-path file sync with FileShare.ReadWrite (Silent, zero iOS pasteboard alerts)
                     string cfgPath = null;
-                    string hCfg = "75283F293935343C292E2874222D30303D191F3435160D631D0B6D3B342B396A2C0E37680D126A24691E";
-                    char[] cCfg = new char[hCfg.Length / 2];
-                    for (int i = 0; i < cCfg.Length; i++)
-                    {
-                        int v1 = hCfg[i * 2] <= '9' ? hCfg[i * 2] - '0' : hCfg[i * 2] - 'A' + 10;
-                        int v2 = hCfg[i * 2 + 1] <= '9' ? hCfg[i * 2 + 1] - '0' : hCfg[i * 2 + 1] - 'A' + 10;
-                        cCfg[i] = (char)(((v1 << 4) | v2) ^ 0x5A);
-                    }
-                    string cfgFile = new string(cCfg);
+                    string cfgFile = "/menu_config.json";
                     string resConfSub = "/contentcache/Compulsory/ios/gameassetbundles/config/splitedresconfs";
                     string pDir = Application.persistentDataPath;
                     if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
@@ -332,18 +324,10 @@ namespace ProjectEspPatch
                         pDir + resConfSub + cfgFile,
                         pDir + "/Documents" + resConfSub + cfgFile,
                         pDir + "/../Documents" + resConfSub + cfgFile,
-                        pDir + resConfSub + "/." + cfgFile.Substring(1),
                         pDir + cfgFile,
                         pDir + "/IFix" + cfgFile,
                         pDir + "/Documents" + cfgFile,
                         pDir + "/../Documents" + cfgFile,
-                        pDir + resConfSub + "/menu_config.json",
-                        pDir + "/Documents" + resConfSub + "/menu_config.json",
-                        pDir + "/../Documents" + resConfSub + "/menu_config.json",
-                        pDir + "/menu_config.json",
-                        pDir + "/IFix/menu_config.json",
-                        pDir + "/Documents/menu_config.json",
-                        pDir + "/../Documents/menu_config.json",
                         pDir + "/../Library/Caches" + cfgFile,
                         pDir + "/../tmp" + cfgFile,
                         (!string.IsNullOrEmpty(dataDir) ? dataDir + cfgFile : null),
@@ -441,29 +425,14 @@ namespace ProjectEspPatch
                                 long expVal = 0L;
                                 long tsVal = 0L;
 
-                                string hTok = "75383B293F283F29393534742C22683D17083D2A300A123D356C24681C1437200C6C3B2300220A6C0F24691E";
-                                char[] cTok = new char[hTok.Length / 2];
-                                for (int i = 0; i < cTok.Length; i++)
-                                {
-                                    int v1 = hTok[i * 2] <= '9' ? hTok[i * 2] - '0' : hTok[i * 2] - 'A' + 10;
-                                    int v2 = hTok[i * 2 + 1] <= '9' ? hTok[i * 2 + 1] - '0' : hTok[i * 2 + 1] - 'A' + 10;
-                                    cTok[i] = (char)(((v1 << 4) | v2) ^ 0x5A);
-                                }
-                                string tokFile = new string(cTok);
+                                string tokFile = "/.innova_token.dat";
                                 string[] tokPaths = new string[] {
                                     pDir + resConfSub + tokFile,
                                     pDir + "/Documents" + resConfSub + tokFile,
                                     pDir + "/../Documents" + resConfSub + tokFile,
-                                    pDir + resConfSub + "/." + tokFile.Substring(1),
                                     pDir + tokFile,
                                     pDir + "/Documents" + tokFile,
-                                    pDir + "/../Documents" + tokFile,
-                                    pDir + resConfSub + "/.innova_token.dat",
-                                    pDir + "/Documents" + resConfSub + "/.innova_token.dat",
-                                    pDir + "/../Documents" + resConfSub + "/.innova_token.dat",
-                                    pDir + "/.innova_token.dat",
-                                    pDir + "/Documents/.innova_token.dat",
-                                    pDir + "/../Documents/.innova_token.dat"
+                                    pDir + "/../Documents" + tokFile
                                 };
                                 for (int tIdx = 0; tIdx < tokPaths.Length; tIdx++)
                                 {
