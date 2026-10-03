@@ -37,6 +37,76 @@ enum DylibInjectionGuard {
         "tweak"
     ]
 
+    // Danh sách các chữ ký đặc trưng của Hook Engine / Cheat / Memory Patching APIs
+    private static let dangerousHookSignatures: [String] = [
+        "dobby",
+        "mshook",
+        "fishhook",
+        "rebind_symbols",
+        "cydiasubstrate",
+        "libsubstrate",
+        "substitute",
+        "ellekit",
+        "mach_vm_protect",
+        "mach_vm_write",
+        "task_for_pid",
+        "assembly-csharp",
+        "unityframework",
+        "aimbot",
+        "wallhack",
+        "esp_",
+        "speedhack"
+    ]
+
+    /// Quét sâu nội dung tệp binary của Framework trên đĩa: Phát hiện nếu bị kẻ xấu tráo đổi ruột bằng tool Hook / Cheat
+    private static func scanFrameworkBinaryForHooks(frameworkURL: URL) -> String? {
+        let fm = FileManager.default
+        let infoPlistURL = frameworkURL.appendingPathComponent("Info.plist")
+
+        // 1. Framework hợp lệ của Apple / web signer bắt buộc phải có Info.plist
+        guard fm.fileExists(atPath: infoPlistURL.path) else {
+            return "Framework thiếu tệp Info.plist hợp lệ: \(frameworkURL.lastPathComponent)"
+        }
+
+        // Đọc tên binary thực thi từ Info.plist (hoặc mặc định lấy tên folder không có đuôi .framework)
+        var executableName = frameworkURL.deletingPathExtension().lastPathComponent
+        if let plistData = try? Data(contentsOf: infoPlistURL),
+           let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
+           let exec = plist["CFBundleExecutable"] as? String, !exec.isEmpty {
+            executableName = exec
+        }
+
+        let binaryURL = frameworkURL.appendingPathComponent(executableName)
+        guard fm.fileExists(atPath: binaryURL.path) else {
+            return "Không tìm thấy file binary thực thi trong: \(frameworkURL.lastPathComponent)"
+        }
+
+        // 2. Đọc và quét chuỗi trong binary (tối đa 3MB)
+        guard let handle = try? FileHandle(forReadingFrom: binaryURL) else { return nil }
+        defer { try? handle.close() }
+
+        let scanData = handle.readData(ofLength: 3 * 1024 * 1024)
+        guard !scanData.isEmpty, let asciiString = String(data: scanData, encoding: .isoLatin1)?.lowercased() else {
+            return nil
+        }
+
+        // 3. Quét danh sách đen các công cụ bẻ khóa
+        for keyword in blacklistedKeywords {
+            if asciiString.contains(keyword) {
+                return "Phát hiện mã độc bẻ khóa '\(keyword)' ngụy trang trong framework: \(frameworkURL.lastPathComponent)"
+            }
+        }
+
+        // 4. Quét các engine hook / can thiệp bộ nhớ
+        for sig in dangerousHookSignatures {
+            if asciiString.contains(sig) {
+                return "Phát hiện Hook Engine '\(sig)' ngụy trang trong framework: \(frameworkURL.lastPathComponent)"
+            }
+        }
+
+        return nil
+    }
+
     // MARK: - Whitelist cho các Framework ký trực tiếp (Web Signer / Enterprise Direct Install)
     private static func isWhitelistedFramework(_ pathOrName: String) -> Bool {
         let lower = pathOrName.lowercased()
@@ -260,6 +330,21 @@ enum DylibInjectionGuard {
 
                     // Cho phép các framework ký trực tiếp hợp lệ (Web Direct Signing / Enterprise OTA)
                     if isWhitelistedFramework(lower) {
+                        // Quét sâu tệp binary trên đĩa để đảm bảo không bị tráo đổi bằng tool Hook / Cheat
+                        if lower.contains("@executable_path") || lower.contains("@rpath") {
+                            if let bundleURL = Bundle.main.bundleURL as URL? {
+                                let cleanRel = dylibName.replacingOccurrences(of: "@executable_path/", with: "")
+                                    .replacingOccurrences(of: "@rpath/", with: "")
+                                let parts = cleanRel.components(separatedBy: ".framework")
+                                if parts.count >= 2 {
+                                    let fwRelPath = parts[0] + ".framework"
+                                    let fwURL = bundleURL.appendingPathComponent(fwRelPath)
+                                    if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL) {
+                                        return hookErr
+                                    }
+                                }
+                            }
+                        }
                         curPtr += Int(cmd.cmdsize)
                         continue
                     }
@@ -320,9 +405,28 @@ enum DylibInjectionGuard {
     private static func checkBundleIntegrity() -> String? {
         guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
 
+        // 1. Kiểm tra số lượng và tính toàn vẹn của các framework trong Frameworks/:
+        let frameworksDir = bundleURL.appendingPathComponent("Frameworks")
+        if FileManager.default.fileExists(atPath: frameworksDir.path),
+           let items = try? FileManager.default.contentsOfDirectory(atPath: frameworksDir.path) {
+            let frameworkBundles = items.filter { $0.hasSuffix(".framework") }
+            // Cổng ký trực tiếp chỉ nhúng tối đa 1 framework chứng chỉ
+            if frameworkBundles.count > 1 {
+                return "Phát hiện nhiều framework bất thường được nhét vào thư mục Frameworks (\(frameworkBundles.count) frameworks)"
+            }
+
+            // Quét sâu tệp binary bên trong framework duy nhất đó để ngăn kẻ xấu tráo bằng tool Hook / Cheat
+            for fw in frameworkBundles {
+                let fwURL = frameworksDir.appendingPathComponent(fw)
+                if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL) {
+                    return hookErr
+                }
+            }
+        }
+
         let dirsToCheck = [
             bundleURL,
-            bundleURL.appendingPathComponent("Frameworks")
+            frameworksDir
         ]
 
         for dir in dirsToCheck {
@@ -331,7 +435,7 @@ enum DylibInjectionGuard {
                 for file in files {
                     let lower = file.lowercased()
 
-                    // Bỏ qua framework ký trực tiếp hợp lệ
+                    // Bỏ qua framework ký trực tiếp hợp lệ (đã được scanFrameworkBinaryForHooks kiểm tra ở trên)
                     if isWhitelistedFramework(lower) {
                         continue
                     }
