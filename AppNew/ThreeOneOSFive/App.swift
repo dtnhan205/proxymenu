@@ -15,7 +15,9 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-        // Chạy ngay khi app mở. Kiểm tra toàn vẹn cơ bản.
+        // Chống đổi tên app, chống sửa logo, chống tiêm dylib ngay khi app khởi động
+        DylibInjectionGuard.enforceAllProtections()
+        // Kiểm tra toàn vẹn cơ bản
         IntegrityChecker.runStartupChecks()
     }
 

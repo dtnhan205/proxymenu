@@ -2,18 +2,22 @@ import Foundation
 import UIKit
 import Darwin
 import MachO
+import CryptoKit
 
 /// Tầng bảo vệ an toàn và gửi cảnh báo về Server AntiCrack Hub.
-/// Ngăn chặn và phát hiện các công cụ bẻ khóa IPA và tiêm dylib: Esign / Scarlet injection, optool, Frida, iGameGod, Cycript,...
-/// Thiết kế chuẩn xác: Không gây lỗi khi ký bình thường, nhưng phát hiện ngay lập tức khi bị tiêm bất kỳ tệp dylib nào từ bên ngoài.
+/// Ngăn chặn và phát hiện:
+/// 1. Đổi tên ứng dụng (Anti-App-Name-Tampering)
+/// 2. Thay đổi logo/icon ứng dụng (Anti-App-Logo-Tampering)
+/// 3. Tiêm tệp dylib từ bên ngoài (Esign, Scarlet, Sideloadly, optool, Frida, iGameGod, Cycript...)
 enum DylibInjectionGuard {
 
     // MARK: - Constants
     private static let expectedAppNames: Set<String> = [
         "INNOVA CHEAT",
-        "INNOVACHEAT",
-        "ThreeOneOSFive"
+        "INNOVACHEAT"
     ]
+
+    private static let expectedAppIcon1024SHA256 = "e69a84bf756dd47159be10ea4f08f210686961e98c4a50d9e5fb8a6ba5b61b02"
 
     // Danh sách đen các dylib / công cụ bẻ khóa rõ ràng (không chặn jailbreak engine thông thường như ElleKit, Substitute, libhooker)
     private static let blacklistedKeywords: [String] = [
@@ -27,22 +31,133 @@ enum DylibInjectionGuard {
         "libsparkapplist"
     ]
 
-    // MARK: - 1. Kiểm tra tên App (Anti-App-Name-Tampering)
+    // MARK: - 1. Chống đổi tên App (Anti-App-Name-Tampering)
     private static func checkAppName() -> String? {
         let displayName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Nếu CFBundleDisplayName bị đổi
         if let displayName, !displayName.isEmpty, !expectedAppNames.contains(displayName) {
-            return "CFBundleDisplayName modified: '\(displayName)'"
+            return "Tên hiển thị đã bị đổi: '\(displayName)' (bắt buộc 'INNOVA CHEAT')"
         }
 
-        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let bundleName, !bundleName.isEmpty, !expectedAppNames.contains(bundleName) {
-            return "CFBundleName modified: '\(bundleName)'"
+        // Nếu CFBundleName bị đổi
+        if let bundleName, !bundleName.isEmpty, !expectedAppNames.contains(bundleName), bundleName != "ThreeOneOSFive" {
+            return "Tên Bundle đã bị đổi: '\(bundleName)' (bắt buộc 'INNOVA CHEAT')"
+        }
+
+        // Kiểm tra xem cả 2 có bị xóa rỗng không
+        if (displayName == nil || displayName?.isEmpty == true) && (bundleName == nil || bundleName?.isEmpty == true) {
+            return "Tên ứng dụng đã bị xóa rỗng"
         }
 
         return nil
     }
 
-    // MARK: - 2. Kiểm tra các biến môi trường dyld (DYLD_INSERT_LIBRARIES)
+    // MARK: - 2. Chống thay đổi Logo / Icon App (Anti-App-Logo-Tampering)
+    private static func renderTo16x16Bytes(_ image: UIImage) -> [UInt8]? {
+        let size = CGSize(width: 16, height: 16)
+        UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
+        image.draw(in: CGRect(origin: .zero, size: size))
+        guard let smallImage = UIGraphicsGetImageFromCurrentImageContext() else {
+            UIGraphicsEndImageContext()
+            return nil
+        }
+        UIGraphicsEndImageContext()
+
+        guard let cgImage = smallImage.cgImage else { return nil }
+        let width = cgImage.width
+        let height = cgImage.height
+        var pixelData = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: &pixelData,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return pixelData
+    }
+
+    private static func imageDifferenceScore(_ bytesA: [UInt8], _ bytesB: [UInt8]) -> Double {
+        guard bytesA.count == bytesB.count, !bytesA.isEmpty else { return 1.0 }
+        var totalDiff: Double = 0
+        for i in 0..<bytesA.count {
+            totalDiff += abs(Double(bytesA[i]) - Double(bytesB[i]))
+        }
+        return totalDiff / Double(bytesA.count * 255)
+    }
+
+    private static func checkAppLogo() -> String? {
+        guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
+
+        // 1. Kiểm tra nếu có tệp AppIcon-1024.png lẻ trên đĩa mà bị thay đổi hash SHA256
+        let icon1024URL = bundleURL.appendingPathComponent("AppIcon-1024.png")
+        if FileManager.default.fileExists(atPath: icon1024URL.path) {
+            if let data = try? Data(contentsOf: icon1024URL) {
+                let rawHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+                if rawHash.lowercased() != expectedAppIcon1024SHA256 {
+                    return "Logo AppIcon-1024.png đã bị thay thế (hash mismatch)"
+                }
+            }
+        }
+
+        // 2. Lấy hình ảnh logo gốc từ Assets.car (được bảo vệ, không thể bị sửa bởi Esign/Scarlet)
+        guard let refLogo = UIImage(named: "AppLogo") ?? UIImage(named: "AppIcon") else { return nil }
+        guard let refBytes = renderTo16x16Bytes(refLogo) else { return nil }
+
+        // 3. Quét các tệp icon thực tế được đóng gói trong bundle
+        var candidateImages: [(image: UIImage, name: String)] = []
+
+        let checkNames = [
+            "AppIcon60x60@2x.png",
+            "AppIcon60x60@3x.png",
+            "AppIcon76x76@2x~ipad.png",
+            "AppIcon83.5x83.5@2x~ipad.png",
+            "AppIcon.png",
+            "icon.png"
+        ]
+        for name in checkNames {
+            let p = bundleURL.appendingPathComponent(name).path
+            if FileManager.default.fileExists(atPath: p), let img = UIImage(contentsOfFile: p) {
+                candidateImages.append((img, name))
+            }
+        }
+
+        // Kiểm tra danh sách file từ CFBundleIcons trong Info.plist
+        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+           let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let files = primary["CFBundleIconFiles"] as? [String] {
+            for f in files {
+                if let img = UIImage(named: f) {
+                    candidateImages.append((img, "CFBundleIcons/\(f)"))
+                }
+                let looseP = bundleURL.appendingPathComponent("\(f)@2x.png").path
+                if FileManager.default.fileExists(atPath: looseP), let img = UIImage(contentsOfFile: looseP) {
+                    candidateImages.append((img, "\(f)@2x.png"))
+                }
+            }
+        }
+
+        // So khớp từng candidate với logo chuẩn INNOVA CHEAT
+        for candidate in candidateImages {
+            if let candBytes = renderTo16x16Bytes(candidate.image) {
+                let diff = imageDifferenceScore(refBytes, candBytes)
+                if diff > 0.15 {
+                    return "Logo app đã bị thay đổi qua tệp '\(candidate.name)' (độ sai khác: \(Int(diff * 100))%)"
+                }
+            }
+        }
+
+        return nil
+    }
+
+    // MARK: - 3. Kiểm tra các biến môi trường dyld (DYLD_INSERT_LIBRARIES)
     private static func checkDyldEnvironment() -> String? {
         let envVars = [
             "DYLD_INSERT_LIBRARIES",
@@ -64,7 +179,7 @@ enum DylibInjectionGuard {
         return nil
     }
 
-    // MARK: - 3. Quét Header Mach-O của chính file thực thi xem có bị chèn dylib crack không
+    // MARK: - 4. Quét Header Mach-O của chính file thực thi xem có bị chèn dylib crack không
     private static func checkMachOLoadCommands() -> String? {
         guard let headerPtr = _dyld_get_image_header(0) else { return nil }
 
@@ -106,7 +221,7 @@ enum DylibInjectionGuard {
         return nil
     }
 
-    // MARK: - 4. Quét tất cả các Dynamic Libraries (dyld images) đang nạp trong RAM
+    // MARK: - 5. Quét tất cả các Dynamic Libraries (dyld images) đang nạp trong RAM
     private static func checkLoadedDyldImages() -> String? {
         let count = _dyld_image_count()
         let bundlePath = Bundle.main.bundlePath.lowercased()
@@ -136,7 +251,7 @@ enum DylibInjectionGuard {
         return nil
     }
 
-    // MARK: - 5. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ file .dylib nào bị nhét vào IPA
+    // MARK: - 6. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ file .dylib nào bị nhét vào IPA
     private static func checkBundleIntegrity() -> String? {
         guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
 
@@ -235,32 +350,36 @@ enum DylibInjectionGuard {
         exit(0)
     }
 
-    /// Entry point: Kiểm tra an toàn chống tiêm dylib và can thiệp nhị phân
+    /// Entry point: Kiểm tra an toàn chống đổi tên, đổi logo, tiêm dylib và can thiệp nhị phân
     static func enforceAllProtections() {
-        // 1. Kiểm tra file .dylib bị tiêm vào Bundle (Esign, Scarlet, Sideloadly)
+        // 1. Chống đổi tên app -> Thoát ngay nếu bị đổi tên
+        if let err = checkAppName() {
+            triggerTamperReaction(reason: err, violationType: "APP_NAME_TAMPER")
+        }
+
+        // 2. Chống thay đổi logo / icon app -> Thoát ngay nếu bị sửa logo
+        if let err = checkAppLogo() {
+            triggerTamperReaction(reason: err, violationType: "APP_LOGO_TAMPER")
+        }
+
+        // 3. Kiểm tra file .dylib bị tiêm vào Bundle (Esign, Scarlet, Sideloadly)
         if let err = checkBundleIntegrity() {
             triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
         }
 
-        // 2. Kiểm tra Header Mach-O xem có bị optool / Esign chèn lệnh nạp dylib không
+        // 4. Kiểm tra Header Mach-O xem có bị optool / Esign chèn lệnh nạp dylib không
         if let err = checkMachOLoadCommands() {
             triggerTamperReaction(reason: err, violationType: "MACHO_HEADER_TAMPER")
         }
 
-        // 3. Kiểm tra các dylib tiêm lậu đang nạp trong RAM
+        // 5. Kiểm tra các dylib tiêm lậu đang nạp trong RAM
         if let err = checkLoadedDyldImages() {
             triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
         }
 
-        // 4. Kiểm tra biến môi trường tiêm dylib bẻ khóa
+        // 6. Kiểm tra biến môi trường tiêm dylib bẻ khóa
         if let err = checkDyldEnvironment() {
             triggerTamperReaction(reason: err, violationType: "DYLD_INSERT_LIBRARIES")
-        }
-
-        // 5. Kiểm tra đổi tên app (chỉ report telemetry cảnh báo, không kill nhằm tránh lỗi khi ký sideload)
-        if let err = checkAppName() {
-            NSLog("[DylibInjectionGuard] Telemetry warning: %@", err)
-            reportTamperToServer(violationType: "APP_NAME_TAMPER", details: err)
         }
     }
 }
