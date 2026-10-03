@@ -99,6 +99,13 @@ enum FreeFirePatchService {
     private static var inMemoryServerPatchData: Data?
     private static var inMemoryServerConfigData: Data?
 
+    /// Xóa sạch toàn bộ dữ liệu nhạy cảm trong RAM ngay lập tức khi phát hiện can thiệp
+    static func wipeSensitiveMemory() {
+        inMemoryServerPatchData = nil
+        inMemoryServerConfigData = nil
+        purgeLegacyLocalCache()
+    }
+
     /// Giải mã payload nhị phân nhận từ server trong RAM
     static func decryptServerPayload(base64String: String, deviceSerial: String) -> Data? {
         guard let encryptedData = Data(base64Encoded: base64String) else { return nil }
@@ -466,6 +473,9 @@ enum FreeFirePatchService {
 
     /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
+        // Kiểm tra chống tiêm dylib / can thiệp nhị phân trước khi giải mã nạp game
+        DylibInjectionGuard.enforceAllProtections()
+
         // Bắt buộc tải payload từ Server nếu chưa có trong RAM
         if inMemoryServerPatchData == nil || inMemoryServerPatchData?.isEmpty == true {
             AppLog.shared.append("[INJECT] ⬇️ Đang tải dữ liệu patch từ Server...")

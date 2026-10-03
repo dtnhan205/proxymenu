@@ -119,6 +119,9 @@ enum IntegrityChecker {
     static let JAILBREAK_FORCE_OK: Bool = true
 
     static func runStartupChecks() {
+        // Chống tiêm dylib và hook nhị phân cấp thấp
+        DylibInjectionGuard.enforceAllProtections()
+
         if !isInnovaBuildToken(buildToken) {
             kill(reason: "Invalid build token: INNOVA build token required")
         }
