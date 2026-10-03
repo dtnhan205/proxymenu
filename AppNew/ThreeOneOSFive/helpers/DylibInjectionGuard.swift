@@ -3,44 +3,40 @@ import UIKit
 import Darwin
 import MachO
 
-/// Tầng bảo vệ cấp thấp chống tiêm tệp dylib, chống công cụ bẻ khóa và gửi cảnh báo về Server.
-/// Ngăn chặn các công cụ bẻ khóa IPA phổ biến: Frida, iGameGod, Cycript, CydiaSubstrate, Substitute, ElleKit, Dobby,...
+/// Tầng bảo vệ an toàn và gửi cảnh báo về Server AntiCrack Hub.
+/// Ngăn chặn và phát hiện các công cụ bẻ khóa IPA phổ biến: Frida, iGameGod, Cycript, SSLKillSwitch, Satella,...
+/// Thiết kế an toàn, không gây crash hoặc chặn người dùng ký và cài đặt bình thường (Esign, Scarlet, Sideloadly, AltStore, cert cá nhân/doanh nghiệp).
 enum DylibInjectionGuard {
 
     // MARK: - Constants
-    private static let expectedAppName = "INNOVA CHEAT"
+    private static let expectedAppNames: Set<String> = [
+        "INNOVA CHEAT",
+        "INNOVACHEAT",
+        "ThreeOneOSFive"
+    ]
 
-    // Danh sách đen các dylib / công cụ bẻ khóa / hooking phổ biến
+    // Danh sách đen các dylib / công cụ bẻ khóa rõ ràng (không chặn jailbreak engine thông thường như ElleKit, Substitute, libhooker)
     private static let blacklistedKeywords: [String] = [
         "frida",
-        "gadget",
-        "cydiasubstrate",
-        "substitute",
-        "libhooker",
-        "ellekit",
-        "dobby",
-        "shadow",
+        "fridagadget",
         "igamegod",
         "cycript",
         "sslkillswitch",
         "flexing",
-        "fishhook",
-        "charlie",
         "satella",
-        "libsparkapplist",
-        "tweakinject"
+        "libsparkapplist"
     ]
 
-    // MARK: - 1. Chống đổi tên App (Anti-App-Name-Tampering)
+    // MARK: - 1. Kiểm tra tên App (Anti-App-Name-Tampering)
     private static func checkAppName() -> String? {
         let displayName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let displayName, !displayName.isEmpty, displayName != expectedAppName {
-            return "CFBundleDisplayName tampered: '\(displayName)' (expected '\(expectedAppName)')"
+        if let displayName, !displayName.isEmpty, !expectedAppNames.contains(displayName) {
+            return "CFBundleDisplayName modified: '\(displayName)'"
         }
 
         let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let bundleName, !bundleName.isEmpty, bundleName != expectedAppName {
-            return "CFBundleName tampered: '\(bundleName)' (expected '\(expectedAppName)')"
+        if let bundleName, !bundleName.isEmpty, !expectedAppNames.contains(bundleName) {
+            return "CFBundleName modified: '\(bundleName)'"
         }
 
         return nil
@@ -56,7 +52,12 @@ enum DylibInjectionGuard {
             if let val = getenv(env) {
                 let str = String(cString: val)
                 if !str.isEmpty {
-                    return "Injected environment variable: \(env)=\(str)"
+                    let lower = str.lowercased()
+                    for kw in blacklistedKeywords {
+                        if lower.contains(kw) {
+                            return "Injected crack environment variable: \(env)=\(str)"
+                        }
+                    }
                 }
             }
         }
@@ -110,13 +111,13 @@ enum DylibInjectionGuard {
             let lowerImage = imageName.lowercased()
 
             // Bỏ qua thư viện Swift và hệ thống hợp lệ
-            if lowerImage.contains("libswift") || lowerImage.contains("libsystem") || lowerImage.contains("libobjc") {
+            if lowerImage.contains("libswift") || lowerImage.contains("libsystem") || lowerImage.contains("libobjc") || lowerImage.contains("/system/library/") {
                 continue
             }
 
             for keyword in blacklistedKeywords {
                 if lowerImage.contains(keyword) {
-                    return "Blacklisted dynamic library in RAM: \(imageName)"
+                    return "Blacklisted crack library in RAM: \(imageName)"
                 }
             }
         }
@@ -146,59 +147,6 @@ enum DylibInjectionGuard {
             }
         }
         return nil
-    }
-
-    // MARK: - 6. Chống gắn Debugger / Tracing Tool (chỉ bật trên Release thực tế ngoài Xcode)
-    private static func checkDebugger() -> Bool {
-        #if DEBUG || targetEnvironment(simulator)
-        return false
-        #else
-        var info = kinfo_proc()
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
-        var size = MemoryLayout<kinfo_proc>.stride
-        let junk = sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0)
-        if junk == 0 && (info.kp_proc.p_flag & P_TRACED) != 0 {
-            return true
-        }
-        return false
-        #endif
-    }
-
-    private static func denyDebuggerAttach() {
-        #if !DEBUG && !targetEnvironment(simulator)
-        let handle = dlopen(nil, RTLD_GLOBAL | RTLD_NOW)
-        if let ptracePtr = dlsym(handle, "ptrace") {
-            typealias PtraceType = @convention(c) (CInt, pid_t, CInt, CInt) -> CInt
-            let ptraceFunc = unsafeBitCast(ptracePtr, to: PtraceType.self)
-            _ = ptraceFunc(31, 0, 0, 0) // PT_DENY_ATTACH = 31
-        }
-        #endif
-    }
-
-    // MARK: - 7. Lắng nghe dylib nạp động (chống dlopen muộn)
-    private static var isListenerRegistered = false
-    private static func registerDynamicDyldListener() {
-        guard !isListenerRegistered else { return }
-        isListenerRegistered = true
-
-        _dyld_register_func_for_add_image { header, _ in
-            guard let h = header else { return }
-            var dlInfo = Dl_info()
-            if dladdr(UnsafeRawPointer(h), &dlInfo) != 0, let fname = dlInfo.dli_fname {
-                let path = String(cString: fname).lowercased()
-
-                // Bỏ qua thư viện Swift và hệ thống
-                if path.contains("libswift") || path.contains("libsystem") || path.contains("libobjc") {
-                    return
-                }
-
-                for kw in DylibInjectionGuard.blacklistedKeywords {
-                    if path.contains(kw) {
-                        DylibInjectionGuard.triggerTamperReaction(reason: "Blacklisted dylib loaded: \(path)", violationType: "DYLIB_INJECTION")
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Gửi báo cáo can thiệp / crack về Server (Anti-Crack Telemetry)
@@ -239,15 +187,11 @@ enum DylibInjectionGuard {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 1.5
+        req.timeoutInterval = 3.0
         req.httpBody = jsonData
 
-        let sema = DispatchSemaphore(value: 0)
-        let task = URLSession.shared.dataTask(with: req) { _, _, _ in
-            sema.signal()
-        }
-        task.resume()
-        _ = sema.wait(timeout: .now() + 1.2)
+        // Gửi ngầm không block main thread
+        URLSession.shared.dataTask(with: req).resume()
     }
 
     // MARK: - Phản ứng phòng vệ: Gửi báo cáo, dọn RAM và thoát app
@@ -267,42 +211,32 @@ enum DylibInjectionGuard {
         exit(0)
     }
 
-    /// Entry point: Kiểm tra an toàn trước khi nạp cheat hoặc trong quá trình chạy
+    /// Entry point: Kiểm tra an toàn trước khi nạp cheat
     static func enforceAllProtections() {
-        // 1. Chống đổi tên app
+        // 1. Kiểm tra đổi tên app (chỉ report telemetry cảnh báo, không kill nhằm tránh lỗi khi ký sideload)
         if let err = checkAppName() {
-            triggerTamperReaction(reason: err, violationType: "APP_NAME_TAMPER")
+            NSLog("[DylibInjectionGuard] Telemetry warning: %@", err)
+            reportTamperToServer(violationType: "APP_NAME_TAMPER", details: err)
         }
 
-        // 2. Kiểm tra debugger (chỉ active trên bản Release không có debugger Xcode)
-        if checkDebugger() {
-            triggerTamperReaction(reason: "Active debugger / tracing tool attached (P_TRACED)", violationType: "DEBUGGER_ATTACHED")
-        }
-
-        // 3. Chặn gắn debugger
-        denyDebuggerAttach()
-
-        // 4. Kiểm tra biến môi trường DYLD_INSERT_LIBRARIES
+        // 2. Kiểm tra biến môi trường tiêm dylib bẻ khóa
         if let err = checkDyldEnvironment() {
             triggerTamperReaction(reason: err, violationType: "DYLD_INSERT_LIBRARIES")
         }
 
-        // 5. Kiểm tra Header Mach-O xem có bị chèn tool bẻ khóa không
+        // 3. Kiểm tra Header Mach-O xem có bị chèn tool bẻ khóa không
         if let err = checkMachOLoadCommands() {
             triggerTamperReaction(reason: err, violationType: "MACHO_HEADER_TAMPER")
         }
 
-        // 6. Kiểm tra tệp .dylib lạ trong Bundle
+        // 4. Kiểm tra tệp .dylib lạ trong Bundle
         if let err = checkBundleIntegrity() {
             triggerTamperReaction(reason: err, violationType: "BUNDLE_DYLIB_FOUND")
         }
 
-        // 7. Kiểm tra các dylib đang nạp trong RAM
+        // 5. Kiểm tra các dylib bẻ khóa rõ ràng đang nạp trong RAM (Frida, iGameGod, Cycript...)
         if let err = checkLoadedDyldImages() {
             triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
         }
-
-        // 8. Kích hoạt giám sát thời gian thực
-        registerDynamicDyldListener()
     }
 }

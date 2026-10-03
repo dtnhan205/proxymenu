@@ -57,11 +57,9 @@ enum IntegrityChecker {
         return nil
     }
 
-    /// Verify bundle ID khớp expected. Trả về `nil` nếu OK.
+    /// Verify bundle ID: Cho phép app chạy khi được ký bởi các chứng chỉ cá nhân / doanh nghiệp / Esign / Scarlet / Sideloadly / AltStore.
+    /// Việc ký chứng chỉ sideload luôn bắt buộc phải thay đổi Bundle ID để khớp với Provisioning Profile của chứng chỉ.
     static func verifyBundleID(_ id: String) -> String? {
-        if id != expectedBundleID {
-            return "bundleID mismatch"
-        }
         return nil
     }
 
@@ -125,8 +123,8 @@ enum IntegrityChecker {
         if let r = verifyBaseURL(PatchHubService.baseURL) {
             kill(reason: r)
         }
-        if let r = verifyBundleID(Bundle.main.bundleIdentifier ?? "") {
-            kill(reason: r)
+        if let actualBid = Bundle.main.bundleIdentifier, !actualBid.isEmpty {
+            NSLog("[IntegrityChecker] App running with signed bundleID: %@", actualBid)
         }
         if isJailbroken() {
             if JAILBREAK_FORCE_OK {
