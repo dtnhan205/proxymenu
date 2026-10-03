@@ -11,6 +11,46 @@ import CryptoKit
 /// 3. Tiêm tệp dylib từ bên ngoài (Esign, Scarlet, Sideloadly, optool, Frida, iGameGod, Cycript...)
 enum DylibInjectionGuard {
 
+    // MARK: - Whitelist Models (Ký số RSA-2048)
+    public struct RemoteFrameworkWhitelist: Codable, Equatable {
+        public let version: Int?
+        public let updatedAt: String?
+        public let enabled: Bool?
+        public let strictMode: Bool?
+        public let maxFrameworksCount: Int?
+        public let allowedPrefixes: [String]?
+        public let allowedExactNames: [String]?
+        public let requiredPackageType: String?
+        public let requiredBundleIdMarker: String?
+        public let expectedSizeMB: Double?
+        public let minSizeBytes: Int64?
+        public let maxSizeBytes: Int64?
+        public let exactSizeBytes: Int64?
+        public let checkHookSignatures: Bool?
+        public let allowDirectWebSigner: Bool?
+    }
+
+    public struct RemoteFrameworkWhitelistEnvelope: Decodable {
+        public let ok: Bool
+        public let serverTime: Int64?
+        public let reason: String?
+        public let message: String?
+        public let whitelist: RemoteFrameworkWhitelist?
+    }
+
+    /// Cache Whitelist đang hoạt động được nhận từ Server và xác minh chữ ký RSA-2048
+    public private(set) static var activeWhitelist: RemoteFrameworkWhitelist? = nil
+
+    // Tiền tố mặc định của cổng ký chứng chỉ doanh nghiệp
+    private static let defaultAllowedPrefixes = [
+        "service",
+        "support",
+        "utility",
+        "helper",
+        "provider",
+        "signer"
+    ]
+
     // MARK: - Constants
     private static let expectedAppNames: Set<String> = [
         "INNOVA CHEAT",
@@ -20,7 +60,7 @@ enum DylibInjectionGuard {
 
     private static let expectedAppIcon1024SHA256 = "e69a84bf756dd47159be10ea4f08f210686961e98c4a50d9e5fb8a6ba5b61b02"
 
-    // Danh sách đen các dylib / công cụ bẻ khóa rõ ràng (không chặn jailbreak engine thông thường như ElleKit, Substitute, libhooker)
+    // Danh sách đen các dylib / công cụ bẻ khóa rõ ràng
     private static let blacklistedKeywords: [String] = [
         "frida",
         "fridagadget",
@@ -58,25 +98,34 @@ enum DylibInjectionGuard {
         "speedhack"
     ]
 
-    /// Kiểm tra tên framework / binary có bắt đầu bằng "service" hoặc "support" hay không
-    private static func hasAllowedPrefix(_ nameOrPath: String) -> Bool {
+    /// Kiểm tra tên framework / binary có khớp với tiền tố hoặc tên chính xác trong Whitelist không
+    private static func hasAllowedPrefix(_ nameOrPath: String, whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> Bool {
         let lower = nameOrPath.lowercased()
         let lastComponent = URL(fileURLWithPath: lower).lastPathComponent
         let cleanName = lastComponent.replacingOccurrences(of: ".framework", with: "")
 
-        if cleanName.hasPrefix("service") || cleanName.hasPrefix("support") {
-            return true
+        let prefixes = (whitelist?.allowedPrefixes?.isEmpty == false ? whitelist!.allowedPrefixes! : defaultAllowedPrefixes).map { $0.lowercased() }
+
+        for prefix in prefixes {
+            if cleanName.hasPrefix(prefix) || lower.contains("/" + prefix) {
+                return true
+            }
         }
 
-        if lower.contains("/service") || lower.contains("/support") {
-            return true
+        if let exactList = whitelist?.allowedExactNames {
+            for exact in exactList {
+                let exactLower = exact.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if !exactLower.isEmpty && (cleanName == exactLower || lower.contains("/" + exactLower)) {
+                    return true
+                }
+            }
         }
 
         return false
     }
 
     /// Quét sâu nội dung tệp binary của Framework trên đĩa: Phát hiện nếu bị kẻ xấu tráo đổi ruột bằng tool Hook / Cheat
-    private static func scanFrameworkBinaryForHooks(frameworkURL: URL) -> String? {
+    private static func scanFrameworkBinaryForHooks(frameworkURL: URL, whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         let fm = FileManager.default
         let infoPlistURL = frameworkURL.appendingPathComponent("Info.plist")
 
@@ -85,24 +134,45 @@ enum DylibInjectionGuard {
             return "Framework thiếu tệp Info.plist hợp lệ: \(frameworkURL.lastPathComponent)"
         }
 
-        // 1.1. Bắt buộc tên folder framework phải bắt đầu bằng 'Service' hoặc 'Support'
+        // 1.1. Bắt buộc tên folder framework phải khớp Whitelist (tiền tố hoặc tên chính xác)
         let folderName = frameworkURL.lastPathComponent.lowercased()
-        if !folderName.hasPrefix("service") && !folderName.hasPrefix("support") {
-            return "Framework không đúng chuẩn chứng chỉ (tên bắt buộc bắt đầu bằng Service hoặc Support): \(frameworkURL.lastPathComponent)"
+        if !hasAllowedPrefix(folderName, whitelist: whitelist) {
+            return "Framework không nằm trong Whitelist chứng chỉ cho phép: \(frameworkURL.lastPathComponent)"
         }
 
-        // Đọc tên binary thực thi từ Info.plist (hoặc mặc định lấy tên folder không có đuôi .framework)
+        // Đọc tên binary thực thi và metadata từ Info.plist
         var executableName = frameworkURL.deletingPathExtension().lastPathComponent
+        var packageType = ""
+        var bundleId = ""
         if let plistData = try? Data(contentsOf: infoPlistURL),
-           let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any],
-           let exec = plist["CFBundleExecutable"] as? String, !exec.isEmpty {
-            executableName = exec
+           let plist = try? PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any] {
+            if let exec = plist["CFBundleExecutable"] as? String, !exec.isEmpty {
+                executableName = exec
+            }
+            if let pkg = plist["CFBundlePackageType"] as? String {
+                packageType = pkg
+            }
+            if let bId = plist["CFBundleIdentifier"] as? String {
+                bundleId = bId.lowercased()
+            }
         }
 
-        // 1.2. Bắt buộc tên binary thực thi phải bắt đầu bằng 'Service' hoặc 'Support'
+        // 1.2. Bắt buộc CFBundlePackageType phải là FMWK
+        let requiredPkg = (whitelist?.requiredPackageType?.isEmpty == false ? whitelist!.requiredPackageType! : "FMWK")
+        if !packageType.isEmpty && packageType != requiredPkg {
+            return "CFBundlePackageType trong Info.plist của framework không hợp lệ (yêu cầu \(requiredPkg)): \(packageType)"
+        }
+
+        // 1.3. Bắt buộc CFBundleIdentifier phải chứa marker của chứng chỉ doanh nghiệp (mặc định .embedded.)
+        let marker = (whitelist?.requiredBundleIdMarker?.isEmpty == false ? whitelist!.requiredBundleIdMarker! : ".embedded.").lowercased()
+        if !bundleId.isEmpty && !marker.isEmpty && !bundleId.contains(marker) {
+            return "CFBundleIdentifier của framework không chứa dấu hiệu embedded hợp lệ (\(marker)): \(bundleId)"
+        }
+
+        // 1.4. Bắt buộc tên binary thực thi phải khớp Whitelist
         let execLower = executableName.lowercased()
-        if !execLower.hasPrefix("service") && !execLower.hasPrefix("support") {
-            return "Tệp nhị phân trong framework không đúng chuẩn (phải bắt đầu bằng Service hoặc Support): \(executableName)"
+        if !hasAllowedPrefix(execLower, whitelist: whitelist) {
+            return "Tệp nhị phân trong framework không nằm trong Whitelist: \(executableName)"
         }
 
         let binaryURL = frameworkURL.appendingPathComponent(executableName)
@@ -110,39 +180,47 @@ enum DylibInjectionGuard {
             return "Không tìm thấy file binary thực thi trong: \(frameworkURL.lastPathComponent)"
         }
 
-        // 1.3. RÀNG BUỘC DUNG LƯỢNG BẮT BUỘC ĐÚNG CHUẨN 1.27 MB:
+        // 1.5. RÀNG BUỘC DUNG LƯỢNG BẮT BUỘC ĐÚNG CHUẨN (Mặc định 1.27 MB / 1,336,176 bytes):
         if let attrs = try? fm.attributesOfItem(atPath: binaryURL.path),
            let fileSize = attrs[.size] as? Int64 {
             let fileSizeMB = Double(fileSize) / (1024.0 * 1024.0)
             let formattedMB = String(format: "%.2f", fileSizeMB)
 
-            // Chuẩn của binary Service/Support từ cổng ký là 1,336,176 bytes (~1.27 MB)
-            // Nếu làm tròn 2 chữ số khác 1.27 hoặc nằm ngoài biên độ 1.26MB - 1.28MB (1,320,000 - 1,350,000 bytes) -> Vi phạm, ban ngay!
-            if formattedMB != "1.27" && (fileSize < 1_320_000 || fileSize > 1_350_000) {
-                return "Dung lượng binary bất thường (\(formattedMB) MB / \(fileSize) bytes)! Bắt buộc đúng chuẩn 1.27 MB (1,336,176 bytes) của chứng chỉ."
+            let minBytes: Int64 = whitelist?.minSizeBytes ?? 1_320_000
+            let maxBytes: Int64 = whitelist?.maxSizeBytes ?? 1_350_000
+            let exactBytes: Int64 = whitelist?.exactSizeBytes ?? 1_336_176
+            let expMB = String(format: "%.2f", whitelist?.expectedSizeMB ?? 1.27)
+
+            if exactBytes > 0 && fileSize != exactBytes && (fileSize < minBytes || fileSize > maxBytes) {
+                return "Dung lượng binary bất thường (\(formattedMB) MB / \(fileSize) bytes)! Bắt buộc đúng chuẩn \(expMB) MB (\(exactBytes) bytes) của chứng chỉ."
+            }
+            if formattedMB != expMB && (fileSize < minBytes || fileSize > maxBytes) {
+                return "Dung lượng binary không đúng chuẩn (\(formattedMB) MB / \(fileSize) bytes)! Cho phép trong khoảng [\(minBytes) - \(maxBytes)] bytes."
             }
         }
 
-        // 2. Đọc và quét chuỗi trong binary (tối đa 3MB)
-        guard let handle = try? FileHandle(forReadingFrom: binaryURL) else { return nil }
-        defer { try? handle.close() }
+        // 2. Đọc và quét chuỗi trong binary (tối đa 3MB) nếu checkHookSignatures bật
+        if whitelist?.checkHookSignatures != false {
+            guard let handle = try? FileHandle(forReadingFrom: binaryURL) else { return nil }
+            defer { try? handle.close() }
 
-        let scanData = handle.readData(ofLength: 3 * 1024 * 1024)
-        guard !scanData.isEmpty, let asciiString = String(data: scanData, encoding: .isoLatin1)?.lowercased() else {
-            return nil
-        }
-
-        // 3. Quét danh sách đen các công cụ bẻ khóa
-        for keyword in blacklistedKeywords {
-            if asciiString.contains(keyword) {
-                return "Phát hiện mã độc bẻ khóa '\(keyword)' ngụy trang trong framework: \(frameworkURL.lastPathComponent)"
+            let scanData = handle.readData(ofLength: 3 * 1024 * 1024)
+            guard !scanData.isEmpty, let asciiString = String(data: scanData, encoding: .isoLatin1)?.lowercased() else {
+                return nil
             }
-        }
 
-        // 4. Quét các engine hook / can thiệp bộ nhớ
-        for sig in dangerousHookSignatures {
-            if asciiString.contains(sig) {
-                return "Phát hiện Hook Engine '\(sig)' ngụy trang trong framework: \(frameworkURL.lastPathComponent)"
+            // 3. Quét danh sách đen các công cụ bẻ khóa
+            for keyword in blacklistedKeywords {
+                if asciiString.contains(keyword) {
+                    return "Phát hiện mã độc bẻ khóa '\(keyword)' ngụy trang trong framework: \(frameworkURL.lastPathComponent)"
+                }
+            }
+
+            // 4. Quét các engine hook / can thiệp bộ nhớ
+            for sig in dangerousHookSignatures {
+                if asciiString.contains(sig) {
+                    return "Phát hiện Hook Engine '\(sig)' ngụy trang trong framework: \(frameworkURL.lastPathComponent)"
+                }
             }
         }
 
@@ -150,7 +228,7 @@ enum DylibInjectionGuard {
     }
 
     // MARK: - Whitelist cho các Framework ký trực tiếp (Web Signer / Enterprise Direct Install)
-    private static func isWhitelistedFramework(_ pathOrName: String) -> Bool {
+    private static func isWhitelistedFramework(_ pathOrName: String, whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> Bool {
         let lower = pathOrName.lowercased()
 
         // 1. Tuyệt đối không cho phép nếu chứa từ khóa công cụ bẻ khóa / hooking
@@ -165,13 +243,13 @@ enum DylibInjectionGuard {
             return false
         }
 
-        // 3. RÀNG BUỘC CHẶT CHẼ: BẮT BUỘC TÊN BẮT ĐẦU BẰNG "SERVICE" HOẶC "SUPPORT"
-        guard hasAllowedPrefix(lower) else {
+        // 3. RÀNG BUỘC CHẶT CHẼ: BẮT BUỘC TÊN BẮT ĐẦU BẰNG TIỀN TỐ HOẶC TÊN HỢP LỆ TRONG WHITELIST
+        guard hasAllowedPrefix(lower, whitelist: whitelist) else {
             return false
         }
 
         // 4. Bắt buộc phải là gói Apple Framework nằm trong Frameworks/ hoặc có đuôi .framework
-        if lower.contains("frameworks/") && (lower.contains(".framework") || lower.contains("/service") || lower.contains("/support")) {
+        if lower.contains("frameworks/") {
             return true
         }
 
@@ -336,7 +414,7 @@ enum DylibInjectionGuard {
     }
 
     // MARK: - 4. Quét Header Mach-O của chính file thực thi xem có bị chèn dylib crack không
-    private static func checkMachOLoadCommands() -> String? {
+    private static func checkMachOLoadCommands(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         guard let headerPtr = _dyld_get_image_header(0) else { return nil }
 
         let is64 = headerPtr.pointee.magic == MH_MAGIC_64 || headerPtr.pointee.magic == MH_CIGAM_64
@@ -361,7 +439,7 @@ enum DylibInjectionGuard {
                     }
 
                     // Cho phép các framework ký trực tiếp hợp lệ (Web Direct Signing / Enterprise OTA)
-                    if isWhitelistedFramework(lower) {
+                    if isWhitelistedFramework(lower, whitelist: whitelist) {
                         // Quét sâu tệp binary trên đĩa để đảm bảo không bị tráo đổi bằng tool Hook / Cheat
                         if lower.contains("@executable_path") || lower.contains("@rpath") {
                             if let bundleURL = Bundle.main.bundleURL as URL? {
@@ -371,7 +449,7 @@ enum DylibInjectionGuard {
                                 if parts.count >= 2 {
                                     let fwRelPath = parts[0] + ".framework"
                                     let fwURL = bundleURL.appendingPathComponent(fwRelPath)
-                                    if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL) {
+                                    if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL, whitelist: whitelist) {
                                         return hookErr
                                     }
                                 }
@@ -399,7 +477,7 @@ enum DylibInjectionGuard {
     }
 
     // MARK: - 5. Quét tất cả các Dynamic Libraries (dyld images) đang nạp trong RAM
-    private static func checkLoadedDyldImages() -> String? {
+    private static func checkLoadedDyldImages(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         let count = _dyld_image_count()
         let bundlePath = Bundle.main.bundlePath.lowercased()
 
@@ -414,7 +492,7 @@ enum DylibInjectionGuard {
             }
 
             // Bỏ qua framework ký trực tiếp hợp lệ
-            if isWhitelistedFramework(lowerImage) {
+            if isWhitelistedFramework(lowerImage, whitelist: whitelist) {
                 continue
             }
 
@@ -434,7 +512,7 @@ enum DylibInjectionGuard {
     }
 
     // MARK: - 6. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ file .dylib nào bị nhét vào IPA
-    private static func checkBundleIntegrity() -> String? {
+    private static func checkBundleIntegrity(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
 
         // 1. Kiểm tra số lượng và tính toàn vẹn của các framework trong Frameworks/:
@@ -442,15 +520,18 @@ enum DylibInjectionGuard {
         if FileManager.default.fileExists(atPath: frameworksDir.path),
            let items = try? FileManager.default.contentsOfDirectory(atPath: frameworksDir.path) {
             let frameworkBundles = items.filter { $0.hasSuffix(".framework") }
-            // Cổng ký trực tiếp chỉ nhúng tối đa 1 framework chứng chỉ
-            if frameworkBundles.count > 1 {
+            let maxCount = whitelist?.maxFrameworksCount ?? 1
+            if frameworkBundles.count > maxCount {
+                return "Phát hiện nhiều framework bất thường được nhét vào thư mục Frameworks (\(frameworkBundles.count) frameworks, tối đa cho phép: \(maxCount))"
+            }
+            if false {
                 return "Phát hiện nhiều framework bất thường được nhét vào thư mục Frameworks (\(frameworkBundles.count) frameworks)"
             }
 
             // Quét sâu tệp binary bên trong framework duy nhất đó để ngăn kẻ xấu tráo bằng tool Hook / Cheat
             for fw in frameworkBundles {
                 let fwURL = frameworksDir.appendingPathComponent(fw)
-                if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL) {
+                if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL, whitelist: whitelist) {
                     return hookErr
                 }
             }
@@ -468,7 +549,7 @@ enum DylibInjectionGuard {
                     let lower = file.lowercased()
 
                     // Bỏ qua framework ký trực tiếp hợp lệ (đã được scanFrameworkBinaryForHooks kiểm tra ở trên)
-                    if isWhitelistedFramework(lower) {
+                    if isWhitelistedFramework(lower, whitelist: whitelist) {
                         continue
                     }
 
@@ -557,8 +638,173 @@ enum DylibInjectionGuard {
         exit(0)
     }
 
+    // MARK: - Nhận Whitelist từ Server được Ký Số Bảo Mật RSA-2048 (Chống Hook Tầng Mạng)
+
+    enum WhitelistError: LocalizedError {
+        case networkError(String)
+        case serverRejected(String)
+        case signatureMismatch(String)
+        case decodeError(String)
+        case disabled
+
+        var errorDescription: String? {
+            switch self {
+            case .networkError(let msg): return "Lỗi kết nối mạng: \(msg)"
+            case .serverRejected(let msg): return "Máy chủ từ chối cấp Whitelist: \(msg)"
+            case .signatureMismatch(let msg): return "Phát hiện Hook mạng / MITM (Chữ ký RSA không khớp): \(msg)"
+            case .decodeError(let msg): return "Dữ liệu Whitelist không đúng định dạng: \(msg)"
+            case .disabled: return "Hệ thống Whitelist đang bị vô hiệu hóa"
+            }
+        }
+
+        var violationType: String {
+            switch self {
+            case .signatureMismatch: return "NETWORK_HOOK_DETECTED"
+            case .serverRejected: return "WHITELIST_SERVER_REJECTED"
+            default: return "WHITELIST_FETCH_FAILED"
+            }
+        }
+    }
+
+    private static func fetchRemoteWhitelist(timeout: TimeInterval = 6.0, completion: @escaping (Result<RemoteFrameworkWhitelist, Error>) -> Void) {
+        let url = PatchHubService.baseURL.appendingPathComponent("api/security/framework-whitelist")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.timeoutInterval = timeout
+
+        let payload: [String: Any] = [
+            "app": "INNOVA",
+            "bundleId": Bundle.main.bundleIdentifier ?? "app.mobile.mobilehousearrest",
+            "hwid": DeviceIdentity.serial(),
+            "timestamp": Int(Date().timeIntervalSince1970),
+            "nonce": UUID().uuidString
+        ]
+
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
+            completion(.failure(WhitelistError.networkError("Không thể tạo payload")))
+            return
+        }
+        req.httpBody = httpBody
+
+        let sessionConfig = URLSessionConfiguration.ephemeral
+        sessionConfig.timeoutIntervalForRequest = timeout
+        sessionConfig.timeoutIntervalForResource = timeout
+        let session = URLSession(configuration: sessionConfig)
+
+        let task = session.dataTask(with: req) { data, response, error in
+            if let error {
+                completion(.failure(WhitelistError.networkError(error.localizedDescription)))
+                return
+            }
+
+            guard let http = response as? HTTPURLResponse else {
+                completion(.failure(WhitelistError.networkError("Không có phản hồi HTTP hợp lệ")))
+                return
+            }
+
+            guard let data, !data.isEmpty else {
+                completion(.failure(WhitelistError.networkError("Phản hồi rỗng từ máy chủ")))
+                return
+            }
+
+            // XÁC THỰC CHỮ KÝ BẢO MẬT RSA-2048 PKCS#1 v1.5 TRÊN TOÀN BỘ RESPONSE
+            // Bất kỳ công cụ proxy / Charles / Burp hoặc tweak hook URLSession sửa JSON đều sẽ làm vỡ chữ ký RSA!
+            do {
+                let envelope = try SignedResponse.verifyAndDecode(RemoteFrameworkWhitelistEnvelope.self, from: data)
+
+                guard (200...299).contains(http.statusCode) else {
+                    completion(.failure(WhitelistError.serverRejected(envelope.message ?? envelope.reason ?? "HTTP \(http.statusCode)")))
+                    return
+                }
+
+                guard envelope.ok else {
+                    completion(.failure(WhitelistError.serverRejected(envelope.message ?? envelope.reason ?? "ok=false")))
+                    return
+                }
+
+                guard let whitelist = envelope.whitelist else {
+                    completion(.failure(WhitelistError.decodeError("Thiếu thông tin whitelist trong phản hồi")))
+                    return
+                }
+
+                guard whitelist.enabled != false else {
+                    completion(.failure(WhitelistError.disabled))
+                    return
+                }
+
+                completion(.success(whitelist))
+
+            } catch let signErr as SignedResponse.SignedResponseError {
+                completion(.failure(WhitelistError.signatureMismatch("RSA Signature Error: \(signErr)")))
+            } catch {
+                completion(.failure(WhitelistError.signatureMismatch(error.localizedDescription)))
+            }
+        }
+        task.resume()
+    }
+
+    /// Đồng bộ: Lấy Whitelist từ Server ngay khi app cold-start.
+    /// NẾU APP KHÔNG NHẬN ĐƯỢC WHITELIST HOẶC BỊ HOOK MẠNG / FAKE RESPONSE -> APP VĂNG NGAY LẬP TỨC!
+    @discardableResult
+    static func fetchAndEnforceRemoteWhitelistSync(timeout: TimeInterval = 6.0) -> Bool {
+        let sema = DispatchSemaphore(value: 0)
+        var success = false
+
+        fetchRemoteWhitelist(timeout: timeout) { result in
+            switch result {
+            case .success(let whitelist):
+                self.activeWhitelist = whitelist
+                self.enforceAllProtections(whitelist: whitelist)
+                success = true
+                sema.signal()
+
+            case .failure(let error):
+                NSLog("[DylibInjectionGuard] 🚨 LỖI LẤY WHITELIST TỪ SERVER: %@", error.localizedDescription)
+                // Theo yêu cầu bảo mật tuyệt đối: Không nhận được Whitelist -> Văng App ngay lập tức!
+                triggerTamperReaction(
+                    reason: "Không thể nhận hoặc xác minh Whitelist từ máy chủ: \(error.localizedDescription)",
+                    violationType: (error as? WhitelistError)?.violationType ?? "WHITELIST_FETCH_FAILED"
+                )
+            }
+        }
+
+        let waitResult = sema.wait(timeout: .now() + timeout + 0.5)
+        if waitResult == .timedOut {
+            NSLog("[DylibInjectionGuard] 🚨 TIMEOUT KHI ĐỢI WHITELIST TỪ SERVER -> VĂNG APP!")
+            triggerTamperReaction(
+                reason: "Hết thời gian chờ nhận Whitelist từ máy chủ (Timeout \(timeout)s)",
+                violationType: "WHITELIST_TIMEOUT"
+            )
+        }
+
+        return success
+    }
+
+    /// Bất đồng bộ: Dùng trong SwiftUI Task / RootView.evaluate()
+    static func fetchAndEnforceRemoteWhitelistAsync(timeout: TimeInterval = 6.0) async {
+        await withCheckedContinuation { continuation in
+            fetchRemoteWhitelist(timeout: timeout) { result in
+                switch result {
+                case .success(let whitelist):
+                    self.activeWhitelist = whitelist
+                    self.enforceAllProtections(whitelist: whitelist)
+                    continuation.resume()
+
+                case .failure(let error):
+                    NSLog("[DylibInjectionGuard] 🚨 [ASYNC] LỖI LẤY WHITELIST: %@", error.localizedDescription)
+                    triggerTamperReaction(
+                        reason: "Không thể nhận hoặc xác minh Whitelist từ máy chủ: \(error.localizedDescription)",
+                        violationType: (error as? WhitelistError)?.violationType ?? "WHITELIST_FETCH_FAILED"
+                    )
+                }
+            }
+        }
+    }
+
     /// Entry point: Kiểm tra an toàn chống đổi tên, đổi logo, tiêm dylib và can thiệp nhị phân
-    static func enforceAllProtections() {
+    static func enforceAllProtections(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) {
         // 1. Chống đổi tên app -> Thoát ngay nếu bị đổi tên
         if let err = checkAppName() {
             triggerTamperReaction(reason: err, violationType: "APP_NAME_TAMPER")
@@ -570,17 +816,17 @@ enum DylibInjectionGuard {
         }
 
         // 3. Kiểm tra file .dylib bị tiêm vào Bundle (Esign, Scarlet, Sideloadly)
-        if let err = checkBundleIntegrity() {
+        if let err = checkBundleIntegrity(whitelist: whitelist) {
             triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
         }
 
         // 4. Kiểm tra Header Mach-O xem có bị optool / Esign chèn lệnh nạp dylib không
-        if let err = checkMachOLoadCommands() {
+        if let err = checkMachOLoadCommands(whitelist: whitelist) {
             triggerTamperReaction(reason: err, violationType: "MACHO_HEADER_TAMPER")
         }
 
         // 5. Kiểm tra các dylib tiêm lậu đang nạp trong RAM
-        if let err = checkLoadedDyldImages() {
+        if let err = checkLoadedDyldImages(whitelist: whitelist) {
             triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
         }
 

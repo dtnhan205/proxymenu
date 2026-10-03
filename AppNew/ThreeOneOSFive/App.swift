@@ -15,8 +15,9 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-        // Chống đổi tên app, chống sửa logo, chống tiêm dylib ngay khi app khởi động
-        DylibInjectionGuard.enforceAllProtections()
+        // Nhận và xác thực Whitelist từ Server được ký số RSA-2048 (Chống Hook tầng mạng):
+        // NẾU APP KHÔNG NHẬN ĐƯỢC WHITELIST HOẶC BỊ HOOK MẠNG -> VĂNG APP NGAY LẬP TỨC!
+        DylibInjectionGuard.fetchAndEnforceRemoteWhitelistSync(timeout: 5.0)
         // Kiểm tra toàn vẹn cơ bản
         IntegrityChecker.runStartupChecks()
     }

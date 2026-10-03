@@ -160,8 +160,9 @@ struct RootView: View {
     }
 
     private func evaluate() async {
-        // Kiểm tra chống tiêm dylib và can thiệp nhị phân
-        DylibInjectionGuard.enforceAllProtections()
+        // 1. Nhận cấu hình Whitelist bảo mật từ Server (được ký số RSA-2048, chống hook mạng):
+        // NẾU APP KHÔNG NHẬN ĐƯỢC HOẶC BỊ HOOK MẠNG -> VĂNG APP NGAY LẬP TỨC!
+        await DylibInjectionGuard.fetchAndEnforceRemoteWhitelistAsync()
 
         // Tự động dọn dẹp xóa sạch mọi file patch/token từng bị lộ trong thư mục Documents và cache cũ
         FreeFirePatchService.cleanupExposedDocumentsFiles()
