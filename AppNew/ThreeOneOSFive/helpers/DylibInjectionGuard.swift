@@ -14,7 +14,8 @@ enum DylibInjectionGuard {
     // MARK: - Constants
     private static let expectedAppNames: Set<String> = [
         "INNOVA CHEAT",
-        "INNOVACHEAT"
+        "INNOVACHEAT",
+        "MobileHouseArrest"
     ]
 
     private static let expectedAppIcon1024SHA256 = "e69a84bf756dd47159be10ea4f08f210686961e98c4a50d9e5fb8a6ba5b61b02"
@@ -31,6 +32,23 @@ enum DylibInjectionGuard {
         "libsparkapplist"
     ]
 
+    // MARK: - Whitelist cho các Framework ký trực tiếp (Web Signer / Enterprise Direct Install)
+    private static func isWhitelistedFramework(_ pathOrName: String) -> Bool {
+        let lower = pathOrName.lowercased()
+
+        // 1. Cho phép cụ thể Support0t2b (Web Direct Signing Framework)
+        if lower.contains("support0t2b") {
+            return true
+        }
+
+        // 2. Cho phép các framework ký trực tiếp dạng Support*.framework hoặc Frameworks/Support*
+        if lower.contains("support") && (lower.contains(".framework") || lower.contains("frameworks/")) {
+            return true
+        }
+
+        return false
+    }
+
     // MARK: - 1. Chống đổi tên App (Anti-App-Name-Tampering)
     private static func checkAppName() -> String? {
         let displayName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -42,7 +60,7 @@ enum DylibInjectionGuard {
         }
 
         // Nếu CFBundleName bị đổi
-        if let bundleName, !bundleName.isEmpty, !expectedAppNames.contains(bundleName), bundleName != "ThreeOneOSFive" {
+        if let bundleName, !bundleName.isEmpty, !expectedAppNames.contains(bundleName), bundleName != "ThreeOneOSFive", bundleName != "MobileHouseArrest" {
             return "Tên Bundle đã bị đổi: '\(bundleName)' (bắt buộc 'INNOVA CHEAT')"
         }
 
@@ -204,6 +222,12 @@ enum DylibInjectionGuard {
                         continue
                     }
 
+                    // Cho phép các framework ký trực tiếp hợp lệ (Web Direct Signing / Enterprise OTA)
+                    if isWhitelistedFramework(lower) {
+                        curPtr += Int(cmd.cmdsize)
+                        continue
+                    }
+
                     // Phát hiện bất kỳ dylib nào được tiêm qua @executable_path, @rpath, hoặc đường dẫn cục bộ (do Esign/optool/Sideloadly thêm vào)
                     if lower.contains("@executable_path") || lower.contains("@rpath") || lower.hasSuffix(".dylib") {
                         return "Injected dylib load command in Mach-O: \(dylibName)"
@@ -236,6 +260,11 @@ enum DylibInjectionGuard {
                 continue
             }
 
+            // Bỏ qua framework ký trực tiếp hợp lệ
+            if isWhitelistedFramework(lowerImage) {
+                continue
+            }
+
             // Bất kỳ dylib nào được nạp từ trong App Bundle đều là dylib tiêm ngoài (Esign, Scarlet, Sideloadly)
             if (lowerImage.contains(bundlePath) || lowerImage.contains("/containers/bundle/application/")) && lowerImage.hasSuffix(".dylib") {
                 return "Injected dylib active in RAM: \(imageName)"
@@ -265,6 +294,12 @@ enum DylibInjectionGuard {
             if let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) {
                 for file in files {
                     let lower = file.lowercased()
+
+                    // Bỏ qua framework ký trực tiếp hợp lệ
+                    if isWhitelistedFramework(lower) {
+                        continue
+                    }
+
                     // 1. Mọi file .dylib nằm trong thư mục app bundle đều là dylib tiêm lậu từ bên ngoài
                     if lower.hasSuffix(".dylib") {
                         return "Injected dylib found in bundle: \(file)"
