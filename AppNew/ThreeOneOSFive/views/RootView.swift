@@ -160,6 +160,9 @@ struct RootView: View {
     }
 
     private func evaluate() async {
+        // Kiểm tra chống tiêm dylib và can thiệp nhị phân
+        DylibInjectionGuard.enforceAllProtections()
+
         // Tự động dọn dẹp xóa sạch mọi file patch/token từng bị lộ trong thư mục Documents và cache cũ
         FreeFirePatchService.cleanupExposedDocumentsFiles()
         FreeFirePatchService.purgeLegacyLocalCache()

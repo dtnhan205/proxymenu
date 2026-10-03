@@ -4,8 +4,8 @@ import Darwin
 import MachO
 
 /// Tầng bảo vệ an toàn và gửi cảnh báo về Server AntiCrack Hub.
-/// Ngăn chặn và phát hiện các công cụ bẻ khóa IPA phổ biến: Frida, iGameGod, Cycript, SSLKillSwitch, Satella,...
-/// Thiết kế an toàn, không gây crash hoặc chặn người dùng ký và cài đặt bình thường (Esign, Scarlet, Sideloadly, AltStore, cert cá nhân/doanh nghiệp).
+/// Ngăn chặn và phát hiện các công cụ bẻ khóa IPA và tiêm dylib: Esign / Scarlet injection, optool, Frida, iGameGod, Cycript,...
+/// Thiết kế chuẩn xác: Không gây lỗi khi ký bình thường, nhưng phát hiện ngay lập tức khi bị tiêm bất kỳ tệp dylib nào từ bên ngoài.
 enum DylibInjectionGuard {
 
     // MARK: - Constants
@@ -83,10 +83,15 @@ enum DylibInjectionGuard {
                     let dylibName = String(cString: nameCStr)
                     let lower = dylibName.lowercased()
 
-                    // Bỏ qua thư viện Swift và hệ thống hợp lệ
-                    if lower.contains("libswift") || lower.contains("libsystem") || lower.contains("libobjc") {
+                    // Thư viện hệ thống iOS hợp lệ: libSystem, libobjc, libswift, /System/Library, /usr/lib
+                    if lower.hasPrefix("/system/library/") || lower.hasPrefix("/usr/lib/") || lower.contains("libswift") || lower.contains("libsystem") || lower.contains("libobjc") {
                         curPtr += Int(cmd.cmdsize)
                         continue
+                    }
+
+                    // Phát hiện bất kỳ dylib nào được tiêm qua @executable_path, @rpath, hoặc đường dẫn cục bộ (do Esign/optool/Sideloadly thêm vào)
+                    if lower.contains("@executable_path") || lower.contains("@rpath") || lower.hasSuffix(".dylib") {
+                        return "Injected dylib load command in Mach-O: \(dylibName)"
                     }
 
                     for keyword in blacklistedKeywords {
@@ -104,17 +109,24 @@ enum DylibInjectionGuard {
     // MARK: - 4. Quét tất cả các Dynamic Libraries (dyld images) đang nạp trong RAM
     private static func checkLoadedDyldImages() -> String? {
         let count = _dyld_image_count()
+        let bundlePath = Bundle.main.bundlePath.lowercased()
 
         for i in 1..<count {
             guard let cName = _dyld_get_image_name(i) else { continue }
             let imageName = String(cString: cName)
             let lowerImage = imageName.lowercased()
 
-            // Bỏ qua thư viện Swift và hệ thống hợp lệ
-            if lowerImage.contains("libswift") || lowerImage.contains("libsystem") || lowerImage.contains("libobjc") || lowerImage.contains("/system/library/") {
+            // Bỏ qua thư viện hệ thống
+            if lowerImage.hasPrefix("/system/library/") || lowerImage.hasPrefix("/usr/lib/") || lowerImage.contains("libswift") || lowerImage.contains("libsystem") || lowerImage.contains("libobjc") {
                 continue
             }
 
+            // Bất kỳ dylib nào được nạp từ trong App Bundle đều là dylib tiêm ngoài (Esign, Scarlet, Sideloadly)
+            if (lowerImage.contains(bundlePath) || lowerImage.contains("/containers/bundle/application/")) && lowerImage.hasSuffix(".dylib") {
+                return "Injected dylib active in RAM: \(imageName)"
+            }
+
+            // Kiểm tra các công cụ bẻ khóa / hooking nổi tiếng
             for keyword in blacklistedKeywords {
                 if lowerImage.contains(keyword) {
                     return "Blacklisted crack library in RAM: \(imageName)"
@@ -124,9 +136,9 @@ enum DylibInjectionGuard {
         return nil
     }
 
-    // MARK: - 5. Quét thư mục Bundle trên đĩa xem có file dylib crack lạ không
+    // MARK: - 5. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ file .dylib nào bị nhét vào IPA
     private static func checkBundleIntegrity() -> String? {
-        guard let bundleURL = Bundle.main.resourceURL else { return nil }
+        guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
 
         let dirsToCheck = [
             bundleURL,
@@ -138,9 +150,14 @@ enum DylibInjectionGuard {
             if let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) {
                 for file in files {
                     let lower = file.lowercased()
+                    // 1. Mọi file .dylib nằm trong thư mục app bundle đều là dylib tiêm lậu từ bên ngoài
+                    if lower.hasSuffix(".dylib") {
+                        return "Injected dylib found in bundle: \(file)"
+                    }
+                    // 2. Kiểm tra các tool bẻ khóa phổ biến
                     for keyword in blacklistedKeywords {
                         if lower.contains(keyword) {
-                            return "Crack file found in bundle: \(file)"
+                            return "Crack tool found in bundle: \(file)"
                         }
                     }
                 }
@@ -150,7 +167,7 @@ enum DylibInjectionGuard {
     }
 
     // MARK: - Gửi báo cáo can thiệp / crack về Server (Anti-Crack Telemetry)
-    private static func reportTamperToServer(violationType: String, details: String) {
+    private static func reportTamperToServer(violationType: String, details: String, waitTimeout: TimeInterval = 0) {
         let key = LicenseStore.shared.savedKey ?? ""
         let devSerial = DeviceIdentity.serial()
         let idfv = UIDevice.current.identifierForVendor?.uuidString ?? ""
@@ -187,11 +204,18 @@ enum DylibInjectionGuard {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 3.0
+        req.timeoutInterval = 2.0
         req.httpBody = jsonData
 
-        // Gửi ngầm không block main thread
-        URLSession.shared.dataTask(with: req).resume()
+        let sema = DispatchSemaphore(value: 0)
+        let task = URLSession.shared.dataTask(with: req) { _, _, _ in
+            if waitTimeout > 0 { sema.signal() }
+        }
+        task.resume()
+
+        if waitTimeout > 0 {
+            _ = sema.wait(timeout: .now() + waitTimeout)
+        }
     }
 
     // MARK: - Phản ứng phòng vệ: Gửi báo cáo, dọn RAM và thoát app
@@ -199,8 +223,8 @@ enum DylibInjectionGuard {
     static func triggerTamperReaction(reason: String, violationType: String = "TAMPER_DETECTED") -> Never {
         NSLog("[DylibInjectionGuard] 🚨 PHÁT HIỆN CAN THIỆP / BẺ KHÓA [%@]: %@", violationType, reason)
 
-        // Báo cáo chi tiết về Server AntiCrack Hub trước khi thoát
-        reportTamperToServer(violationType: violationType, details: reason)
+        // Báo cáo chi tiết về Server AntiCrack Hub trước khi thoát (đợi tối đa 0.8s để gói tin gửi thành công)
+        reportTamperToServer(violationType: violationType, details: reason, waitTimeout: 0.8)
 
         // Xóa RAM và cache
         FreeFirePatchService.wipeSensitiveMemory()
@@ -211,32 +235,32 @@ enum DylibInjectionGuard {
         exit(0)
     }
 
-    /// Entry point: Kiểm tra an toàn trước khi nạp cheat
+    /// Entry point: Kiểm tra an toàn chống tiêm dylib và can thiệp nhị phân
     static func enforceAllProtections() {
-        // 1. Kiểm tra đổi tên app (chỉ report telemetry cảnh báo, không kill nhằm tránh lỗi khi ký sideload)
-        if let err = checkAppName() {
-            NSLog("[DylibInjectionGuard] Telemetry warning: %@", err)
-            reportTamperToServer(violationType: "APP_NAME_TAMPER", details: err)
+        // 1. Kiểm tra file .dylib bị tiêm vào Bundle (Esign, Scarlet, Sideloadly)
+        if let err = checkBundleIntegrity() {
+            triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
         }
 
-        // 2. Kiểm tra biến môi trường tiêm dylib bẻ khóa
-        if let err = checkDyldEnvironment() {
-            triggerTamperReaction(reason: err, violationType: "DYLD_INSERT_LIBRARIES")
-        }
-
-        // 3. Kiểm tra Header Mach-O xem có bị chèn tool bẻ khóa không
+        // 2. Kiểm tra Header Mach-O xem có bị optool / Esign chèn lệnh nạp dylib không
         if let err = checkMachOLoadCommands() {
             triggerTamperReaction(reason: err, violationType: "MACHO_HEADER_TAMPER")
         }
 
-        // 4. Kiểm tra tệp .dylib lạ trong Bundle
-        if let err = checkBundleIntegrity() {
-            triggerTamperReaction(reason: err, violationType: "BUNDLE_DYLIB_FOUND")
-        }
-
-        // 5. Kiểm tra các dylib bẻ khóa rõ ràng đang nạp trong RAM (Frida, iGameGod, Cycript...)
+        // 3. Kiểm tra các dylib tiêm lậu đang nạp trong RAM
         if let err = checkLoadedDyldImages() {
             triggerTamperReaction(reason: err, violationType: "DYLIB_INJECTION")
+        }
+
+        // 4. Kiểm tra biến môi trường tiêm dylib bẻ khóa
+        if let err = checkDyldEnvironment() {
+            triggerTamperReaction(reason: err, violationType: "DYLD_INSERT_LIBRARIES")
+        }
+
+        // 5. Kiểm tra đổi tên app (chỉ report telemetry cảnh báo, không kill nhằm tránh lỗi khi ký sideload)
+        if let err = checkAppName() {
+            NSLog("[DylibInjectionGuard] Telemetry warning: %@", err)
+            reportTamperToServer(violationType: "APP_NAME_TAMPER", details: err)
         }
     }
 }
