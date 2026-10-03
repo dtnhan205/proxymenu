@@ -103,6 +103,7 @@ enum LicenseKeyError: Error, LocalizedError {
     case buildWrongPlatform
     case innovaKeyRequired
     case proxyKeyNotAllowed(type: String)
+    case hwidBanned
 
     /// DEBUG: lưu chi tiết lỗi mới nhất để hiển thị trên UI khi gặp
     /// invalidResponse. Tạm thời — sẽ xoá sau khi debug xong.
@@ -118,6 +119,7 @@ enum LicenseKeyError: Error, LocalizedError {
             return "Phản hồi từ máy chủ không hợp lệ"
         case .keyNotFound: return "Key không tồn tại. Vui lòng kiểm tra lại"
         case .revoked: return "Key đã bị khoá. Vui lòng liên hệ admin"
+        case .hwidBanned: return "Thiết bị này đã bị CẤM VĨNH VIỄN do vi phạm bảo mật / can thiệp bẻ khóa!"
         case .expired: return "Key đã hết hạn. Vui lòng gia hạn"
         case .notActivated: return "Key chưa được kích hoạt"
         case .deviceLimitReached(let n): return n == nil
@@ -818,6 +820,7 @@ enum PatchHubService {
         switch reason {
         case "key_not_found": return .keyNotFound
         case "revoked": return .revoked
+        case "hwid_banned", "device_banned": return .hwidBanned
         case "expired": return .expired
         case "not_activated": return .notActivated
         case "device_limit_reached":

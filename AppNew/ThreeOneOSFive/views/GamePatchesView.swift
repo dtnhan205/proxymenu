@@ -729,7 +729,7 @@ extension GamePatchesView {
         switch error {
         case .internalError, .missingKey, .invalidResponse:
             return true
-        case .keyNotFound, .revoked, .expired, .notActivated,
+        case .keyNotFound, .revoked, .hwidBanned, .expired, .notActivated,
              .deviceLimitReached, .deviceNotBound,
              .buildMissing, .buildRevoked, .buildUnknown, .buildWrongPlatform,
              .innovaKeyRequired, .proxyKeyNotAllowed:

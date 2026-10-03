@@ -218,7 +218,7 @@ struct RootView: View {
         } catch let error as LicenseKeyError {
             NSLog("[RootView] verifyKey trả lỗi: \(error)")
             switch error {
-            case .keyNotFound, .revoked, .expired, .notActivated,
+            case .keyNotFound, .revoked, .hwidBanned, .expired, .notActivated,
                  .deviceLimitReached, .deviceNotBound,
                  .innovaKeyRequired, .proxyKeyNotAllowed:
                 // Key thật sự không còn hợp lệ trên máy chủ (bị xóa, hết hạn, bị thu hồi hoặc sai thiết bị)
