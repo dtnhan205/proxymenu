@@ -15,10 +15,7 @@ struct ThreeOneOSFiveApp: App {
 
     init() {
         setupLogCapture()
-        // Kích hoạt tầng phòng thủ cấp thấp: chống tiêm dylib, chống sửa header Mach-O, chống debugger
-        DylibInjectionGuard.enforceAllProtections()
-        // Chạy ngay khi app mở. Mọi chỉnh sửa binary (đổi URL, hook
-        // Obfuscated, rebrand bundle ID, jailbreak) → kill.
+        // Chạy ngay khi app mở. Kiểm tra toàn vẹn cơ bản.
         IntegrityChecker.runStartupChecks()
     }
 
