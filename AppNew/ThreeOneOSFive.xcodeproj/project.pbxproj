@@ -91,6 +91,7 @@
 		FF000009 /* DylibInjectionGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF00000A; };
 		3105N219 /* IntroVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N119; };
 		3105A212 /* intro.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105A032; };
+		FF00000B /* AppIcon-1024.png in Resources */ = {isa = PBXBuildFile; fileRef = FF00000C; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -196,6 +197,7 @@
 		FF00000A /* DylibInjectionGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DylibInjectionGuard.swift; sourceTree = "<group>"; };
 		3105N119 /* IntroVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroVideoView.swift; sourceTree = "<group>"; };
 		3105A032 /* intro.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = intro.mp4; sourceTree = "<group>"; };
+		FF00000C /* AppIcon-1024.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "AppIcon-1024.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,6 +233,7 @@
 				3105A120 /* Localizable.strings */,
 				3105A031 /* Assets.xcassets */,
 				3105A032 /* intro.mp4 */,
+				FF00000C /* AppIcon-1024.png */,
 			);
 			path = ThreeOneOSFive;
 			sourceTree = "<group>";
@@ -421,6 +424,7 @@
 				3105A211,
 				3105A228,
 				3105A212,
+				FF00000B,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
