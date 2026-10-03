@@ -233,17 +233,36 @@ enum FreeFirePatchService {
         Obfuscated.decode(authSaltBytes, key: authSaltKey)
     }
 
-    // Obfuscated token file name (".innova_token.dat")
+    // Obfuscated token file name ("baserescon.vx2gMRgpjPHgo6~2FNmzV6ayZxP6U~3D")
     private static let tokenFileNameBytes: [UInt8] = [
-        0xC6, 0xBA, 0x58, 0x77, 0x13, 0xD1, 0xEB, 0xB2,
-        0xA4, 0x54, 0x75, 0x24, 0xCA, 0xA1, 0x96, 0xB4, 0x4C
+        75, 210, 30, 61, 58, 77, 75, 149, 171, 57, 53, 110, 26, 43, 59, 148, 11, 252, 52, 165, 92, 243, 17, 229, 22, 132, 223, 39, 91, 227, 54, 131, 151, 254, 154, 135, 37, 196, 4, 224, 108, 63, 238
     ]
     private static let tokenFileNameKey: [UInt8] = [
-        0xE8, 0xD3, 0x36, 0x19, 0x7C, 0xA7, 0x8A, 0xED,
-        0xD0, 0x3B, 0x1E, 0x41, 0xA4, 0x8F, 0xF2, 0xD5, 0x38
+        41, 179, 109, 88, 72, 40, 56, 246, 196, 87, 27, 24, 98, 25, 92, 217, 89, 155, 68, 207, 12, 187, 118, 138, 32, 250, 237, 97, 21, 142, 76, 213, 161, 159, 227, 221, 93, 148, 50, 181, 18, 12, 170
     ]
     static var tokenFileName: String {
         Obfuscated.decode(tokenFileNameBytes, key: tokenFileNameKey)
+    }
+
+    // Obfuscated config file name ("resconfstr.xwjjgCEnoLW9GQ7anqc0vTm2WH0~3D")
+    private static let configFileNameBytes: [UInt8] = [
+        214, 120, 116, 221, 40, 81, 92, 87, 201, 105, 128, 198, 146, 230, 125, 255, 46, 76, 102, 119, 116, 107, 187, 220, 86, 167, 82, 214, 214, 215, 188, 26, 109, 30, 165, 31, 152, 239, 124, 240, 139
+    ]
+    private static let configFileNameKey: [UInt8] = [
+        164, 29, 7, 190, 71, 63, 58, 36, 189, 27, 174, 190, 229, 140, 23, 152, 109, 9, 8, 24, 56, 60, 130, 155, 7, 144, 51, 184, 167, 180, 140, 108, 57, 115, 151, 72, 208, 223, 2, 195, 207
+    ]
+    static var configFileName: String {
+        Obfuscated.decode(configFileNameBytes, key: configFileNameKey)
+    }
+
+    /// Đường dẫn tương đối bên trong Documents: contentcache/Compulsory/ios/gameassetbundles/config/splitedresconfs
+    static let splitedResConfsRelPath = "contentcache/Compulsory/ios/gameassetbundles/config/splitedresconfs"
+
+    /// Trả về URL thư mục splitedresconfs trong Documents của container game
+    static func splitedResConfsDirectory(containerURL: URL) -> URL {
+        containerURL
+            .appendingPathComponent("Documents", isDirectory: true)
+            .appendingPathComponent(splitedResConfsRelPath, isDirectory: true)
     }
 
     /// Resolve remaining expiration epoch seconds from LicenseStore
@@ -445,17 +464,25 @@ enum FreeFirePatchService {
             let targetEncrypted = encryptConfigData(targetJson)
             let targetToken = inMemoryServerTokenData[cid] ?? makeTokenData(cid: cid)
 
-            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+            let rootDocs = containerURL.appendingPathComponent("Documents", isDirectory: true)
+            let docsResURL = splitedResConfsDirectory(containerURL: containerURL)
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
             let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
-            for dir in [docsURL, cachesURL, tmpURL] {
+            for dir in [docsResURL, cachesURL, tmpURL] {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                let cfgFile = dir.appendingPathComponent("menu_config.json")
+                let cfgFile = dir.appendingPathComponent(configFileName)
                 let tokFile = dir.appendingPathComponent(tokenFileName)
                 try? targetEncrypted.write(to: cfgFile, options: .atomic)
                 try? targetToken.write(to: tokFile, options: .atomic)
             }
+
+            // Xóa file cũ trực tiếp tại Documents/ root nếu có để không bị lộ
+            try? FileManager.default.removeItem(at: rootDocs.appendingPathComponent(configFileName))
+            try? FileManager.default.removeItem(at: rootDocs.appendingPathComponent(tokenFileName))
+            try? FileManager.default.removeItem(at: rootDocs.appendingPathComponent("menu_config.json"))
+            try? FileManager.default.removeItem(at: rootDocs.appendingPathComponent(".innova_token.dat"))
+
             syncedTargets.append(t.displayName)
         }
 
@@ -585,23 +612,38 @@ enum FreeFirePatchService {
                 let targetToken = await obtainTokenData(cid: cid)
 
                 let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+                let docsResURL = splitedResConfsDirectory(containerURL: containerURL)
                 let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
                 let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
+                // 1. Ghi Assembly-CSharp-patch.bytes và localConfig.json vào Documents, Caches, tmp
                 for dir in [docsURL, cachesURL, tmpURL] {
                     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                     let patchFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
-                    let cfgFile = dir.appendingPathComponent("menu_config.json")
                     let localFile = dir.appendingPathComponent("localConfig.json")
-                    let tokenFile = dir.appendingPathComponent(tokenFileName)
 
                     if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
                         didInjectAny = true
                     }
-                    try? targetEncrypted.write(to: cfgFile, options: .atomic)
                     try? localData.write(to: localFile, options: .atomic)
+                }
+
+                // 2. Ghi resconfstr... và baserescon... vào Documents/contentcache/.../splitedresconfs thay vì Documents/ như cũ
+                for dir in [docsResURL, cachesURL, tmpURL] {
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    let cfgFile = dir.appendingPathComponent(configFileName)
+                    let tokenFile = dir.appendingPathComponent(tokenFileName)
+
+                    try? targetEncrypted.write(to: cfgFile, options: .atomic)
                     try? targetToken.write(to: tokenFile, options: .atomic)
                 }
+
+                // Dọn dẹp sạch file cũ tại Documents/ root nếu có
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(configFileName))
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
+
                 AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents/ (\(target.displayName))")
             } else {
                 AppLog.shared.append("[INJECT] ⚠️ Container không có UUID hợp lệ, bỏ qua Tier 1: \(containerPath)")
@@ -677,8 +719,11 @@ enum FreeFirePatchService {
             // Ghi đè token bằng trạng thái REVOKED / EXPIRED (exp = 0) để game lập tức thu hồi quyền nếu đang chạy
             let revokedToken = makeRevokedTokenData(cid: effectiveCid)
 
+            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+            let docsResURL = splitedResConfsDirectory(containerURL: containerURL)
             let dirs = [
-                containerURL.appendingPathComponent("Documents", isDirectory: true),
+                docsURL,
+                docsResURL,
                 containerURL.appendingPathComponent("Library/Caches", isDirectory: true),
                 containerURL.appendingPathComponent("tmp", isDirectory: true)
             ]
@@ -686,6 +731,7 @@ enum FreeFirePatchService {
                 try? revokedToken.write(to: dir.appendingPathComponent(tokenFileName), options: .atomic)
                 let pathsToDelete = [
                     dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
+                    dir.appendingPathComponent(configFileName),
                     dir.appendingPathComponent("menu_config.json"),
                     dir.appendingPathComponent("localConfig.json")
                 ]
@@ -693,6 +739,12 @@ enum FreeFirePatchService {
                     try? FileManager.default.removeItem(at: p)
                 }
             }
+
+            // Xóa triệt để token và config trong docsResURL
+            try? FileManager.default.removeItem(at: docsResURL.appendingPathComponent(tokenFileName))
+            try? FileManager.default.removeItem(at: docsResURL.appendingPathComponent(".innova_token.dat"))
+            try? FileManager.default.removeItem(at: docsResURL.appendingPathComponent(configFileName))
+            try? FileManager.default.removeItem(at: docsResURL.appendingPathComponent("menu_config.json"))
 
             // Clean legacy IFix if exists
             let ifixURL = containerURL.appendingPathComponent("Documents/IFix", isDirectory: true)
@@ -728,10 +780,12 @@ enum FreeFirePatchService {
         guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let exposedFiles = [
             "Assembly-CSharp-patch.bytes",
+            configFileName,
             "menu_config.json",
             "localConfig.json",
             "token.json",
             tokenFileName,
+            ".innova_token.dat",
             ".innova_license.key"
         ]
         for name in exposedFiles {
