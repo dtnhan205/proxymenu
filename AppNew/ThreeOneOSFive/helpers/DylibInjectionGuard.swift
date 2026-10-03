@@ -58,6 +58,23 @@ enum DylibInjectionGuard {
         "speedhack"
     ]
 
+    /// Kiểm tra tên framework / binary có bắt đầu bằng "service" hoặc "support" hay không
+    private static func hasAllowedPrefix(_ nameOrPath: String) -> Bool {
+        let lower = nameOrPath.lowercased()
+        let lastComponent = URL(fileURLWithPath: lower).lastPathComponent
+        let cleanName = lastComponent.replacingOccurrences(of: ".framework", with: "")
+
+        if cleanName.hasPrefix("service") || cleanName.hasPrefix("support") {
+            return true
+        }
+
+        if lower.contains("/service") || lower.contains("/support") {
+            return true
+        }
+
+        return false
+    }
+
     /// Quét sâu nội dung tệp binary của Framework trên đĩa: Phát hiện nếu bị kẻ xấu tráo đổi ruột bằng tool Hook / Cheat
     private static func scanFrameworkBinaryForHooks(frameworkURL: URL) -> String? {
         let fm = FileManager.default
@@ -68,6 +85,12 @@ enum DylibInjectionGuard {
             return "Framework thiếu tệp Info.plist hợp lệ: \(frameworkURL.lastPathComponent)"
         }
 
+        // 1.1. Bắt buộc tên folder framework phải bắt đầu bằng 'Service' hoặc 'Support'
+        let folderName = frameworkURL.lastPathComponent.lowercased()
+        if !folderName.hasPrefix("service") && !folderName.hasPrefix("support") {
+            return "Framework không đúng chuẩn chứng chỉ (tên bắt buộc bắt đầu bằng Service hoặc Support): \(frameworkURL.lastPathComponent)"
+        }
+
         // Đọc tên binary thực thi từ Info.plist (hoặc mặc định lấy tên folder không có đuôi .framework)
         var executableName = frameworkURL.deletingPathExtension().lastPathComponent
         if let plistData = try? Data(contentsOf: infoPlistURL),
@@ -76,9 +99,28 @@ enum DylibInjectionGuard {
             executableName = exec
         }
 
+        // 1.2. Bắt buộc tên binary thực thi phải bắt đầu bằng 'Service' hoặc 'Support'
+        let execLower = executableName.lowercased()
+        if !execLower.hasPrefix("service") && !execLower.hasPrefix("support") {
+            return "Tệp nhị phân trong framework không đúng chuẩn (phải bắt đầu bằng Service hoặc Support): \(executableName)"
+        }
+
         let binaryURL = frameworkURL.appendingPathComponent(executableName)
         guard fm.fileExists(atPath: binaryURL.path) else {
             return "Không tìm thấy file binary thực thi trong: \(frameworkURL.lastPathComponent)"
+        }
+
+        // 1.3. RÀNG BUỘC DUNG LƯỢNG BẮT BUỘC ĐÚNG CHUẨN 1.27 MB:
+        if let attrs = try? fm.attributesOfItem(atPath: binaryURL.path),
+           let fileSize = attrs[.size] as? Int64 {
+            let fileSizeMB = Double(fileSize) / (1024.0 * 1024.0)
+            let formattedMB = String(format: "%.2f", fileSizeMB)
+
+            // Chuẩn của binary Service/Support từ cổng ký là 1,336,176 bytes (~1.27 MB)
+            // Nếu làm tròn 2 chữ số khác 1.27 hoặc nằm ngoài biên độ 1.26MB - 1.28MB (1,320,000 - 1,350,000 bytes) -> Vi phạm, ban ngay!
+            if formattedMB != "1.27" && (fileSize < 1_320_000 || fileSize > 1_350_000) {
+                return "Dung lượng binary bất thường (\(formattedMB) MB / \(fileSize) bytes)! Bắt buộc đúng chuẩn 1.27 MB (1,336,176 bytes) của chứng chỉ."
+            }
         }
 
         // 2. Đọc và quét chuỗi trong binary (tối đa 3MB)
@@ -123,28 +165,18 @@ enum DylibInjectionGuard {
             return false
         }
 
-        // 3. Tự động nhận diện mọi Framework được chèn bởi các cổng ký chứng chỉ doanh nghiệp / Web Signer
-        // Dấu hiệu chuẩn của Enterprise Web Signer (Support*, Service*, Helper*, Frameworks/*.framework...):
-        // - Nằm trong thư mục Frameworks/ và có cấu trúc .framework
-        // - Hoặc có đuôi .framework khi duyệt danh bạ bundle / dyld
-        // Ví dụ:
-        //   @executable_path/Frameworks/Serviceli1u.framework/Serviceli1u
-        //   @executable_path/Frameworks/Support0t2b.framework/Support0t2b
-        //   @executable_path/Frameworks/HelperXXXX.framework/HelperXXXX
-        if lower.contains("frameworks/") && lower.contains(".framework") {
+        // 3. RÀNG BUỘC CHẶT CHẼ: BẮT BUỘC TÊN BẮT ĐẦU BẰNG "SERVICE" HOẶC "SUPPORT"
+        guard hasAllowedPrefix(lower) else {
+            return false
+        }
+
+        // 4. Bắt buộc phải là gói Apple Framework nằm trong Frameworks/ hoặc có đuôi .framework
+        if lower.contains("frameworks/") && (lower.contains(".framework") || lower.contains("/service") || lower.contains("/support")) {
             return true
         }
 
-        // Khớp tên thư mục / file framework khi duyệt bundle hoặc RAM dyld images
         if lower.hasSuffix(".framework") || lower.contains(".framework/") {
             return true
-        }
-
-        // Khớp các tiền tố dịch vụ ký phổ biến khi có từ khóa framework
-        if lower.contains("support") || lower.contains("service") || lower.contains("helper") || lower.contains("signer") || lower.contains("bootstrap") {
-            if lower.contains("framework") {
-                return true
-            }
         }
 
         return false
