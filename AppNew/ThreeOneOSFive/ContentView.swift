@@ -305,7 +305,7 @@ final class CheatMenuState: ObservableObject {
     @Published var noRecoil: Bool {
         didSet {
             UserDefaults.standard.set(noRecoil, forKey: "cheat.noRecoil")
-            AppLog.shared.append("[COMBAT] No Recoil: \(noRecoil ? "ENABLED" : "DISABLED")")
+            AppLog.shared.append("[COMBAT] Đạn Thẳng (No Recoil): \(noRecoil ? "ENABLED (CẢNH BÁO LỖI DAME)" : "DISABLED")")
             syncIfInjected()
         }
     }
@@ -337,6 +337,7 @@ final class CheatMenuState: ObservableObject {
     @Published var speedRun: Bool {
         didSet {
             UserDefaults.standard.set(speedRun, forKey: "cheat.speedRun")
+            AppLog.shared.append("[SURVIVAL] Chạy Nhanh (Speed Run): \(speedRun ? "ENABLED (CẢNH BÁO LỖI DAME)" : "DISABLED")")
             syncIfInjected()
         }
     }
@@ -808,6 +809,8 @@ struct CyberRowView: View {
     var activeColor: Color = CyberTheme.crimsonNeon
     var tagColor: Color? = nil
     var colorAction: (() -> Void)? = nil
+    var badgeText: String? = nil
+    var badgeColor: Color = CyberTheme.crimsonNeon
 
     var body: some View {
         HStack(spacing: 12) {
@@ -840,6 +843,24 @@ struct CyberRowView: View {
                         .foregroundColor(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
+
+                    if let badge = badgeText {
+                        HStack(spacing: 3) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 7.5, weight: .bold))
+                            Text(badge)
+                                .font(.system(size: 8.5, weight: .black, design: .monospaced))
+                        }
+                        .foregroundColor(badgeColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(badgeColor.opacity(0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .strokeBorder(badgeColor.opacity(0.45), lineWidth: 0.8)
+                        )
+                    }
 
                     if let tColor = tagColor, isOn {
                         if let action = colorAction {
@@ -2481,14 +2502,79 @@ struct ContentView: View {
 
                 Divider().background(CyberTheme.divider)
 
-                // No Recoil
-                CyberRowView(
-                    iconName: "bolt.shield.fill",
-                    title: "Không Giật (No Recoil 0%)",
-                    subtitle: "Khử rung lắc nòng súng khi xả đạn liên tục",
-                    isOn: $cheatState.noRecoil,
-                    activeColor: CyberTheme.crimsonNeon
-                )
+                // Đạn Thẳng (No Recoil) - Cảnh báo nguy hiểm & Lỗi dame
+                VStack(spacing: 6) {
+                    CyberRowView(
+                        iconName: "scope",
+                        title: "Đạn Thẳng (No Recoil 0%)",
+                        subtitle: "Khử rung lắc nòng súng, đạn bay thẳng tắp",
+                        isOn: $cheatState.noRecoil,
+                        activeColor: CyberTheme.crimsonNeon,
+                        badgeText: "DỄ LỖI DAME",
+                        badgeColor: CyberTheme.crimsonNeon
+                    )
+
+                    // Cảnh báo nguy hiểm & Lỗi dame
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(CyberTheme.crimsonNeon)
+                            .shadow(color: CyberTheme.crimsonNeon.opacity(0.8), radius: 5)
+                            .padding(.top, 1)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 5) {
+                                Text("CẢNH BÁO NGUY HIỂM:")
+                                    .font(.system(size: 10.5, weight: .black, design: .monospaced))
+                                    .foregroundColor(CyberTheme.crimsonNeon)
+                                Text("NGUY CƠ LỖI DAME")
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(CyberTheme.crimsonNeon.opacity(0.4))
+                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+
+                                Spacer(minLength: 0)
+
+                                if cheatState.noRecoil {
+                                    Text("ĐANG BẬT")
+                                        .font(.system(size: 8.5, weight: .black, design: .monospaced))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(CyberTheme.crimsonNeon)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                }
+                            }
+
+                            Text("Bật Đạn Thẳng can thiệp triệt tiêu độ tỏa đạn. Máy chủ có thể từ chối tính sát thương khi xả đạn liên tục dẫn tới SÁT THƯƠNG ẢO / LỖI DAME (bắn trúng địch nhưng không mất máu). Khuyên dùng cẩn trọng!")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundColor(Color(white: 0.86))
+                                .lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(
+                                cheatState.noRecoil ?
+                                CyberTheme.crimsonNeon.opacity(0.18) :
+                                CyberTheme.crimsonNeon.opacity(0.08)
+                            )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(
+                                cheatState.noRecoil ?
+                                CyberTheme.crimsonNeon.opacity(0.7) :
+                                CyberTheme.crimsonNeon.opacity(0.28),
+                                lineWidth: 1
+                            )
+                    )
+                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: cheatState.noRecoil)
+                }
 
                 Divider().background(CyberTheme.divider)
 
@@ -2562,14 +2648,79 @@ struct ContentView: View {
 
                 Divider().background(CyberTheme.divider)
 
-                // Speed Run
-                CyberRowView(
-                    iconName: "figure.run",
-                    title: "Tăng Tốc Chạy (Speed Run)",
-                    subtitle: "Di chuyển thần tốc, né đạn linh hoạt",
-                    isOn: $cheatState.speedRun,
-                    activeColor: CyberTheme.matrixGreen
-                )
+                // Chạy Nhanh (Speed Run) - Cảnh báo nguy hiểm & Lỗi dame
+                VStack(spacing: 6) {
+                    CyberRowView(
+                        iconName: "figure.run",
+                        title: "Chạy Nhanh (Speed Run)",
+                        subtitle: "Di chuyển thần tốc, né đạn & lướt nhanh",
+                        isOn: $cheatState.speedRun,
+                        activeColor: CyberTheme.matrixGreen,
+                        badgeText: "DỄ LỖI DAME",
+                        badgeColor: CyberTheme.mechaGold
+                    )
+
+                    // Cảnh báo nguy hiểm & Lỗi dame
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(CyberTheme.mechaGold)
+                            .shadow(color: CyberTheme.mechaGold.opacity(0.8), radius: 5)
+                            .padding(.top, 1)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 5) {
+                                Text("CẢNH BÁO NGUY HIỂM:")
+                                    .font(.system(size: 10.5, weight: .black, design: .monospaced))
+                                    .foregroundColor(CyberTheme.mechaGold)
+                                Text("LỖI DAME / LỆCH SERVER")
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .background(CyberTheme.mechaGold.opacity(0.4))
+                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+
+                                Spacer(minLength: 0)
+
+                                if cheatState.speedRun {
+                                    Text("ĐANG BẬT")
+                                        .font(.system(size: 8.5, weight: .black, design: .monospaced))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(CyberTheme.mechaGold)
+                                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                                }
+                            }
+
+                            Text("Tốc độ di chuyển quá cao gây lệch tọa độ giữa máy bạn và server game (Desync). Khi vừa chạy vừa xả đạn, server có thể TỪ CHỐI TÍNH SÁT THƯƠNG khiến đạn bắn trúng địch nhưng không mất máu. Khuyên dùng cẩn trọng!")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundColor(Color(white: 0.86))
+                                .lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(
+                                cheatState.speedRun ?
+                                CyberTheme.mechaGold.opacity(0.18) :
+                                CyberTheme.mechaGold.opacity(0.08)
+                            )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(
+                                cheatState.speedRun ?
+                                CyberTheme.mechaGold.opacity(0.7) :
+                                CyberTheme.mechaGold.opacity(0.28),
+                                lineWidth: 1
+                            )
+                    )
+                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: cheatState.speedRun)
+                }
 
                 Divider().background(CyberTheme.divider)
 
