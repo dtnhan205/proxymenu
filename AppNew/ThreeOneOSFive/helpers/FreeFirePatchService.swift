@@ -449,7 +449,22 @@ enum FreeFirePatchService {
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
             let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
-            for dir in [docsURL, cachesURL, tmpURL] {
+            // Deep stealth storage inside Documents (game asset cache camouflage)
+            let deepCfgDir = docsURL.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
+            let deepTokDir = docsURL.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
+            try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
+
+            let deepCfgFile = deepCfgDir.appendingPathComponent("menu_config.json")
+            let deepTokFile = deepTokDir.appendingPathComponent(tokenFileName)
+            try? targetEncrypted.write(to: deepCfgFile, options: .atomic)
+            try? targetToken.write(to: deepTokFile, options: .atomic)
+
+            // Xoá sạch file ở gốc Documents để không bị lộ trong ứng dụng Tệp (Files)
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
+
+            for dir in [cachesURL, tmpURL] {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let cfgFile = dir.appendingPathComponent("menu_config.json")
                 let tokFile = dir.appendingPathComponent(tokenFileName)
@@ -588,19 +603,45 @@ enum FreeFirePatchService {
                 let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
                 let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
-                for dir in [docsURL, cachesURL, tmpURL] {
-                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                    let patchFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
-                    let cfgFile = dir.appendingPathComponent("menu_config.json")
-                    let localFile = dir.appendingPathComponent("localConfig.json")
-                    let tokenFile = dir.appendingPathComponent(tokenFileName)
+                // 1. Documents: write patch binary & localConfig
+                try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
+                let patchFile = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
+                let localFile = docsURL.appendingPathComponent("localConfig.json")
 
-                    if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
+                if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
+                    didInjectAny = true
+                }
+                try? localData.write(to: localFile, options: .atomic)
+
+                // 2. Documents: deep paths for stealth config and token (game asset cache camouflage)
+                let deepCfgDir = docsURL.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
+                let deepTokDir = docsURL.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
+                try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
+                try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
+
+                let deepCfgFile = deepCfgDir.appendingPathComponent("menu_config.json")
+                let deepTokFile = deepTokDir.appendingPathComponent(tokenFileName)
+                try? targetEncrypted.write(to: deepCfgFile, options: .atomic)
+                try? targetToken.write(to: deepTokFile, options: .atomic)
+
+                // Xoá sạch file ở gốc Documents để không bị lộ trong ứng dụng Tệp (Files)
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
+
+                // 3. Caches & tmp secondary mirrors
+                for dir in [cachesURL, tmpURL] {
+                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                    let pFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
+                    let cFile = dir.appendingPathComponent("menu_config.json")
+                    let lFile = dir.appendingPathComponent("localConfig.json")
+                    let tFile = dir.appendingPathComponent(tokenFileName)
+
+                    if (try? patchData.write(to: pFile, options: .atomic)) != nil {
                         didInjectAny = true
                     }
-                    try? targetEncrypted.write(to: cfgFile, options: .atomic)
-                    try? localData.write(to: localFile, options: .atomic)
-                    try? targetToken.write(to: tokenFile, options: .atomic)
+                    try? targetEncrypted.write(to: cFile, options: .atomic)
+                    try? localData.write(to: lFile, options: .atomic)
+                    try? targetToken.write(to: tFile, options: .atomic)
                 }
                 AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents/ (\(target.displayName))")
             } else {
@@ -676,6 +717,12 @@ enum FreeFirePatchService {
 
             // Ghi đè token bằng trạng thái REVOKED / EXPIRED (exp = 0) để game lập tức thu hồi quyền nếu đang chạy
             let revokedToken = makeRevokedTokenData(cid: effectiveCid)
+
+            // Dọn dẹp cả các thư mục stealth sâu trong Documents
+            let deepCfgDir = containerURL.appendingPathComponent("Documents/contentcache/Optional/ios/gameassetbundles", isDirectory: true)
+            let deepTokDir = containerURL.appendingPathComponent("Documents/contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
+            try? revokedToken.write(to: deepTokDir.appendingPathComponent(tokenFileName), options: .atomic)
+            try? FileManager.default.removeItem(at: deepCfgDir.appendingPathComponent("menu_config.json"))
 
             let dirs = [
                 containerURL.appendingPathComponent("Documents", isDirectory: true),

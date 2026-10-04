@@ -318,32 +318,118 @@ namespace ProjectEspPatch
                         pDir = pDir.Substring(0, pDir.Length - 1);
                     }
 
-                    string dataDir = Application.dataPath;
-                    string[] searchPaths = new string[] {
-                        pDir + cfgFile,
-                        pDir + "/IFix" + cfgFile,
-                        pDir + "/Documents" + cfgFile,
-                        pDir + "/../Documents" + cfgFile,
-                        pDir + "/../Library/Caches" + cfgFile,
-                        pDir + "/../tmp" + cfgFile,
-                        (!string.IsNullOrEmpty(dataDir) ? dataDir + cfgFile : null),
-                        (!string.IsNullOrEmpty(dataDir) ? dataDir + "/Raw" + cfgFile : null),
-                        (!string.IsNullOrEmpty(dataDir) ? dataDir + "/.." + cfgFile : null),
-                        "/var/mobile/Downloads" + cfgFile,
-                        "/tmp" + cfgFile,
-                        "/private/var/tmp" + cfgFile,
-                        "/private/var/mobile/Downloads" + cfgFile,
-                        "/var/mobile/Containers/Shared/AppGroup/group.com.proxyvip.shared" + cfgFile,
-                        "/private/var/mobile/Containers/Shared/AppGroup/group.com.proxyvip.shared" + cfgFile
-                    };
-
-                    for (int sp = 0; sp < searchPaths.Length; sp++)
+                    string docRoot = null;
+                    if (!string.IsNullOrEmpty(pDir))
                     {
-                        string spath = searchPaths[sp];
-                        if (!string.IsNullOrEmpty(spath) && File.Exists(spath))
+                        if (pDir.EndsWith("/Documents") || pDir.EndsWith("\\Documents"))
                         {
-                            cfgPath = spath;
-                            break;
+                            docRoot = pDir;
+                        }
+                        else if (Directory.Exists(pDir + "/Documents"))
+                        {
+                            docRoot = pDir + "/Documents";
+                        }
+                        else if (Directory.Exists(pDir + "/../Documents"))
+                        {
+                            docRoot = Path.GetFullPath(pDir + "/../Documents");
+                        }
+                        else
+                        {
+                            docRoot = pDir;
+                        }
+                    }
+
+                    GameObject cfgMarker = GameObject.Find("__esp_cfg_marker");
+                    if (cfgMarker != null && cfgMarker.transform.childCount > 0)
+                    {
+                        string cachedCfg = cfgMarker.transform.GetChild(0).name;
+                        if (!string.IsNullOrEmpty(cachedCfg) && File.Exists(cachedCfg))
+                        {
+                            cfgPath = cachedCfg;
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(cfgPath))
+                    {
+                        string dataDir = Application.dataPath;
+                        string[] searchPaths = new string[] {
+                            (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/gameassetbundles" + cfgFile : null),
+                            (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles" + cfgFile : null),
+                            pDir + cfgFile,
+                            pDir + "/IFix" + cfgFile,
+                            pDir + "/Documents" + cfgFile,
+                            pDir + "/../Documents" + cfgFile,
+                            pDir + "/../Library/Caches" + cfgFile,
+                            pDir + "/../tmp" + cfgFile,
+                            (!string.IsNullOrEmpty(dataDir) ? dataDir + cfgFile : null),
+                            (!string.IsNullOrEmpty(dataDir) ? dataDir + "/Raw" + cfgFile : null),
+                            (!string.IsNullOrEmpty(dataDir) ? dataDir + "/.." + cfgFile : null),
+                            "/var/mobile/Downloads" + cfgFile,
+                            "/tmp" + cfgFile,
+                            "/private/var/tmp" + cfgFile,
+                            "/private/var/mobile/Downloads" + cfgFile,
+                            "/var/mobile/Containers/Shared/AppGroup/group.com.proxyvip.shared" + cfgFile,
+                            "/private/var/mobile/Containers/Shared/AppGroup/group.com.proxyvip.shared" + cfgFile
+                        };
+
+                        for (int sp = 0; sp < searchPaths.Length; sp++)
+                        {
+                            string spath = searchPaths[sp];
+                            if (!string.IsNullOrEmpty(spath) && File.Exists(spath))
+                            {
+                                cfgPath = spath;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Dynamic recursive search across all subdirectories in Documents until menu_config.json is found
+                    if (string.IsNullOrEmpty(cfgPath) && !string.IsNullOrEmpty(docRoot) && Directory.Exists(docRoot))
+                    {
+                        ArrayList dirList = new ArrayList();
+                        dirList.Add(docRoot);
+                        int maxScan = 300;
+                        for (int di = 0; di < dirList.Count && di < maxScan; di++)
+                        {
+                            string cDir = (string)dirList[di];
+                            string testFile = cDir + cfgFile;
+                            if (File.Exists(testFile))
+                            {
+                                cfgPath = testFile;
+                                break;
+                            }
+                            try
+                            {
+                                string[] subs = Directory.GetDirectories(cDir);
+                                if (subs != null)
+                                {
+                                    for (int si = 0; si < subs.Length && dirList.Count < maxScan; si++)
+                                    {
+                                        dirList.Add(subs[si]);
+                                    }
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(cfgPath))
+                    {
+                        if (cfgMarker == null)
+                        {
+                            cfgMarker = new GameObject("__esp_cfg_marker");
+                            UnityEngine.Object.DontDestroyOnLoad(cfgMarker);
+                        }
+                        if (cfgMarker.transform.childCount == 0)
+                        {
+                            GameObject ch = new GameObject(cfgPath);
+                            ch.transform.parent = cfgMarker.transform;
+                        }
+                        else
+                        {
+                            cfgMarker.transform.GetChild(0).name = cfgPath;
                         }
                     }
 
@@ -422,14 +508,71 @@ namespace ProjectEspPatch
                                 long tsVal = 0L;
 
                                 string tokFile = "/.innova_token.dat";
-                                string[] tokPaths = new string[] {
+                                ArrayList tokCandidates = new ArrayList();
+
+                                GameObject tokMarker = GameObject.Find("__esp_tok_marker");
+                                if (tokMarker != null && tokMarker.transform.childCount > 0)
+                                {
+                                    string cachedTok = tokMarker.transform.GetChild(0).name;
+                                    if (!string.IsNullOrEmpty(cachedTok) && File.Exists(cachedTok))
+                                    {
+                                        tokCandidates.Add(cachedTok);
+                                    }
+                                }
+
+                                string[] fastTokPaths = new string[] {
+                                    (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles" + tokFile : null),
+                                    (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/gameassetbundles" + tokFile : null),
                                     pDir + tokFile,
                                     pDir + "/Documents" + tokFile,
-                                    pDir + "/../Documents" + tokFile
+                                    pDir + "/../Documents" + tokFile,
+                                    pDir + "/../Library/Caches" + tokFile,
+                                    pDir + "/../tmp" + tokFile
                                 };
-                                for (int tIdx = 0; tIdx < tokPaths.Length; tIdx++)
+                                for (int fti = 0; fti < fastTokPaths.Length; fti++)
                                 {
-                                    string tPath = tokPaths[tIdx];
+                                    string cand = fastTokPaths[fti];
+                                    if (!string.IsNullOrEmpty(cand) && !tokCandidates.Contains(cand) && File.Exists(cand))
+                                    {
+                                        tokCandidates.Add(cand);
+                                    }
+                                }
+
+                                // Dynamic recursive search across all subdirectories in Documents until .innova_token.dat is found
+                                if (tokCandidates.Count == 0 && !string.IsNullOrEmpty(docRoot) && Directory.Exists(docRoot))
+                                {
+                                    ArrayList tDirList = new ArrayList();
+                                    tDirList.Add(docRoot);
+                                    int maxScan = 300;
+                                    for (int tdi = 0; tdi < tDirList.Count && tdi < maxScan; tdi++)
+                                    {
+                                        string ctDir = (string)tDirList[tdi];
+                                        string tTestFile = ctDir + tokFile;
+                                        if (File.Exists(tTestFile))
+                                        {
+                                            tokCandidates.Add(tTestFile);
+                                            break;
+                                        }
+                                        try
+                                        {
+                                            string[] tSubs = Directory.GetDirectories(ctDir);
+                                            if (tSubs != null)
+                                            {
+                                                for (int tsi = 0; tsi < tSubs.Length && tDirList.Count < maxScan; tsi++)
+                                                {
+                                                    tDirList.Add(tSubs[tsi]);
+                                                }
+                                            }
+                                        }
+                                        catch (Exception)
+                                        {
+                                        }
+                                    }
+                                }
+
+                                for (int tIdx = 0; tIdx < tokCandidates.Count; tIdx++)
+                                {
+                                    string tPath = (string)tokCandidates[tIdx];
                                     if (!string.IsNullOrEmpty(tPath) && File.Exists(tPath))
                                     {
                                         try
@@ -512,6 +655,23 @@ namespace ProjectEspPatch
                                                         }
                                                     }
                                                 }
+
+                                                // Update cache marker
+                                                if (tokMarker == null)
+                                                {
+                                                    tokMarker = new GameObject("__esp_tok_marker");
+                                                    UnityEngine.Object.DontDestroyOnLoad(tokMarker);
+                                                }
+                                                if (tokMarker.transform.childCount == 0)
+                                                {
+                                                    GameObject tch = new GameObject(tPath);
+                                                    tch.transform.parent = tokMarker.transform;
+                                                }
+                                                else
+                                                {
+                                                    tokMarker.transform.GetChild(0).name = tPath;
+                                                }
+
                                                 break;
                                             }
                                         }
