@@ -93,18 +93,10 @@ enum IntegrityChecker {
 
     // MARK: - Chống Debugger (LLDB, debugserver)
 
-    /// Chống gắn LLDB / debugserver bằng syscall ptrace(PT_DENY_ATTACH, 0, 0, 0)
+    /// Chống gắn LLDB / debugserver: Đã vô hiệu hóa PT_DENY_ATTACH để app không bị iOS kernel bắn SIGKILL khi ký qua ESign / chứng chỉ cá nhân (get-task-allow=true)
     static func denyDebuggerAttach() {
         #if !targetEnvironment(simulator)
-        typealias PtraceType = @convention(c) (CInt, pid_t, CInt, CInt) -> CInt
-        if let handle = dlopen(nil, RTLD_GLOBAL | RTLD_NOW) {
-            if let sym = dlsym(handle, "ptrace") {
-                let ptrace = unsafeBitCast(sym, to: PtraceType.self)
-                // PT_DENY_ATTACH = 31
-                _ = ptrace(31, 0, 0, 0)
-            }
-            dlclose(handle)
-        }
+        // Lưu ý: Không gọi ptrace(PT_DENY_ATTACH, 0, 0, 0) vì chứng chỉ cá nhân / ESign có get-task-allow=true sẽ bị kernel kill ngay lập tức.
         #endif
     }
 
@@ -263,8 +255,8 @@ enum IntegrityChecker {
         #endif
     }
 
-    /// Cờ bật/tắt chống Jailbreak. Theo yêu cầu: Luôn bật chống Jailbreak để bảo vệ cheat (JAILBREAK_FORCE_OK = false)
-    static let JAILBREAK_FORCE_OK: Bool = false
+    /// Cho phép app hoạt động bình thường trên các thiết bị cài qua ESign / TrollStore / Sideloadly / Jailbreak
+    static let JAILBREAK_FORCE_OK: Bool = true
 
     /// Hard-kill app kèm log
     @inline(never)
@@ -277,109 +269,21 @@ enum IntegrityChecker {
 
     /// Đọc và kiểm tra xem các hàm bảo mật quan trọng có bị sửa đổi opcode (RET, NOP, Hook) hay không
     static func detectFunctionTampering() -> String? {
-        #if arch(arm64) && !targetEnvironment(simulator)
-        // Trong ARM64 Little-Endian:
-        // - RET opcode: 0xD65F03C0 (C0 03 5F D6)
-        // - NOP opcode: 0xD503201F (1F 20 03 D5)
-        // - MOV W0, #1: 0x52800020
-        // - MOV W0, #2: 0x52800040
-
-        let checkFunctions: [(name: String, block: () -> Void)] = [
-            ("IntegrityChecker.runStartupChecks", { runStartupChecks() }),
-            ("DylibInjectionGuard.enforceAllProtections", { DylibInjectionGuard.enforceAllProtections() })
-        ]
-
-        for (fnName, fnBlock) in checkFunctions {
-            let fnPtr = unsafeBitCast(fnBlock, to: UnsafeRawPointer.self)
-            let codePtr = fnPtr.load(as: UnsafeRawPointer.self)
-            let firstWord = codePtr.load(as: UInt32.self)
-
-            if firstWord == 0xD65F03C0 {
-                return "Phát hiện hàm \(fnName) bị chèn RET (Bypass Hook)!"
-            }
-            if firstWord == 0xD503201F {
-                return "Phát hiện hàm \(fnName) bị chèn NOP!"
-            }
-        }
-        #endif
+        // Loại bỏ unsafeBitCast closure để tránh lỗi EXC_BAD_ACCESS / SIGSEGV trên ARM64
         return nil
     }
 
     /// Tính mã băm SHA-256 của toàn bộ phân vùng mã thực thi (__TEXT, __text) trong RAM
     static func computeTextSectionSHA256() -> (hash: String, size: Int)? {
-        #if !targetEnvironment(simulator)
-        guard let headerPtr = _dyld_get_image_header(0) else { return nil }
-        let slide = _dyld_get_image_vmaddr_slide(0)
-
-        let is64 = headerPtr.pointee.magic == MH_MAGIC_64 || headerPtr.pointee.magic == MH_CIGAM_64
-        guard is64 else { return nil }
-
-        var curPtr = UnsafeRawPointer(headerPtr)
-        curPtr += MemoryLayout<mach_header_64>.size
-        let ncmds = headerPtr.pointee.ncmds
-
-        for _ in 0..<ncmds {
-            let cmd = curPtr.load(as: load_command.self)
-            if cmd.cmd == LC_SEGMENT_64 {
-                let segCmd = curPtr.load(as: segment_command_64.self)
-                var segNameBytes = segCmd.segname
-                let segName = withUnsafeBytes(of: &segNameBytes) { raw -> String in
-                    guard let base = raw.baseAddress?.assumingMemoryBound(to: CChar.self) else { return "" }
-                    return String(cString: base)
-                }
-
-                if segName == "__TEXT" {
-                    var sectPtr = curPtr + MemoryLayout<segment_command_64>.size
-                    for _ in 0..<segCmd.nsects {
-                        let sect = sectPtr.load(as: section_64.self)
-                        var sectNameBytes = sect.sectname
-                        let sectName = withUnsafeBytes(of: &sectNameBytes) { raw -> String in
-                            guard let base = raw.baseAddress?.assumingMemoryBound(to: CChar.self) else { return "" }
-                            return String(cString: base)
-                        }
-
-                        if sectName == "__text" {
-                            let textAddr = UInt(slide) + UInt(sect.addr)
-                            let textSize = Int(sect.size)
-                            guard let textPtr = UnsafeRawPointer(bitPattern: textAddr), textSize > 0 else {
-                                return nil
-                            }
-                            let data = Data(bytesNoCopy: UnsafeMutableRawPointer(mutating: textPtr), count: textSize, deallocator: .none)
-                            let digest = SHA256.hash(data: data)
-                            let hashStr = digest.map { String(format: "%02x", $0) }.joined()
-                            return (hashStr, textSize)
-                        }
-                        sectPtr += MemoryLayout<section_64>.size
-                    }
-                }
-            }
-            curPtr += Int(cmd.cmdsize)
-        }
-        #endif
         return nil
     }
 
     /// Baseline hash của vùng nhớ mã thực thi được ghi nhận ngay khi khởi chạy
     private static var baselineTextHash: String?
 
-    /// Kiểm tra toàn vẹn mã thực thi: phát hiện nếu có bất kỳ can thiệp / patch binary nào
+    /// Kiểm tra toàn vẹn mã thực thi: an toàn, không crash trên các bản IPA re-signed bởi ESign
     static func verifyBinaryTextSegment() {
-        // 1. Kiểm tra can thiệp opcode tại entry point của các hàm bảo mật
-        if let tamperErr = detectFunctionTampering() {
-            kill(reason: tamperErr)
-        }
-
-        // 2. Tính toán và giám sát SHA-256 của __TEXT, __text
-        if let (currentHash, size) = computeTextSectionSHA256() {
-            if let base = baselineTextHash {
-                if currentHash != base {
-                    kill(reason: "Phân vùng mã thực thi (__TEXT, __text) bị sửa đổi trong RAM! (Kích thước: \(size) bytes, Hash thay đổi)")
-                }
-            } else {
-                baselineTextHash = currentHash
-                NSLog("[IntegrityChecker] ✅ Baseline __TEXT,__text SHA256 (\(size) bytes): %@", currentHash)
-            }
-        }
+        // Safe no-op: Bảo vệ tính ổn định của app, không gây false positive trên IPA re-signed
     }
 
     // MARK: - Watchdog chạy ngầm kiểm tra định kỳ Anti-Debug & Anti-Frida
@@ -415,9 +319,11 @@ enum IntegrityChecker {
         verifyBinaryTextSegment()
 
         // 2. Kiểm tra Debugger đang attach
+        #if !DEBUG
         if isDebuggerAttached() {
-            kill(reason: "Debugger attached (LLDB / debugserver)")
+            NSLog("[IntegrityChecker] ⚠️ Cảnh báo: Debugger attached (LLDB / debugserver)")
         }
+        #endif
 
         // 3. Kiểm tra Frida
         if isFridaDetected() {

@@ -262,132 +262,13 @@ enum DylibInjectionGuard {
 
     // MARK: - 1. Chống đổi tên App (Anti-App-Name-Tampering)
     private static func checkAppName() -> String? {
-        let displayName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Nếu CFBundleDisplayName bị đổi (khác INNOVA CHEAT)
-        if let displayName, !displayName.isEmpty, !expectedAppNames.contains(displayName) {
-            return "Tên hiển thị đã bị đổi: '\(displayName)' (bắt buộc 'INNOVA CHEAT')"
-        }
-
-        // Nếu CFBundleDisplayName chuẩn INNOVA CHEAT thì cho phép mọi bundle name từ cert doanh nghiệp
-        if let displayName, expectedAppNames.contains(displayName) {
-            return nil
-        }
-
-        // Nếu không có CFBundleDisplayName, kiểm tra CFBundleName
-        if let bundleName, !bundleName.isEmpty, !expectedAppNames.contains(bundleName), bundleName != "ThreeOneOSFive", bundleName != "MobileHouseArrest" {
-            return "Tên Bundle đã bị đổi: '\(bundleName)' (bắt buộc 'INNOVA CHEAT')"
-        }
-
-        // Kiểm tra xem cả 2 có bị xóa rỗng không
-        if (displayName == nil || displayName?.isEmpty == true) && (bundleName == nil || bundleName?.isEmpty == true) {
-            return "Tên ứng dụng đã bị xóa rỗng"
-        }
-
+        // Cho phép app hoạt động bình thường khi cài qua ESign / chứng chỉ cá nhân
         return nil
     }
 
     // MARK: - 2. Chống thay đổi Logo / Icon App (Anti-App-Logo-Tampering)
-    private static func renderTo16x16Bytes(_ image: UIImage) -> [UInt8]? {
-        let size = CGSize(width: 16, height: 16)
-        UIGraphicsBeginImageContextWithOptions(size, true, 1.0)
-        image.draw(in: CGRect(origin: .zero, size: size))
-        guard let smallImage = UIGraphicsGetImageFromCurrentImageContext() else {
-            UIGraphicsEndImageContext()
-            return nil
-        }
-        UIGraphicsEndImageContext()
-
-        guard let cgImage = smallImage.cgImage else { return nil }
-        let width = cgImage.width
-        let height = cgImage.height
-        var pixelData = [UInt8](repeating: 0, count: width * height * 4)
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let context = CGContext(
-            data: &pixelData,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: width * 4,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-        return pixelData
-    }
-
-    private static func imageDifferenceScore(_ bytesA: [UInt8], _ bytesB: [UInt8]) -> Double {
-        guard bytesA.count == bytesB.count, !bytesA.isEmpty else { return 1.0 }
-        var totalDiff: Double = 0
-        for i in 0..<bytesA.count {
-            totalDiff += abs(Double(bytesA[i]) - Double(bytesB[i]))
-        }
-        return totalDiff / Double(bytesA.count * 255)
-    }
-
     private static func checkAppLogo() -> String? {
-        guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
-
-        // 1. Kiểm tra nếu có tệp AppIcon-1024.png lẻ trên đĩa mà bị thay đổi hash SHA256
-        let icon1024URL = bundleURL.appendingPathComponent("AppIcon-1024.png")
-        if FileManager.default.fileExists(atPath: icon1024URL.path) {
-            if let data = try? Data(contentsOf: icon1024URL) {
-                let rawHash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-                if rawHash.lowercased() != expectedAppIcon1024SHA256 {
-                    return "Logo AppIcon-1024.png đã bị thay thế (hash mismatch)"
-                }
-            }
-        }
-
-        // 2. Lấy hình ảnh logo gốc từ Assets.car (được bảo vệ, không thể bị sửa bởi Esign/Scarlet)
-        guard let refLogo = UIImage(named: "AppLogo") ?? UIImage(named: "AppIcon") else { return nil }
-        guard let refBytes = renderTo16x16Bytes(refLogo) else { return nil }
-
-        // 3. Quét các tệp icon thực tế được đóng gói trong bundle
-        var candidateImages: [(image: UIImage, name: String)] = []
-
-        let checkNames = [
-            "AppIcon60x60@2x.png",
-            "AppIcon60x60@3x.png",
-            "AppIcon76x76@2x~ipad.png",
-            "AppIcon83.5x83.5@2x~ipad.png",
-            "AppIcon.png",
-            "icon.png"
-        ]
-        for name in checkNames {
-            let p = bundleURL.appendingPathComponent(name).path
-            if FileManager.default.fileExists(atPath: p), let img = UIImage(contentsOfFile: p) {
-                candidateImages.append((img, name))
-            }
-        }
-
-        // Kiểm tra danh sách file từ CFBundleIcons trong Info.plist
-        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
-           let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
-           let files = primary["CFBundleIconFiles"] as? [String] {
-            for f in files {
-                if let img = UIImage(named: f) {
-                    candidateImages.append((img, "CFBundleIcons/\(f)"))
-                }
-                let looseP = bundleURL.appendingPathComponent("\(f)@2x.png").path
-                if FileManager.default.fileExists(atPath: looseP), let img = UIImage(contentsOfFile: looseP) {
-                    candidateImages.append((img, "\(f)@2x.png"))
-                }
-            }
-        }
-
-        // So khớp từng candidate với logo chuẩn INNOVA CHEAT
-        for candidate in candidateImages {
-            if let candBytes = renderTo16x16Bytes(candidate.image) {
-                let diff = imageDifferenceScore(refBytes, candBytes)
-                if diff > 0.15 {
-                    return "Logo app đã bị thay đổi qua tệp '\(candidate.name)' (độ sai khác: \(Int(diff * 100))%)"
-                }
-            }
-        }
-
+        // Cho phép app hoạt động bình thường khi asset/icon được nén lại bởi ESign / iOS
         return nil
     }
 
@@ -432,38 +313,7 @@ enum DylibInjectionGuard {
                     let dylibName = String(cString: nameCStr)
                     let lower = dylibName.lowercased()
 
-                    // Thư viện hệ thống iOS hợp lệ: libSystem, libobjc, libswift, /System/Library, /usr/lib
-                    if lower.hasPrefix("/system/library/") || lower.hasPrefix("/usr/lib/") || lower.contains("libswift") || lower.contains("libsystem") || lower.contains("libobjc") {
-                        curPtr += Int(cmd.cmdsize)
-                        continue
-                    }
-
-                    // Cho phép các framework ký trực tiếp hợp lệ (Web Direct Signing / Enterprise OTA)
-                    if isWhitelistedFramework(lower, whitelist: whitelist) {
-                        // Quét sâu tệp binary trên đĩa để đảm bảo không bị tráo đổi bằng tool Hook / Cheat
-                        if lower.contains("@executable_path") || lower.contains("@rpath") {
-                            if let bundleURL = Bundle.main.bundleURL as URL? {
-                                let cleanRel = dylibName.replacingOccurrences(of: "@executable_path/", with: "")
-                                    .replacingOccurrences(of: "@rpath/", with: "")
-                                let parts = cleanRel.components(separatedBy: ".framework")
-                                if parts.count >= 2 {
-                                    let fwRelPath = parts[0] + ".framework"
-                                    let fwURL = bundleURL.appendingPathComponent(fwRelPath)
-                                    if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL, whitelist: whitelist) {
-                                        return hookErr
-                                    }
-                                }
-                            }
-                        }
-                        curPtr += Int(cmd.cmdsize)
-                        continue
-                    }
-
-                    // Phát hiện bất kỳ dylib nào được tiêm qua @executable_path, @rpath, hoặc đường dẫn cục bộ (do Esign/optool/Sideloadly thêm vào)
-                    if lower.contains("@executable_path") || lower.contains("@rpath") || lower.hasSuffix(".dylib") {
-                        return "Injected dylib load command in Mach-O: \(dylibName)"
-                    }
-
+                    // Chỉ chặn các dylib hook / crack nằm trong danh sách đen (Frida, iGameGod, Cycript...)
                     for keyword in blacklistedKeywords {
                         if lower.contains(keyword) {
                             return "Blacklisted dylib in Mach-O header: \(dylibName)"
@@ -479,29 +329,11 @@ enum DylibInjectionGuard {
     // MARK: - 5. Quét tất cả các Dynamic Libraries (dyld images) đang nạp trong RAM
     private static func checkLoadedDyldImages(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         let count = _dyld_image_count()
-        let bundlePath = Bundle.main.bundlePath.lowercased()
-
         for i in 1..<count {
             guard let cName = _dyld_get_image_name(i) else { continue }
             let imageName = String(cString: cName)
             let lowerImage = imageName.lowercased()
 
-            // Bỏ qua thư viện hệ thống
-            if lowerImage.hasPrefix("/system/library/") || lowerImage.hasPrefix("/usr/lib/") || lowerImage.contains("libswift") || lowerImage.contains("libsystem") || lowerImage.contains("libobjc") {
-                continue
-            }
-
-            // Bỏ qua framework ký trực tiếp hợp lệ
-            if isWhitelistedFramework(lowerImage, whitelist: whitelist) {
-                continue
-            }
-
-            // Bất kỳ dylib nào được nạp từ trong App Bundle đều là dylib tiêm ngoài (Esign, Scarlet, Sideloadly)
-            if (lowerImage.contains(bundlePath) || lowerImage.contains("/containers/bundle/application/")) && lowerImage.hasSuffix(".dylib") {
-                return "Injected dylib active in RAM: \(imageName)"
-            }
-
-            // Kiểm tra các công cụ bẻ khóa / hooking nổi tiếng
             for keyword in blacklistedKeywords {
                 if lowerImage.contains(keyword) {
                     return "Blacklisted crack library in RAM: \(imageName)"
@@ -511,31 +343,10 @@ enum DylibInjectionGuard {
         return nil
     }
 
-    // MARK: - 6. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ file .dylib nào bị nhét vào IPA
+    // MARK: - 6. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ tool bẻ khóa nào bị nhét vào IPA
     private static func checkBundleIntegrity(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
-
-        // 1. Kiểm tra số lượng và tính toàn vẹn của các framework trong Frameworks/:
         let frameworksDir = bundleURL.appendingPathComponent("Frameworks")
-        if FileManager.default.fileExists(atPath: frameworksDir.path),
-           let items = try? FileManager.default.contentsOfDirectory(atPath: frameworksDir.path) {
-            let frameworkBundles = items.filter { $0.hasSuffix(".framework") }
-            let maxCount = whitelist?.maxFrameworksCount ?? 1
-            if frameworkBundles.count > maxCount {
-                return "Phát hiện nhiều framework bất thường được nhét vào thư mục Frameworks (\(frameworkBundles.count) frameworks, tối đa cho phép: \(maxCount))"
-            }
-            if false {
-                return "Phát hiện nhiều framework bất thường được nhét vào thư mục Frameworks (\(frameworkBundles.count) frameworks)"
-            }
-
-            // Quét sâu tệp binary bên trong framework duy nhất đó để ngăn kẻ xấu tráo bằng tool Hook / Cheat
-            for fw in frameworkBundles {
-                let fwURL = frameworksDir.appendingPathComponent(fw)
-                if let hookErr = scanFrameworkBinaryForHooks(frameworkURL: fwURL, whitelist: whitelist) {
-                    return hookErr
-                }
-            }
-        }
 
         let dirsToCheck = [
             bundleURL,
@@ -547,17 +358,6 @@ enum DylibInjectionGuard {
             if let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) {
                 for file in files {
                     let lower = file.lowercased()
-
-                    // Bỏ qua framework ký trực tiếp hợp lệ (đã được scanFrameworkBinaryForHooks kiểm tra ở trên)
-                    if isWhitelistedFramework(lower, whitelist: whitelist) {
-                        continue
-                    }
-
-                    // 1. Mọi file .dylib nằm trong thư mục app bundle đều là dylib tiêm lậu từ bên ngoài
-                    if lower.hasSuffix(".dylib") {
-                        return "Injected dylib found in bundle: \(file)"
-                    }
-                    // 2. Kiểm tra các tool bẻ khóa phổ biến
                     for keyword in blacklistedKeywords {
                         if lower.contains(keyword) {
                             return "Crack tool found in bundle: \(file)"
@@ -621,11 +421,9 @@ enum DylibInjectionGuard {
         }
     }
 
-    // MARK: - Thoát khi mất mạng hoặc không tải được Whitelist (Không xóa Keychain, Không gửi Tamper Report)
-    @inline(never)
-    static func exitAppOffline(reason: String) -> Never {
-        NSLog("[DylibInjectionGuard] ⚠️ MẤT KẾT NỐI MẠNG HOẶC KHÔNG TẢI ĐƯỢC WHITELIST: %@ -> THOÁT APP", reason)
-        exit(0)
+    // MARK: - Xử lý khi mất mạng hoặc không tải được Whitelist
+    static func exitAppOffline(reason: String) {
+        NSLog("[DylibInjectionGuard] ⚠️ THÔNG BÁO WHITELIST: %@", reason)
     }
 
     // MARK: - Phản ứng phòng vệ: Gửi báo cáo, dọn RAM và thoát app
@@ -752,10 +550,9 @@ enum DylibInjectionGuard {
         task.resume()
     }
 
-    /// Đồng bộ: Lấy Whitelist từ Server ngay khi app cold-start.
-    /// NẾU APP KHÔNG NHẬN ĐƯỢC WHITELIST DO MẤT MẠNG HOẶC TIMEOUT -> VĂNG APP NGAY (KHÔNG BAN, KHÔNG XÓA KEY)
+    /// Đồng bộ: Lấy Whitelist từ Server (an toàn, không crash app nếu máy chủ trả lỗi hoặc mất mạng)
     @discardableResult
-    static func fetchAndEnforceRemoteWhitelistSync(timeout: TimeInterval = 20.0) -> Bool {
+    static func fetchAndEnforceRemoteWhitelistSync(timeout: TimeInterval = 5.0) -> Bool {
         let sema = DispatchSemaphore(value: 0)
         var success = false
 
@@ -765,71 +562,28 @@ enum DylibInjectionGuard {
                 self.activeWhitelist = whitelist
                 self.enforceAllProtections(whitelist: whitelist)
                 success = true
-                sema.signal()
-
             case .failure(let error):
-                NSLog("[DylibInjectionGuard] ⚠️ LỖI LẤY WHITELIST TỪ SERVER: %@", error.localizedDescription)
-                if let wErr = error as? WhitelistError {
-                    switch wErr {
-                    case .signatureMismatch:
-                        triggerTamperReaction(
-                            reason: "Phát hiện Hook mạng / MITM: \(error.localizedDescription)",
-                            violationType: "NETWORK_HOOK_DETECTED"
-                        )
-                    case .serverRejected:
-                        triggerTamperReaction(
-                            reason: "Máy chủ từ chối cấp Whitelist: \(error.localizedDescription)",
-                            violationType: "WHITELIST_SERVER_REJECTED"
-                        )
-                    default:
-                        exitAppOffline(reason: "Mất mạng / không thể tải Whitelist: \(error.localizedDescription)")
-                    }
-                } else {
-                    exitAppOffline(reason: "Mất mạng / lỗi kết nối: \(error.localizedDescription)")
-                }
+                NSLog("[DylibInjectionGuard] ⚠️ Lỗi tải Whitelist từ server: %@", error.localizedDescription)
             }
+            sema.signal()
         }
 
-        let waitResult = sema.wait(timeout: .now() + timeout + 0.5)
-        if waitResult == .timedOut {
-            NSLog("[DylibInjectionGuard] ⚠️ TIMEOUT KHI ĐỢI WHITELIST TỪ SERVER (MẤT MẠNG) -> VĂNG APP!")
-            exitAppOffline(reason: "Hết thời gian chờ nhận Whitelist từ máy chủ (Timeout \(timeout)s)")
-        }
-
+        _ = sema.wait(timeout: .now() + timeout)
         return success
     }
 
     /// Bất đồng bộ: Dùng trong SwiftUI Task / RootView.evaluate()
-    static func fetchAndEnforceRemoteWhitelistAsync(timeout: TimeInterval = 20.0) async {
+    static func fetchAndEnforceRemoteWhitelistAsync(timeout: TimeInterval = 10.0) async {
         await withCheckedContinuation { continuation in
             fetchRemoteWhitelist(timeout: timeout) { result in
                 switch result {
                 case .success(let whitelist):
                     self.activeWhitelist = whitelist
                     self.enforceAllProtections(whitelist: whitelist)
-                    continuation.resume()
-
                 case .failure(let error):
-                    NSLog("[DylibInjectionGuard] ⚠️ [ASYNC] LỖI LẤY WHITELIST: %@", error.localizedDescription)
-                    if let wErr = error as? WhitelistError {
-                        switch wErr {
-                        case .signatureMismatch:
-                            triggerTamperReaction(
-                                reason: "Phát hiện Hook mạng / MITM: \(error.localizedDescription)",
-                                violationType: "NETWORK_HOOK_DETECTED"
-                            )
-                        case .serverRejected:
-                            triggerTamperReaction(
-                                reason: "Máy chủ từ chối cấp Whitelist: \(error.localizedDescription)",
-                                violationType: "WHITELIST_SERVER_REJECTED"
-                            )
-                        default:
-                            exitAppOffline(reason: "Mất mạng / không thể tải Whitelist: \(error.localizedDescription)")
-                        }
-                    } else {
-                        exitAppOffline(reason: "Mất mạng / lỗi kết nối: \(error.localizedDescription)")
-                    }
+                    NSLog("[DylibInjectionGuard] ⚠️ [ASYNC] Lỗi tải Whitelist từ server: %@", error.localizedDescription)
                 }
+                continuation.resume()
             }
         }
     }

@@ -115,11 +115,13 @@ final class CheatMenuState: ObservableObject {
     static let shared = CheatMenuState()
 
     private func syncIfInjected() {
-        // Decentralized Security Check: Bắt buộc phải có Key hợp lệ và còn hạn
-        guard let key = LicenseStore.shared.savedKey, !key.isEmpty,
-              let exp = LicenseStore.shared.expiresAt, exp > Date() else {
+        guard FreeFirePatchService.isInjected() else { return }
+        guard let key = LicenseStore.shared.savedKey, !key.isEmpty else {
             FreeFirePatchService.uninject()
-            exit(0)
+            return
+        }
+        if let exp = LicenseStore.shared.expiresAt, exp <= Date() {
+            FreeFirePatchService.uninject()
             return
         }
         FreeFirePatchService.syncConfig(state: self)
