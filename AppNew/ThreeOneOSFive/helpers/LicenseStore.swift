@@ -339,6 +339,7 @@ final class LicenseStore: ObservableObject {
         self.activatedAt = nil
         self.durationDays = nil
         self.durationHours = nil
+        FreeFirePatchService.uninject()
     }
 
     private static func parseISO8601(_ s: String) -> Date? {

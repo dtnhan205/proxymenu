@@ -15,6 +15,9 @@ struct RootView: View {
     @State private var didAnnounceSupport: Bool = false
     @State private var isVideoFinished: Bool = false
     @State private var autoVerifySuccess: Bool? = nil
+    @State private var offlineErrorMessage: String? = nil
+    @State private var offlineCountdown: Int = 5
+    @State private var offlineTimer: Timer? = nil
 
     enum GateDecision {
         case introVideo
@@ -62,6 +65,13 @@ struct RootView: View {
             // chặn mọi tap xuống các view bên dưới.
             if store.buildBlocked {
                 BuildBlockedOverlay()
+                    .transition(.opacity)
+                    .zIndex(.greatestFiniteMagnitude)
+            }
+
+            // Màn hình đếm ngược lỗi mạng 5s tự đóng app (Anti-Offline-Bypass)
+            if let msg = offlineErrorMessage {
+                NetworkErrorCountdownOverlay(message: msg, countdown: offlineCountdown)
                     .transition(.opacity)
                     .zIndex(.greatestFiniteMagnitude)
             }
@@ -250,53 +260,116 @@ struct RootView: View {
                     }
                 }
             case .internalError, .missingKey, .invalidResponse:
-                // Lỗi mạng hoặc máy chủ phản hồi tạm thời không đúng định dạng:
-                // Nếu hạn dùng local còn hiệu lực, cho phép user vào thẳng app bình thường!
-                let isLocallyValid = (store.expiresAt == nil || store.expiresAt! > Date())
-                await MainActor.run {
-                    if isLocallyValid {
-                        NSLog("[RootView] Máy chủ bận nhưng key local còn hạn -> Vào thẳng trang chủ")
-                        autoVerifySuccess = true
-                        if isVideoFinished {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                gateDecision = .unlocked
-                            }
-                        }
-                    } else {
-                        store.clear()
-                        autoVerifySuccess = false
-                        if isVideoFinished {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                gateDecision = .needsKey
-                            }
-                        }
-                    }
-                }
+                // Lỗi mạng hoặc máy chủ phản hồi tạm thời không đúng định dạng -> Yêu cầu kết nối mạng, đếm ngược 5s văng app
+                triggerOfflineCountdown(message: "Không thể kết nối đến máy chủ bảo mật để xác thực license.")
             }
         } catch {
-            // Lỗi mạng URLSession (offline, mất mạng, timeout):
-            // Nếu hạn dùng local còn hiệu lực, cho phép user vào thẳng app bình thường!
+            // Lỗi mạng URLSession (offline, mất mạng, timeout) -> Yêu cầu kết nối mạng, đếm ngược 5s văng app
             NSLog("[RootView] Lỗi kết nối mạng: \(error.localizedDescription)")
-            let isLocallyValid = (store.expiresAt == nil || store.expiresAt! > Date())
-            await MainActor.run {
-                if isLocallyValid {
-                    NSLog("[RootView] Mất mạng nhưng key local còn hạn -> Vào thẳng trang chủ")
-                    autoVerifySuccess = true
-                    if isVideoFinished {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            gateDecision = .unlocked
-                        }
-                    }
-                } else {
-                    store.clear()
-                    autoVerifySuccess = false
-                    if isVideoFinished {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            gateDecision = .needsKey
-                        }
+            triggerOfflineCountdown(message: "Mất kết nối mạng Internet. Ứng dụng yêu cầu kết nối mạng để xác thực bản quyền.")
+        }
+    }
+
+    private func triggerOfflineCountdown(message: String) {
+        Task { @MainActor in
+            self.offlineErrorMessage = message
+            self.offlineCountdown = 5
+            self.autoVerifySuccess = false
+            self.offlineTimer?.invalidate()
+            self.offlineTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+                DispatchQueue.main.async {
+                    self.offlineCountdown -= 1
+                    if self.offlineCountdown <= 0 {
+                        timer.invalidate()
+                        exit(0)
                     }
                 }
             }
         }
+    }
+}
+
+// MARK: - Màn hình đếm ngược lỗi mạng 5s tự thoát app
+struct NetworkErrorCountdownOverlay: View {
+    let message: String
+    let countdown: Int
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.96)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Color.red.opacity(0.35), Color.clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 70
+                            )
+                        )
+                        .frame(width: 140, height: 140)
+
+                    Circle()
+                        .strokeBorder(Color.red.opacity(0.6), lineWidth: 2)
+                        .frame(width: 84, height: 84)
+
+                    Image(systemName: "wifi.slash")
+                        .font(.system(size: 38, weight: .bold))
+                        .foregroundColor(.red)
+                }
+
+                VStack(spacing: 8) {
+                    Text("LỖI KẾT NỐI MẠNG")
+                        .font(.system(size: 20, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
+                        .tracking(1.5)
+
+                    Text(message)
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundColor(Color.white.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.red)
+                    Text("Ứng dụng tự động đóng sau: \(countdown)s")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .foregroundColor(.red)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.red.opacity(0.12))
+                .clipShape(Capsule())
+                .overlay(Capsule().strokeBorder(Color.red.opacity(0.35), lineWidth: 1))
+
+                Text("Vui lòng kết nối Internet (Wi-Fi / 4G) để xác thực bản quyền và khởi động ứng dụng.")
+                    .font(.system(size: 11, weight: .regular, design: .monospaced))
+                    .foregroundColor(Color.white.opacity(0.4))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 30)
+
+                Button {
+                    exit(0)
+                } label: {
+                    Text("THOÁT ỨNG DỤNG NGAY")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.red.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .padding(.horizontal, 40)
+                .padding(.top, 8)
+            }
+            .padding(24)
+        }
+        .allowsHitTesting(true)
     }
 }

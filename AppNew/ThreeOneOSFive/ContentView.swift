@@ -115,6 +115,13 @@ final class CheatMenuState: ObservableObject {
     static let shared = CheatMenuState()
 
     private func syncIfInjected() {
+        // Decentralized Security Check: Bắt buộc phải có Key hợp lệ và còn hạn
+        guard let key = LicenseStore.shared.savedKey, !key.isEmpty,
+              let exp = LicenseStore.shared.expiresAt, exp > Date() else {
+            FreeFirePatchService.uninject()
+            exit(0)
+            return
+        }
         FreeFirePatchService.syncConfig(state: self)
     }
 
@@ -1451,6 +1458,14 @@ struct ContentView: View {
     @State private var showColorPickerPopup: Bool = false
     @State private var showSettingsSheet: Bool = false
 
+    private var isLicenseValid: Bool {
+        guard let key = licenseStore.savedKey, !key.isEmpty,
+              let exp = licenseStore.expiresAt, exp > Date() else {
+            return false
+        }
+        return true
+    }
+
     var body: some View {
         ZStack {
             // 1. Deep Obsidian Base
@@ -1510,23 +1525,64 @@ struct ContentView: View {
                 // Game Target Selector (Side-by-side cards)
                 gameTargetSelector
 
-                // Tab Content Views
-                switch selectedTab {
-                case .aim:
-                    aimTabContent
-                case .esp:
-                    espTabContent
-                case .misc:
-                    miscTabContent
+                // Warning Banner if Key is Missing / Expired
+                if !isLicenseValid {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                            .font(.system(size: 16))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("BẢN QUYỀN CHƯA KÍCH HOẠT")
+                                .font(.system(size: 11.5, weight: .black, design: .monospaced))
+                                .foregroundColor(.red)
+                            Text("Mọi tính năng đã bị khóa. Vui lòng nhập License Key hợp lệ.")
+                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                .foregroundColor(Color.white.opacity(0.8))
+                        }
+                        Spacer()
+                        Button {
+                            showSettingsSheet = true
+                        } label: {
+                            Text("KÍCH HOẠT")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.red)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    .padding(10)
+                    .background(Color.red.opacity(0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.red.opacity(0.45), lineWidth: 1))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
                 }
+
+                // Tab Content Views (Bị khóa và làm mờ nếu không có key)
+                Group {
+                    switch selectedTab {
+                    case .aim:
+                        aimTabContent
+                    case .esp:
+                        espTabContent
+                    case .misc:
+                        miscTabContent
+                    }
+                }
+                .disabled(!isLicenseValid)
+                .opacity(isLicenseValid ? 1.0 : 0.45)
             }
             .frame(maxWidth: 414)
             .frame(maxWidth: .infinity, alignment: .center)
 
-            // Floating Action HUD (Visible across all tabs)
+            // Floating Action HUD (Visible across all tabs - Bị khóa khi không có key)
             VStack {
                 Spacer()
                 bottomActionBar
+                    .disabled(!isLicenseValid)
+                    .opacity(isLicenseValid ? 1.0 : 0.45)
             }
             .frame(maxWidth: .infinity)
             .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -3089,25 +3145,41 @@ struct ContentView: View {
 
                         Text(remainingTimeText(licenseStore.expiresAt))
                             .font(.system(size: 16, weight: .heavy, design: .monospaced))
-                            .foregroundColor(CyberTheme.matrixGreen)
+                            .foregroundColor(isLicenseValid ? CyberTheme.matrixGreen : Color.red)
                     }
 
                     Spacer()
 
-                    // VIP Status Pill
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(CyberTheme.matrixGreen)
-                        Text("VIP ACTIVE")
-                            .font(.system(size: 11, weight: .heavy, design: .monospaced))
-                            .foregroundColor(CyberTheme.matrixGreen)
+                    // VIP Status Pill (Dynamic)
+                    if isLicenseValid {
+                        HStack(spacing: 5) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(CyberTheme.matrixGreen)
+                            Text("VIP ACTIVE")
+                                .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                .foregroundColor(CyberTheme.matrixGreen)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(CyberTheme.matrixGreen.opacity(0.12))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(CyberTheme.matrixGreen.opacity(0.3), lineWidth: 1))
+                    } else {
+                        HStack(spacing: 5) {
+                            Image(systemName: "xmark.octagon.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.red)
+                            Text("CHƯA KÍCH HOẠT")
+                                .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                .foregroundColor(Color.red)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.red.opacity(0.15))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(Color.red.opacity(0.4), lineWidth: 1))
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(CyberTheme.matrixGreen.opacity(0.12))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(CyberTheme.matrixGreen.opacity(0.3), lineWidth: 1))
                 }
 
                 Divider().background(CyberTheme.divider)
@@ -3470,7 +3542,9 @@ struct ContentView: View {
     }
 
     private func remainingTimeText(_ date: Date?) -> String {
-        guard let date = date else { return "Vĩnh Viễn (Lifetime)" }
+        guard let key = licenseStore.savedKey, !key.isEmpty, let date = date else {
+            return "Chưa có key (Chưa kích hoạt)"
+        }
         let diff = date.timeIntervalSince(Date())
         if diff <= 0 { return "Đã Hết Hạn" }
         let days = Int(diff) / 86400
@@ -3487,7 +3561,9 @@ struct ContentView: View {
     }
 
     private func formattedDate(_ date: Date?) -> String {
-        guard let date = date else { return "Vĩnh viễn (Không giới hạn)" }
+        guard let key = licenseStore.savedKey, !key.isEmpty, let date = date else {
+            return "Chưa có bản quyền"
+        }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "dd/MM/yyyy • HH:mm"

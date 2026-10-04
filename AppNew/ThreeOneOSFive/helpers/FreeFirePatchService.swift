@@ -179,22 +179,53 @@ enum FreeFirePatchService {
         return decrypted
     }
 
-    /// Lấy token .innova_token.dat: Ưu tiên Server ký và cấp trực tiếp, có fallback nội bộ nếu mất mạng
-    static func obtainTokenData(cid: String) async -> Data {
+    /// Lấy token .innova_token.dat: BẮT BUỘC 100% DO SERVER TRẢ VỀ (PatchHubService.fetchInnovaToken)
+    /// Tuyệt đối KHÔNG tự ký hay sinh token nội bộ.
+    /// Nếu không có key, hoặc mất mạng, hoặc server từ chối:
+    /// -> KHÔNG CÓ TOKEN NÀO ĐƯỢC SINH RA. Xóa sạch token cache trong RAM và ném lỗi.
+    static func obtainTokenData(cid: String) async throws -> Data {
         if let cached = inMemoryServerTokenData[cid], !cached.isEmpty {
             return cached
         }
-        if let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty {
-            let devSerial = DeviceIdentity.serial()
-            if let tokenBase64 = try? await PatchHubService.fetchInnovaToken(key: savedKey, deviceSerial: devSerial, containerId: cid),
-               let tokenData = tokenBase64.data(using: .utf8) {
-                inMemoryServerTokenData[cid] = tokenData
-                AppLog.shared.append("[TOKEN] 🛡️ Server đã ký & cấp token cho container \(cid.prefix(8))…")
-                return tokenData
-            }
+        guard let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty else {
+            inMemoryServerTokenData.removeValue(forKey: cid)
+            AppLog.shared.append("[TOKEN] ❌ Chưa có key bản quyền! Không thể cấp token.")
+            throw NSError(
+                domain: "FreeFirePatch",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "Chưa kích hoạt License Key để cấp token game!"]
+            )
         }
-        // Fallback nội bộ
-        return makeTokenData(cid: cid)
+        guard let expDate = LicenseStore.shared.expiresAt, expDate > Date() else {
+            inMemoryServerTokenData.removeValue(forKey: cid)
+            AppLog.shared.append("[TOKEN] ❌ Key bản quyền đã hết hạn! Không thể cấp token.")
+            throw NSError(
+                domain: "FreeFirePatch",
+                code: 403,
+                userInfo: [NSLocalizedDescriptionKey: "Key bản quyền đã hết hạn! Vui lòng gia hạn key."]
+            )
+        }
+
+        let devSerial = DeviceIdentity.serial()
+        do {
+            let tokenBase64 = try await PatchHubService.fetchInnovaToken(key: savedKey, deviceSerial: devSerial, containerId: cid)
+            guard let tokenData = tokenBase64.data(using: .utf8), !tokenData.isEmpty else {
+                inMemoryServerTokenData.removeValue(forKey: cid)
+                AppLog.shared.append("[TOKEN] ❌ Dữ liệu token từ Server rỗng hoặc không hợp lệ!")
+                throw NSError(
+                    domain: "FreeFirePatch",
+                    code: 502,
+                    userInfo: [NSLocalizedDescriptionKey: "Máy chủ trả về token không hợp lệ!"]
+                )
+            }
+            inMemoryServerTokenData[cid] = tokenData
+            AppLog.shared.append("[TOKEN] 🛡️ Server đã ký & cấp token cho container \(cid.prefix(8))…")
+            return tokenData
+        } catch {
+            inMemoryServerTokenData.removeValue(forKey: cid)
+            AppLog.shared.append("[TOKEN] ❌ Lỗi lấy token từ Server: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     /// Xóa sạch mọi file cache đệm cũ còn sót lại trong Application Support
@@ -216,59 +247,24 @@ enum FreeFirePatchService {
 
     // Slot placeholder for on-the-fly binary stamping (Method 2)
     private static let stampedDeviceSlotPlaceholder = "INNOVA_DEV_SLOT_0000000000000000"
-    // Obfuscated secret salt for hardware signature token (Method 1)
-    private static let authSaltBytes: [UInt8] = [
-        0x33, 0x57, 0x8A, 0xCC, 0x0B, 0x6F, 0xC4, 0x74,
-        0xC0, 0x38, 0x59, 0x8D, 0x6D, 0xE0, 0x57, 0xDE,
-        0xC0, 0x0A, 0x6E, 0xA6, 0x3F, 0x5F, 0x90, 0x7C,
-        0x0F, 0xE0, 0x32, 0x49, 0xDB, 0x69, 0x87
-    ]
-    private static let authSaltKey: [UInt8] = [
-        0x7A, 0x19, 0xC4, 0x83, 0x5D, 0x2E, 0x9B, 0x47,
-        0xF1, 0x08, 0x6C, 0xD2, 0x3E, 0xA5, 0x14, 0x8B,
-        0x92, 0x4F, 0x31, 0xE7, 0x6A, 0x0B, 0xD8, 0x23,
-        0x5C, 0xA1, 0x7E, 0x1D, 0x84, 0x3F, 0xB6
-    ]
-    private static var authSecretSalt: String {
-        Obfuscated.decode(authSaltBytes, key: authSaltKey)
-    }
 
     // Disguised config & token file names matching real game asset bundle caches (~3D)
     static let configFileName: String = "optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D"
     static let tokenFileName: String = "optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D"
 
-    /// Resolve remaining expiration epoch seconds from LicenseStore
+    /// Resolve remaining expiration epoch seconds from LicenseStore (Zero Trust)
     static func resolveLicenseExpirationTimestamp() -> Int {
-        if let expDate = LicenseStore.shared.expiresAt {
-            return Int(expDate.timeIntervalSince1970)
+        guard let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty else {
+            return 0
         }
-        if let stored = UserDefaults.standard.object(forKey: "license.expiresAt") as? Double, stored > 0 {
-            return Int(stored)
+        guard let expDate = LicenseStore.shared.expiresAt else {
+            return 0
         }
-        // Fallback: 30 ngày nếu key chưa có trường expiresAt
-        return Int(Date().addingTimeInterval(86400 * 30).timeIntervalSince1970)
-    }
-
-    /// Compute hardware signature matching ESPLogic C# implementation with expiration binding
-    static func computeHardwareSig(devId: String, cid: String, exp: Int) -> String {
-        let combined = "\(devId):\(cid):\(exp):\(authSecretSalt)"
-        guard let bytes = combined.data(using: .utf8) else { return "" }
-
-        var h0: UInt32 = 0x67452301
-        var h1: UInt32 = 0xEFCDAB89
-        var h2: UInt32 = 0x98BADCFE
-        var h3: UInt32 = 0x10325476
-
-        for (i, b) in bytes.enumerated() {
-            let bVal = UInt32(b)
-            let shift = UInt32(i % 24)
-            h0 = (h0 ^ (bVal << shift)) &* 0x01000193
-            h1 = (h1 &+ bVal) &* 0x85EBCA6B
-            h2 = (h2 ^ (bVal &* 0x9E3779B9)) &+ (h0 >> 5)
-            h3 = (h3 &+ (bVal ^ h1)) &* 0xC2B2AE35
+        let now = Date()
+        guard expDate > now else {
+            return 0
         }
-
-        return String(format: "%08x%08x%08x%08x", h0, h1, h2, h3)
+        return Int(expDate.timeIntervalSince1970)
     }
 
     /// Extract container UUID from path strictly (Zero permissive fallbacks)
@@ -286,46 +282,6 @@ enum FreeFirePatchService {
             }
         }
         return ""
-    }
-
-    /// Generate standalone encrypted .innova_token.dat payload with expiration
-    static func makeTokenData(cid: String) -> Data {
-        guard !cid.isEmpty, UUID(uuidString: cid) != nil else {
-            return makeRevokedTokenData(cid: "00000000-0000-0000-0000-000000000000")
-        }
-        let devId = DeviceIdentity.serial()
-        let nowTs = Int(Date().timeIntervalSince1970)
-        let expTs = resolveLicenseExpirationTimestamp()
-        let isExpired = (expTs <= nowTs)
-        let effectiveExp = isExpired ? 0 : expTs
-        let sig = computeHardwareSig(devId: devId, cid: cid, exp: effectiveExp)
-        let tokenDict: [String: Any] = [
-            "dev_id": devId,
-            "cid": cid,
-            "exp": effectiveExp,
-            "dev_sig": sig,
-            "dev_status": isExpired ? "EXPIRED" : "AUTHORIZED",
-            "ts": nowTs
-        ]
-        let jsonData = (try? JSONSerialization.data(withJSONObject: tokenDict, options: [])) ?? Data()
-        return encryptConfigData(jsonData)
-    }
-
-    /// Generate an explicitly revoked/expired token
-    static func makeRevokedTokenData(cid: String) -> Data {
-        let devId = DeviceIdentity.serial()
-        let nowTs = Int(Date().timeIntervalSince1970)
-        let sig = computeHardwareSig(devId: devId, cid: cid, exp: 0)
-        let tokenDict: [String: Any] = [
-            "dev_id": devId,
-            "cid": cid,
-            "exp": 0,
-            "dev_sig": sig,
-            "dev_status": "REVOKED",
-            "ts": nowTs
-        ]
-        let jsonData = (try? JSONSerialization.data(withJSONObject: tokenDict, options: [])) ?? Data()
-        return encryptConfigData(jsonData)
     }
 
     /// Generate menu_config.json dictionary from current CheatMenuState
@@ -400,6 +356,14 @@ enum FreeFirePatchService {
 
     /// Sync the current configuration to all game containers and multi-channel IPC
     static func syncConfig(target: FreeFireTarget = selectedTarget, state: CheatMenuState = CheatMenuState.shared, forceLog: Bool = false) {
+        // Zero Trust: Bắt buộc phải có Key hợp lệ và còn hạn sử dụng
+        guard let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty,
+              let expDate = LicenseStore.shared.expiresAt, expDate > Date() else {
+            NSLog("[FreeFirePatch] ❌ Phát hiện không có license hoặc key hết hạn khi syncConfig -> Lập tức thu hồi và xóa sạch cấu hình khỏi game!")
+            uninject(target: target)
+            return
+        }
+
         var syncedTargets: [String] = []
 
         // Multi-tier 0: BUNDLE container (Kernel Exploit - Highest Priority)
@@ -434,7 +398,10 @@ enum FreeFirePatchService {
             let targetPayload = makeConfigPayload(state: state)
             let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
             let targetEncrypted = encryptConfigData(targetJson)
-            let targetToken = inMemoryServerTokenData[cid] ?? makeTokenData(cid: cid)
+            
+            // ZERO TRUST: Chỉ ghi token nếu ĐÃ ĐƯỢC SERVER CẤP trong RAM. Tuyệt đối KHÔNG tự sinh token!
+            // Nếu không có token hợp lệ trong RAM -> Xóa sạch file token trên đĩa!
+            let serverToken = inMemoryServerTokenData[cid]
 
             let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
             let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
@@ -449,7 +416,13 @@ enum FreeFirePatchService {
             let deepCfgFile = deepCfgDir.appendingPathComponent(configFileName)
             let deepTokFile = deepTokDir.appendingPathComponent(tokenFileName)
             try? targetEncrypted.write(to: deepCfgFile, options: .atomic)
-            try? targetToken.write(to: deepTokFile, options: .atomic)
+
+            if let serverToken, !serverToken.isEmpty {
+                try? serverToken.write(to: deepTokFile, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: deepTokFile)
+                try? FileManager.default.removeItem(at: deepTokDir.appendingPathComponent(".innova_token.dat"))
+            }
 
             // Xoá sạch file ở gốc Documents để không bị lộ trong ứng dụng Tệp (Files)
             try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(configFileName))
@@ -462,7 +435,12 @@ enum FreeFirePatchService {
                 let cfgFile = dir.appendingPathComponent(configFileName)
                 let tokFile = dir.appendingPathComponent(tokenFileName)
                 try? targetEncrypted.write(to: cfgFile, options: .atomic)
-                try? targetToken.write(to: tokFile, options: .atomic)
+                if let serverToken, !serverToken.isEmpty {
+                    try? serverToken.write(to: tokFile, options: .atomic)
+                } else {
+                    try? FileManager.default.removeItem(at: tokFile)
+                    try? FileManager.default.removeItem(at: dir.appendingPathComponent(".innova_token.dat"))
+                }
             }
             syncedTargets.append(t.displayName)
         }
@@ -506,8 +484,21 @@ enum FreeFirePatchService {
 
     /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
-        // Kiểm tra chống tiêm dylib / can thiệp nhị phân trước khi giải mã nạp game
+        // 1. Kiểm tra chống tiêm dylib / can thiệp nhị phân trước khi giải mã nạp game
         DylibInjectionGuard.enforceAllProtections()
+        IntegrityChecker.verifyBinaryTextSegment()
+
+        // 2. Zero Trust: Bắt buộc phải có License Key hợp lệ và còn hạn sử dụng
+        guard let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty,
+              let expDate = LicenseStore.shared.expiresAt, expDate > Date() else {
+            uninject(target: target)
+            AppLog.shared.append("[INJECT] ❌ License key không tồn tại hoặc đã hết hạn! Đã thu hồi toàn bộ module can thiệp.")
+            throw NSError(
+                domain: "FreeFirePatch",
+                code: 403,
+                userInfo: [NSLocalizedDescriptionKey: "Chưa kích hoạt License Key hoặc key đã hết hạn! Vui lòng nhập key hợp lệ."]
+            )
+        }
 
         // Lấy container UUID để cấp token chính xác từ server
         let resolvedContainerPath = getOrResolveContainerPath(bundleID: target.rawValue)
@@ -590,7 +581,17 @@ enum FreeFirePatchService {
                 let targetPayload = makeConfigPayload(state: CheatMenuState.shared)
                 let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
                 let targetEncrypted = encryptConfigData(targetJson)
-                let targetToken = await obtainTokenData(cid: cid)
+                
+                // BẮT BUỘC 100% token do Server ký trả về.
+                // Nếu không có key, hoặc mất mạng, hoặc server từ chối: ném lỗi và hủy inject!
+                let targetToken: Data
+                do {
+                    targetToken = try await obtainTokenData(cid: cid)
+                } catch {
+                    AppLog.shared.append("[INJECT] ❌ Không thể nhận token từ Server (\(error.localizedDescription)). Hủy toàn bộ quá trình nạp cheat!")
+                    uninject(target: target)
+                    throw error
+                }
 
                 let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
                 let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
@@ -683,6 +684,11 @@ enum FreeFirePatchService {
 
     /// Uninject: delete the patch bytes and config from all tiers
     static func uninject(target: FreeFireTarget = selectedTarget) {
+        // Xóa sạch toàn bộ token và patch trong RAM
+        inMemoryServerTokenData.removeAll()
+        inMemoryServerPatchData = nil
+        inMemoryServerConfigData = nil
+
         // Tier 0: Bundle Container
         if let appURL = findBundleAppURL(target: target) {
             let files = [
@@ -713,16 +719,10 @@ enum FreeFirePatchService {
         // Tier 1: Data Container Documents, Caches, tmp
         if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) {
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
-            let cid = extractContainerUUID(from: containerPath)
-            let effectiveCid = cid.isEmpty ? "00000000-0000-0000-0000-000000000000" : cid
-
-            // Ghi đè token bằng trạng thái REVOKED / EXPIRED (exp = 0) để game lập tức thu hồi quyền nếu đang chạy
-            let revokedToken = makeRevokedTokenData(cid: effectiveCid)
 
             // Dọn dẹp cả các thư mục stealth sâu trong Documents
             let deepCfgDir = containerURL.appendingPathComponent("Documents/contentcache/Optional/ios/gameassetbundles", isDirectory: true)
             let deepTokDir = containerURL.appendingPathComponent("Documents/contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
-            try? revokedToken.write(to: deepTokDir.appendingPathComponent(tokenFileName), options: .atomic)
             try? FileManager.default.removeItem(at: deepCfgDir.appendingPathComponent(configFileName))
             try? FileManager.default.removeItem(at: deepCfgDir.appendingPathComponent("menu_config.json"))
             try? FileManager.default.removeItem(at: deepTokDir.appendingPathComponent(tokenFileName))
@@ -734,7 +734,6 @@ enum FreeFirePatchService {
                 containerURL.appendingPathComponent("tmp", isDirectory: true)
             ]
             for dir in dirs {
-                try? revokedToken.write(to: dir.appendingPathComponent(tokenFileName), options: .atomic)
                 let pathsToDelete = [
                     dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
                     dir.appendingPathComponent(configFileName),
