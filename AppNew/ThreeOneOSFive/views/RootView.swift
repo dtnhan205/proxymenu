@@ -276,11 +276,11 @@ struct RootView: View {
             self.offlineCountdown = 5
             self.autoVerifySuccess = false
             self.offlineTimer?.invalidate()
-            self.offlineTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            self.offlineTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
                 DispatchQueue.main.async {
                     self.offlineCountdown -= 1
                     if self.offlineCountdown <= 0 {
-                        timer.invalidate()
+                        self.offlineTimer?.invalidate()
                         exit(0)
                     }
                 }

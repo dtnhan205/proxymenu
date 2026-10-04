@@ -259,17 +259,6 @@ enum IntegrityChecker {
             }
         }
 
-        // 4. Kiểm tra sandbox escape bằng fork()
-        let pid = fork()
-        if pid >= 0 {
-            if pid > 0 {
-                waitpid(pid, nil, 0)
-            } else {
-                exit(0)
-            }
-            return true
-        }
-
         return false
         #endif
     }
