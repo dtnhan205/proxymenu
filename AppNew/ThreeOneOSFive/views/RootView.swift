@@ -161,7 +161,7 @@ struct RootView: View {
 
     private func evaluate() async {
         // 1. Nhận cấu hình Whitelist bảo mật từ Server (được ký số RSA-2048, chống hook mạng):
-        // Nếu timeout hoặc lỗi mạng -> tự động áp dụng Whitelist cache/mặc định an toàn
+        // NẾU APP KHÔNG NHẬN ĐƯỢC HOẶC BỊ HOOK MẠNG -> VĂNG APP NGAY LẬP TỨC!
         await DylibInjectionGuard.fetchAndEnforceRemoteWhitelistAsync()
 
         // Tự động dọn dẹp xóa sạch mọi file patch/token từng bị lộ trong thư mục Documents và cache cũ
