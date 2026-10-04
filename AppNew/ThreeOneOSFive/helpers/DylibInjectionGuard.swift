@@ -99,19 +99,27 @@ enum DylibInjectionGuard {
     ]
 
     /// Kiểm tra tên framework / binary có khớp với tiền tố hoặc tên chính xác trong Whitelist không
-    private static func hasAllowedPrefix(_ nameOrPath: String, whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> Bool {
+    static func isFrameworkAllowed(_ nameOrPath: String, whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> Bool {
         let lower = nameOrPath.lowercased()
         let lastComponent = URL(fileURLWithPath: lower).lastPathComponent
         let cleanName = lastComponent.replacingOccurrences(of: ".framework", with: "")
 
-        let prefixes = (whitelist?.allowedPrefixes?.isEmpty == false ? whitelist!.allowedPrefixes! : defaultAllowedPrefixes).map { $0.lowercased() }
-
-        for prefix in prefixes {
-            if cleanName.hasPrefix(prefix) || lower.contains("/" + prefix) {
-                return true
+        // 1. Chặn ngay nếu tên chứa bất kỳ từ khóa bẻ khóa nào trong blacklist
+        for keyword in blacklistedKeywords {
+            if cleanName.contains(keyword) || lower.contains(keyword) {
+                return false
             }
         }
 
+        // 2. Chặn các file .dylib đơn lẻ (ngoại trừ thư viện runtime libswift*.dylib)
+        if lower.hasSuffix(".dylib") {
+            if cleanName.hasPrefix("libswift") {
+                return true
+            }
+            return false
+        }
+
+        // 3. Khớp chính xác tên (allowedExactNames)
         if let exactList = whitelist?.allowedExactNames {
             for exact in exactList {
                 let exactLower = exact.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -121,7 +129,27 @@ enum DylibInjectionGuard {
             }
         }
 
+        // 4. Khớp theo tiền tố (allowedPrefixes)
+        // Khi server đã cấp whitelist, TUÂN THỦ 100% cấu hình server (kể cả rỗng [] do admin xóa).
+        // Tuyệt đối không fallback về defaultAllowedPrefixes khi server đã cấp whitelist!
+        let prefixes: [String]
+        if let wl = whitelist {
+            prefixes = (wl.allowedPrefixes ?? []).map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        } else {
+            prefixes = defaultAllowedPrefixes
+        }
+
+        for prefix in prefixes {
+            if cleanName.hasPrefix(prefix) || lower.contains("/" + prefix) {
+                return true
+            }
+        }
+
         return false
+    }
+
+    private static func hasAllowedPrefix(_ nameOrPath: String, whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> Bool {
+        return isFrameworkAllowed(nameOrPath, whitelist: whitelist)
     }
 
     /// Quét sâu nội dung tệp binary của Framework trên đĩa: Phát hiện nếu bị kẻ xấu tráo đổi ruột bằng tool Hook / Cheat
@@ -313,10 +341,22 @@ enum DylibInjectionGuard {
                     let dylibName = String(cString: nameCStr)
                     let lower = dylibName.lowercased()
 
-                    // Chỉ chặn các dylib hook / crack nằm trong danh sách đen (Frida, iGameGod, Cycript...)
+                    // 1. Chặn các dylib hook / crack nằm trong danh sách đen (Frida, iGameGod, Cycript...)
                     for keyword in blacklistedKeywords {
                         if lower.contains(keyword) {
                             return "Blacklisted dylib in Mach-O header: \(dylibName)"
+                        }
+                    }
+
+                    // 2. Thư viện hệ thống của Apple luôn hợp lệ
+                    if lower.hasPrefix("/system/") || lower.hasPrefix("/usr/lib/") || lower.hasPrefix("/developer/") {
+                        // System library -> OK
+                    } else if lower.contains("libswift") {
+                        // Swift runtime library -> OK
+                    } else {
+                        // Thư viện/framework bên thứ ba hoặc signer tiêm vào binary -> Bắt buộc phải trong Whitelist!
+                        if !isFrameworkAllowed(dylibName, whitelist: whitelist) {
+                            return "Phát hiện lệnh nạp dylib/framework không trong Whitelist trong Mach-O: \(dylibName)"
                         }
                     }
                 }
@@ -329,43 +369,108 @@ enum DylibInjectionGuard {
     // MARK: - 5. Quét tất cả các Dynamic Libraries (dyld images) đang nạp trong RAM
     private static func checkLoadedDyldImages(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         let count = _dyld_image_count()
+        let bundlePath = Bundle.main.bundlePath.lowercased()
+
         for i in 1..<count {
             guard let cName = _dyld_get_image_name(i) else { continue }
             let imageName = String(cString: cName)
             let lowerImage = imageName.lowercased()
 
+            // 1. Chặn blacklist
             for keyword in blacklistedKeywords {
                 if lowerImage.contains(keyword) {
                     return "Blacklisted crack library in RAM: \(imageName)"
+                }
+            }
+
+            // 2. Bỏ qua thư viện hệ thống
+            if lowerImage.hasPrefix("/system/") || lowerImage.hasPrefix("/usr/lib/") || lowerImage.hasPrefix("/developer/") {
+                continue
+            }
+            if lowerImage.contains("libswift") {
+                continue
+            }
+
+            // 3. Nếu là thư viện nạp từ app bundle hoặc có chứa .framework:
+            if lowerImage.contains(bundlePath) || lowerImage.contains(".app/") || lowerImage.contains("/frameworks/") || lowerImage.contains(".framework") {
+                if !isFrameworkAllowed(imageName, whitelist: whitelist) {
+                    return "Phát hiện thư viện không trong Whitelist nạp trong RAM: \(imageName)"
                 }
             }
         }
         return nil
     }
 
-    // MARK: - 6. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ tool bẻ khóa nào bị nhét vào IPA
+    // MARK: - 6. Quét thư mục Bundle trên đĩa: Phát hiện bất kỳ framework / dylib tiêm lậu nào
     private static func checkBundleIntegrity(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         guard let bundleURL = Bundle.main.bundleURL as URL? else { return nil }
         let frameworksDir = bundleURL.appendingPathComponent("Frameworks")
 
-        let dirsToCheck = [
-            bundleURL,
-            frameworksDir
-        ]
-
-        for dir in dirsToCheck {
-            guard FileManager.default.fileExists(atPath: dir.path) else { continue }
-            if let files = try? FileManager.default.contentsOfDirectory(atPath: dir.path) {
-                for file in files {
-                    let lower = file.lowercased()
-                    for keyword in blacklistedKeywords {
-                        if lower.contains(keyword) {
-                            return "Crack tool found in bundle: \(file)"
-                        }
+        // 1. Quét thư mục Bundle chính
+        if let rootFiles = try? FileManager.default.contentsOfDirectory(atPath: bundleURL.path) {
+            for file in rootFiles {
+                let lower = file.lowercased()
+                // Dylib đơn lẻ trong thư mục gốc của app
+                if lower.hasSuffix(".dylib") {
+                    if !lower.hasPrefix("libswift") {
+                        return "Phát hiện tệp dylib tiêm lậu trong Bundle: \(file)"
+                    }
+                }
+                // Blacklist tool
+                for keyword in blacklistedKeywords {
+                    if lower.contains(keyword) {
+                        return "Phát hiện công cụ bẻ khóa trong Bundle: \(file)"
                     }
                 }
             }
         }
+
+        // 2. Quét thư mục Frameworks/
+        guard FileManager.default.fileExists(atPath: frameworksDir.path) else { return nil }
+        guard let frameworkItems = try? FileManager.default.contentsOfDirectory(atPath: frameworksDir.path) else { return nil }
+
+        var foundFrameworksCount = 0
+
+        for item in frameworkItems {
+            let lower = item.lowercased()
+
+            // 2.1. File .dylib trong Frameworks
+            if lower.hasSuffix(".dylib") {
+                if !lower.hasPrefix("libswift") {
+                    return "Phát hiện tệp dylib không hợp lệ trong Frameworks: \(item)"
+                }
+                continue
+            }
+
+            // 2.2. Folder .framework trong Frameworks
+            if item.hasSuffix(".framework") || lower.contains(".framework") {
+                foundFrameworksCount += 1
+
+                // KIỂM TRA WHITELIST:
+                if !isFrameworkAllowed(item, whitelist: whitelist) {
+                    return "Phát hiện Framework tiêm lậu không nằm trong Whitelist: \(item)"
+                }
+
+                // Quét sâu nhị phân của framework được phép
+                let itemURL = frameworksDir.appendingPathComponent(item)
+                if let scanErr = scanFrameworkBinaryForHooks(frameworkURL: itemURL, whitelist: whitelist) {
+                    return scanErr
+                }
+            } else {
+                for keyword in blacklistedKeywords {
+                    if lower.contains(keyword) {
+                        return "Phát hiện tệp công cụ lạ trong Frameworks: \(item)"
+                    }
+                }
+            }
+        }
+
+        // 2.3. Kiểm tra số lượng framework tối đa cho phép
+        let maxCount = whitelist?.maxFrameworksCount ?? 1
+        if foundFrameworksCount > maxCount {
+            return "Số lượng framework vượt quá giới hạn cho phép (\(foundFrameworksCount) > \(maxCount))"
+        }
+
         return nil
     }
 
@@ -582,6 +687,7 @@ enum DylibInjectionGuard {
                     self.enforceAllProtections(whitelist: whitelist)
                 case .failure(let error):
                     NSLog("[DylibInjectionGuard] ⚠️ [ASYNC] Lỗi tải Whitelist từ server: %@", error.localizedDescription)
+                    self.enforceAllProtections(whitelist: self.activeWhitelist)
                 }
                 continuation.resume()
             }

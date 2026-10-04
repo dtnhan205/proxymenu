@@ -851,7 +851,7 @@ enum PatchHubService {
 
     /// Kiểm tra trực tiếp xem token bản build hiện tại có bị đóng/thu hồi ở server hay không.
     static func checkIfBuildIsBlocked() async -> Bool {
-        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else { return false }
+        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else { return true }
         let url = baseURL.appendingPathComponent(Endpoints.buildsVerify)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -862,12 +862,20 @@ enum PatchHubService {
             "bundleId": IntegrityChecker.bundleIdentifier,
             "platform": "innova"
         ]
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: body) else { return false }
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: body) else { return true }
         req.httpBody = jsonData
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
             if let http = response as? HTTPURLResponse {
-                if http.statusCode == 403 {
+                if (200...299).contains(http.statusCode) {
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let ok = json["ok"] as? Bool, !ok {
+                            return true
+                        }
+                    }
+                    return false
+                }
+                if http.statusCode == 403 || http.statusCode == 400 || http.statusCode == 404 {
                     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let reason = json["reason"] as? String {
                         if reason == "build_revoked" || reason == "build_unknown" || reason == "build_missing" || reason == "build_wrong_platform" {
