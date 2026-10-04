@@ -436,16 +436,95 @@ enum PatchHubService {
         return URL(string: host)!
     }()
 
+    // MARK: - Obfuscated API Endpoints
+    // Toàn bộ đường dẫn API được mã hóa XOR để loại bỏ 100% chuỗi plaintext "api/..." khỏi binary
+    enum Endpoints {
+        private static func dec(_ bytes: [UInt8]) -> String {
+            let key: [UInt8] = [0x5A, 0x3F, 0x8C, 0x1E, 0xB4, 0x92, 0x77, 0xD1, 0x4C, 0xA3, 0x28, 0xE9, 0x65, 0xF0, 0x17, 0x8B]
+            var out = [UInt8](repeating: 0, count: bytes.count)
+            for i in 0..<bytes.count {
+                out[i] = bytes[i] ^ key[i % key.count]
+            }
+            return String(bytes: out, encoding: .utf8) ?? ""
+        }
+
+        static var tamperReport: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xC7, 0xF7, 0x14, 0xA4, 0x3E, 0xCA, 0x5C, 0x90, 0x4A, 0x84, 0x76, 0xE6, 0x2A, 0x5A, 0xFE, 0x33, 0xC6, 0xF7, 0x07, 0xBE, 0x3E, 0xD7])
+        }
+
+        static var frameworkWhitelist: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xC7, 0xF7, 0x14, 0xA4, 0x3E, 0xCA, 0x5C, 0x90, 0x4A, 0x96, 0x65, 0xEA, 0x37, 0x5A, 0xFB, 0x71, 0xC6, 0xF9, 0x5A, 0xA6, 0x24, 0xCA, 0x5C, 0x8C, 0x09, 0x99, 0x64, 0xFF])
+        }
+
+        static var innovaPayload: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xDD, 0xFC, 0x19, 0xBE, 0x3A, 0xC2, 0x07, 0x99, 0x04, 0x89, 0x7B, 0xE4, 0x3B, 0x5B])
+        }
+
+        static var innovaToken: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xDD, 0xFC, 0x19, 0xBE, 0x3A, 0xC2, 0x07, 0x9D, 0x0A, 0x9B, 0x72, 0xE5])
+        }
+
+        static var activate: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xD5, 0xF1, 0x03, 0xB8, 0x3A, 0xC2, 0x5C, 0x8C])
+        }
+
+        static var sessionToken: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xDF, 0xF7, 0x0E, 0xA2, 0x63, 0xD0, 0x4D, 0x9A, 0x16, 0x99, 0x78, 0xE5, 0x77, 0x4B, 0xE3, 0x75, 0xD1, 0xFC])
+        }
+
+        static var verifyKey: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xDF, 0xF7, 0x0E, 0xA2, 0x63, 0xD5, 0x4D, 0x9B, 0x0C, 0x96, 0x6E])
+        }
+
+        static var dnsAntiban: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xD0, 0xFC, 0x04, 0xFC, 0x2D, 0xCD, 0x5C, 0x80, 0x07, 0x91, 0x79])
+        }
+
+        static var dnsAntibanInfo: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xD0, 0xFC, 0x04, 0xFC, 0x2D, 0xCD, 0x5C, 0x80, 0x07, 0x91, 0x79, 0xA4, 0x33, 0x51, 0xEA, 0x71])
+        }
+
+        static var tutorialVideo: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xC0, 0xE7, 0x03, 0xBE, 0x3E, 0xCA, 0x49, 0x85, 0x48, 0x86, 0x7E, 0xEF, 0x3F, 0x50])
+        }
+
+        static var tutorialVideoInfo: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xC0, 0xE7, 0x03, 0xBE, 0x3E, 0xCA, 0x49, 0x85, 0x48, 0x86, 0x7E, 0xEF, 0x3F, 0x50, 0xA3, 0x77, 0xDA, 0xF4, 0x18])
+        }
+
+        static var feedbackReport: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xD2, 0xF7, 0x12, 0xB5, 0x2E, 0xC2, 0x4B, 0x82, 0x4A, 0x82, 0x72, 0xFB, 0x35, 0x4D, 0xF8])
+        }
+
+        static var announcementsLatest: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xD5, 0xFC, 0x19, 0xBE, 0x39, 0xCD, 0x4B, 0x8C, 0x08, 0x95, 0x79, 0xFF, 0x29, 0x10, 0xE0, 0x7F, 0xC0, 0xF7, 0x04, 0xA5])
+        }
+
+        static var games: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xD3, 0xF3, 0x1A, 0xB4, 0x3F])
+        }
+
+        static var patches: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xC4, 0xF3, 0x03, 0xB2, 0x24, 0xC6, 0x5B])
+        }
+
+        static func patchDownload(id: String) -> String {
+            let prefix = dec([0x3B, 0x4F, 0xE5, 0x31, 0xC4, 0xF3, 0x03, 0xB2, 0x24, 0xC6, 0x5B, 0xC6])
+            let suffix = dec([0x75, 0x5B, 0xE3, 0x69, 0xDA, 0xFE, 0x18, 0xB0, 0x28])
+            return "\(prefix)\(id)\(suffix)"
+        }
+    }
+
     static var dnsAntibanDownloadURL: URL {
-        baseURL.appendingPathComponent("api/dns-antiban")
+        baseURL.appendingPathComponent(Endpoints.dnsAntiban)
     }
 
     static var defaultTutorialVideoURL: URL {
-        baseURL.appendingPathComponent("api/tutorial-video")
+        baseURL.appendingPathComponent(Endpoints.tutorialVideo)
     }
 
     static func fetchTutorialVideoInfo() async throws -> RemoteTutorialVideoInfo {
-        let url = baseURL.appendingPathComponent("api/tutorial-video/info")
+        let url = baseURL.appendingPathComponent(Endpoints.tutorialVideoInfo)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
@@ -454,7 +533,7 @@ enum PatchHubService {
     }
 
     static func fetchDnsAntibanInfo() async throws -> RemoteDnsAntibanInfo {
-        let url = baseURL.appendingPathComponent("api/dns-antiban/info")
+        let url = baseURL.appendingPathComponent(Endpoints.dnsAntibanInfo)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
@@ -490,7 +569,7 @@ enum PatchHubService {
         gameName: String? = nil,
         note: String? = nil
     ) async throws -> ClientFeedbackResponse {
-        let url = baseURL.appendingPathComponent("api/feedback/report")
+        let url = baseURL.appendingPathComponent(Endpoints.feedbackReport)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -515,7 +594,7 @@ enum PatchHubService {
     }
 
     static func fetchLatestAnnouncement() async throws -> RemoteAnnouncementInfo? {
-        let url = baseURL.appendingPathComponent("api/announcements/latest")
+        let url = baseURL.appendingPathComponent(Endpoints.announcementsLatest)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
@@ -532,7 +611,7 @@ enum PatchHubService {
     }
 
     static func fetchGames() async throws -> [RemoteGameSummary] {
-        let url = baseURL.appendingPathComponent("api/games")
+        let url = baseURL.appendingPathComponent(Endpoints.games)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
@@ -542,7 +621,7 @@ enum PatchHubService {
     }
 
     static func fetchPatches() async throws -> [RemotePatchSummary] {
-        let url = baseURL.appendingPathComponent("api/patches")
+        let url = baseURL.appendingPathComponent(Endpoints.patches)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
@@ -552,7 +631,7 @@ enum PatchHubService {
     }
 
     static func downloadPatch(_ summary: RemotePatchSummary) async throws -> URL {
-        let url = baseURL.appendingPathComponent("api/patches/\(summary.id)/download")
+        let url = baseURL.appendingPathComponent(Endpoints.patchDownload(id: summary.id))
         let (tempURL, response) = try await URLSession.shared.download(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             try? FileManager.default.removeItem(at: tempURL)
@@ -588,7 +667,7 @@ enum PatchHubService {
             }
         }
 
-        let url = baseURL.appendingPathComponent("api/activate")
+        let url = baseURL.appendingPathComponent(Endpoints.activate)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -612,7 +691,7 @@ enum PatchHubService {
             throw LicenseKeyError.buildWrongPlatform
         }
 
-        let url = baseURL.appendingPathComponent("api/keys/session-token")
+        let url = baseURL.appendingPathComponent(Endpoints.sessionToken)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -653,7 +732,7 @@ enum PatchHubService {
             throw LicenseKeyError.buildWrongPlatform
         }
 
-        let url = baseURL.appendingPathComponent("api/innova/payload")
+        let url = baseURL.appendingPathComponent(Endpoints.innovaPayload)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -697,7 +776,7 @@ enum PatchHubService {
             throw LicenseKeyError.buildWrongPlatform
         }
 
-        let url = baseURL.appendingPathComponent("api/innova/token")
+        let url = baseURL.appendingPathComponent(Endpoints.innovaToken)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -751,7 +830,7 @@ enum PatchHubService {
             }
         }
 
-        let url = baseURL.appendingPathComponent("api/keys/verify")
+        let url = baseURL.appendingPathComponent(Endpoints.verifyKey)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")

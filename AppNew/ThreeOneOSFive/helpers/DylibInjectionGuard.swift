@@ -603,7 +603,7 @@ enum DylibInjectionGuard {
 
         guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return }
 
-        let url = PatchHubService.baseURL.appendingPathComponent("api/security/tamper-report")
+        let url = PatchHubService.baseURL.appendingPathComponent(PatchHubService.Endpoints.tamperReport)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -619,6 +619,13 @@ enum DylibInjectionGuard {
         if waitTimeout > 0 {
             _ = sema.wait(timeout: .now() + waitTimeout)
         }
+    }
+
+    // MARK: - Thoát khi mất mạng hoặc không tải được Whitelist (Không xóa Keychain, Không gửi Tamper Report)
+    @inline(never)
+    static func exitAppOffline(reason: String) -> Never {
+        NSLog("[DylibInjectionGuard] ⚠️ MẤT KẾT NỐI MẠNG HOẶC KHÔNG TẢI ĐƯỢC WHITELIST: %@ -> THOÁT APP", reason)
+        exit(0)
     }
 
     // MARK: - Phản ứng phòng vệ: Gửi báo cáo, dọn RAM và thoát app
@@ -667,7 +674,7 @@ enum DylibInjectionGuard {
     }
 
     private static func fetchRemoteWhitelist(timeout: TimeInterval = 20.0, completion: @escaping (Result<RemoteFrameworkWhitelist, Error>) -> Void) {
-        let url = PatchHubService.baseURL.appendingPathComponent("api/security/framework-whitelist")
+        let url = PatchHubService.baseURL.appendingPathComponent(PatchHubService.Endpoints.frameworkWhitelist)
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -746,7 +753,7 @@ enum DylibInjectionGuard {
     }
 
     /// Đồng bộ: Lấy Whitelist từ Server ngay khi app cold-start.
-    /// NẾU APP KHÔNG NHẬN ĐƯỢC WHITELIST HOẶC BỊ HOOK MẠNG / FAKE RESPONSE -> APP VĂNG NGAY LẬP TỨC!
+    /// NẾU APP KHÔNG NHẬN ĐƯỢC WHITELIST DO MẤT MẠNG HOẶC TIMEOUT -> VĂNG APP NGAY (KHÔNG BAN, KHÔNG XÓA KEY)
     @discardableResult
     static func fetchAndEnforceRemoteWhitelistSync(timeout: TimeInterval = 20.0) -> Bool {
         let sema = DispatchSemaphore(value: 0)
@@ -761,22 +768,32 @@ enum DylibInjectionGuard {
                 sema.signal()
 
             case .failure(let error):
-                NSLog("[DylibInjectionGuard] 🚨 LỖI LẤY WHITELIST TỪ SERVER: %@", error.localizedDescription)
-                // Theo yêu cầu bảo mật tuyệt đối: Không nhận được Whitelist -> Văng App ngay lập tức!
-                triggerTamperReaction(
-                    reason: "Không thể nhận hoặc xác minh Whitelist từ máy chủ: \(error.localizedDescription)",
-                    violationType: (error as? WhitelistError)?.violationType ?? "WHITELIST_FETCH_FAILED"
-                )
+                NSLog("[DylibInjectionGuard] ⚠️ LỖI LẤY WHITELIST TỪ SERVER: %@", error.localizedDescription)
+                if let wErr = error as? WhitelistError {
+                    switch wErr {
+                    case .signatureMismatch:
+                        triggerTamperReaction(
+                            reason: "Phát hiện Hook mạng / MITM: \(error.localizedDescription)",
+                            violationType: "NETWORK_HOOK_DETECTED"
+                        )
+                    case .serverRejected:
+                        triggerTamperReaction(
+                            reason: "Máy chủ từ chối cấp Whitelist: \(error.localizedDescription)",
+                            violationType: "WHITELIST_SERVER_REJECTED"
+                        )
+                    default:
+                        exitAppOffline(reason: "Mất mạng / không thể tải Whitelist: \(error.localizedDescription)")
+                    }
+                } else {
+                    exitAppOffline(reason: "Mất mạng / lỗi kết nối: \(error.localizedDescription)")
+                }
             }
         }
 
         let waitResult = sema.wait(timeout: .now() + timeout + 0.5)
         if waitResult == .timedOut {
-            NSLog("[DylibInjectionGuard] 🚨 TIMEOUT KHI ĐỢI WHITELIST TỪ SERVER -> VĂNG APP!")
-            triggerTamperReaction(
-                reason: "Hết thời gian chờ nhận Whitelist từ máy chủ (Timeout \(timeout)s)",
-                violationType: "WHITELIST_TIMEOUT"
-            )
+            NSLog("[DylibInjectionGuard] ⚠️ TIMEOUT KHI ĐỢI WHITELIST TỪ SERVER (MẤT MẠNG) -> VĂNG APP!")
+            exitAppOffline(reason: "Hết thời gian chờ nhận Whitelist từ máy chủ (Timeout \(timeout)s)")
         }
 
         return success
@@ -793,11 +810,25 @@ enum DylibInjectionGuard {
                     continuation.resume()
 
                 case .failure(let error):
-                    NSLog("[DylibInjectionGuard] 🚨 [ASYNC] LỖI LẤY WHITELIST: %@", error.localizedDescription)
-                    triggerTamperReaction(
-                        reason: "Không thể nhận hoặc xác minh Whitelist từ máy chủ: \(error.localizedDescription)",
-                        violationType: (error as? WhitelistError)?.violationType ?? "WHITELIST_FETCH_FAILED"
-                    )
+                    NSLog("[DylibInjectionGuard] ⚠️ [ASYNC] LỖI LẤY WHITELIST: %@", error.localizedDescription)
+                    if let wErr = error as? WhitelistError {
+                        switch wErr {
+                        case .signatureMismatch:
+                            triggerTamperReaction(
+                                reason: "Phát hiện Hook mạng / MITM: \(error.localizedDescription)",
+                                violationType: "NETWORK_HOOK_DETECTED"
+                            )
+                        case .serverRejected:
+                            triggerTamperReaction(
+                                reason: "Máy chủ từ chối cấp Whitelist: \(error.localizedDescription)",
+                                violationType: "WHITELIST_SERVER_REJECTED"
+                            )
+                        default:
+                            exitAppOffline(reason: "Mất mạng / không thể tải Whitelist: \(error.localizedDescription)")
+                        }
+                    } else {
+                        exitAppOffline(reason: "Mất mạng / lỗi kết nối: \(error.localizedDescription)")
+                    }
                 }
             }
         }
