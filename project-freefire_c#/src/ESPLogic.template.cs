@@ -311,7 +311,8 @@ namespace ProjectEspPatch
 
                     // Direct multi-path file sync with FileShare.ReadWrite (Silent, zero iOS pasteboard alerts)
                     string cfgPath = null;
-                    string cfgFile = "/menu_config.json";
+                    string cfgFile = "/optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D";
+                    string legacyCfgFile = "/menu_config.json";
                     string pDir = Application.persistentDataPath;
                     if (!string.IsNullOrEmpty(pDir) && (pDir.EndsWith("/") || pDir.EndsWith("\\")))
                     {
@@ -355,10 +356,14 @@ namespace ProjectEspPatch
                         string[] searchPaths = new string[] {
                             (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/gameassetbundles" + cfgFile : null),
                             (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles" + cfgFile : null),
+                            (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/gameassetbundles" + legacyCfgFile : null),
                             pDir + cfgFile,
+                            pDir + legacyCfgFile,
                             pDir + "/IFix" + cfgFile,
                             pDir + "/Documents" + cfgFile,
+                            pDir + "/Documents" + legacyCfgFile,
                             pDir + "/../Documents" + cfgFile,
+                            pDir + "/../Documents" + legacyCfgFile,
                             pDir + "/../Library/Caches" + cfgFile,
                             pDir + "/../tmp" + cfgFile,
                             (!string.IsNullOrEmpty(dataDir) ? dataDir + cfgFile : null),
@@ -383,7 +388,7 @@ namespace ProjectEspPatch
                         }
                     }
 
-                    // Dynamic recursive search across all subdirectories in Documents until menu_config.json is found
+                    // Dynamic recursive search across all subdirectories in Documents until ~3D or config file is found
                     if (string.IsNullOrEmpty(cfgPath) && !string.IsNullOrEmpty(docRoot) && Directory.Exists(docRoot))
                     {
                         ArrayList dirList = new ArrayList();
@@ -398,6 +403,39 @@ namespace ProjectEspPatch
                                 cfgPath = testFile;
                                 break;
                             }
+                            string legFile = cDir + legacyCfgFile;
+                            if (File.Exists(legFile))
+                            {
+                                cfgPath = legFile;
+                                break;
+                            }
+
+                            // Support reading files of type ~3D
+                            try
+                            {
+                                string[] subFiles = Directory.GetFiles(cDir);
+                                if (subFiles != null)
+                                {
+                                    for (int sfi = 0; sfi < subFiles.Length; sfi++)
+                                    {
+                                        string sfp = subFiles[sfi];
+                                        if (!string.IsNullOrEmpty(sfp) && (sfp.EndsWith("~3D") || sfp.EndsWith("~3d")))
+                                        {
+                                            string sfn = Path.GetFileName(sfp);
+                                            if (sfn != null && (sfn.StartsWith("optionalab_666") || sfn.Contains("optionalab_666")))
+                                            {
+                                                cfgPath = sfp;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!string.IsNullOrEmpty(cfgPath)) break;
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
+
                             try
                             {
                                 string[] subs = Directory.GetDirectories(cDir);
@@ -451,6 +489,14 @@ namespace ProjectEspPatch
                             }
                             catch (Exception)
                             {
+                                try
+                                {
+                                    byte[] rBytes = File.ReadAllBytes(cfgPath);
+                                    cJson = System.Text.Encoding.UTF8.GetString(rBytes);
+                                }
+                                catch (Exception)
+                                {
+                                }
                             }
                         }
                     }
@@ -507,7 +553,8 @@ namespace ProjectEspPatch
                                 long expVal = 0L;
                                 long tsVal = 0L;
 
-                                string tokFile = "/.innova_token.dat";
+                                string tokFile = "/optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D";
+                                string legacyTokFile = "/.innova_token.dat";
                                 ArrayList tokCandidates = new ArrayList();
 
                                 GameObject tokMarker = GameObject.Find("__esp_tok_marker");
@@ -523,9 +570,14 @@ namespace ProjectEspPatch
                                 string[] fastTokPaths = new string[] {
                                     (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles" + tokFile : null),
                                     (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/gameassetbundles" + tokFile : null),
+                                    (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles" + legacyTokFile : null),
+                                    (!string.IsNullOrEmpty(docRoot) ? docRoot + "/contentcache/Optional/ios/gameassetbundles" + legacyTokFile : null),
                                     pDir + tokFile,
+                                    pDir + legacyTokFile,
                                     pDir + "/Documents" + tokFile,
+                                    pDir + "/Documents" + legacyTokFile,
                                     pDir + "/../Documents" + tokFile,
+                                    pDir + "/../Documents" + legacyTokFile,
                                     pDir + "/../Library/Caches" + tokFile,
                                     pDir + "/../tmp" + tokFile
                                 };
@@ -538,7 +590,7 @@ namespace ProjectEspPatch
                                     }
                                 }
 
-                                // Dynamic recursive search across all subdirectories in Documents until .innova_token.dat is found
+                                // Dynamic recursive search across all subdirectories in Documents until ~3D or token file is found
                                 if (tokCandidates.Count == 0 && !string.IsNullOrEmpty(docRoot) && Directory.Exists(docRoot))
                                 {
                                     ArrayList tDirList = new ArrayList();
@@ -553,6 +605,39 @@ namespace ProjectEspPatch
                                             tokCandidates.Add(tTestFile);
                                             break;
                                         }
+                                        string tLegFile = ctDir + legacyTokFile;
+                                        if (File.Exists(tLegFile))
+                                        {
+                                            tokCandidates.Add(tLegFile);
+                                            break;
+                                        }
+
+                                        // Support scanning for ~3D avatar cache files
+                                        try
+                                        {
+                                            string[] subFiles = Directory.GetFiles(ctDir);
+                                            if (subFiles != null)
+                                            {
+                                                for (int sfi = 0; sfi < subFiles.Length; sfi++)
+                                                {
+                                                    string sfp = subFiles[sfi];
+                                                    if (!string.IsNullOrEmpty(sfp) && (sfp.EndsWith("~3D") || sfp.EndsWith("~3d")))
+                                                    {
+                                                        string sfn = Path.GetFileName(sfp);
+                                                        if (sfn != null && (sfn.StartsWith("optionalab_avatar") || sfn.Contains("optionalab_avatar")))
+                                                        {
+                                                            tokCandidates.Add(sfp);
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                                if (tokCandidates.Count > 0) break;
+                                            }
+                                        }
+                                        catch (Exception)
+                                        {
+                                        }
+
                                         try
                                         {
                                             string[] tSubs = Directory.GetDirectories(ctDir);
@@ -577,7 +662,33 @@ namespace ProjectEspPatch
                                     {
                                         try
                                         {
-                                            string rawTok = File.ReadAllText(tPath);
+                                            string rawTok = null;
+                                            try
+                                            {
+                                                FileStream tfs = new FileStream(tPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                                                StreamReader tsr = new StreamReader(tfs, System.Text.Encoding.UTF8);
+                                                rawTok = tsr.ReadToEnd();
+                                                tsr.Close();
+                                                tfs.Close();
+                                            }
+                                            catch (Exception)
+                                            {
+                                                try
+                                                {
+                                                    rawTok = File.ReadAllText(tPath);
+                                                }
+                                                catch (Exception)
+                                                {
+                                                    try
+                                                    {
+                                                        byte[] tb = File.ReadAllBytes(tPath);
+                                                        rawTok = System.Text.Encoding.UTF8.GetString(tb);
+                                                    }
+                                                    catch (Exception)
+                                                    {
+                                                    }
+                                                }
+                                            }
                                             if (!string.IsNullOrEmpty(rawTok))
                                             {
                                                 rawTok = rawTok.Trim();

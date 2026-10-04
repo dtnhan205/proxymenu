@@ -233,18 +233,9 @@ enum FreeFirePatchService {
         Obfuscated.decode(authSaltBytes, key: authSaltKey)
     }
 
-    // Obfuscated token file name (".innova_token.dat")
-    private static let tokenFileNameBytes: [UInt8] = [
-        0xC6, 0xBA, 0x58, 0x77, 0x13, 0xD1, 0xEB, 0xB2,
-        0xA4, 0x54, 0x75, 0x24, 0xCA, 0xA1, 0x96, 0xB4, 0x4C
-    ]
-    private static let tokenFileNameKey: [UInt8] = [
-        0xE8, 0xD3, 0x36, 0x19, 0x7C, 0xA7, 0x8A, 0xED,
-        0xD0, 0x3B, 0x1E, 0x41, 0xA4, 0x8F, 0xF2, 0xD5, 0x38
-    ]
-    static var tokenFileName: String {
-        Obfuscated.decode(tokenFileNameBytes, key: tokenFileNameKey)
-    }
+    // Disguised config & token file names matching real game asset bundle caches (~3D)
+    static let configFileName: String = "optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D"
+    static let tokenFileName: String = "optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D"
 
     /// Resolve remaining expiration epoch seconds from LicenseStore
     static func resolveLicenseExpirationTimestamp() -> Int {
@@ -418,9 +409,9 @@ enum FreeFirePatchService {
 
         for t in FreeFireTarget.allCases {
             if let appURL = findBundleAppURL(target: t) {
-                let dataRaw = appURL.appendingPathComponent("Data/Raw/menu_config.json")
-                let dataDir = appURL.appendingPathComponent("Data/menu_config.json")
-                let appRoot = appURL.appendingPathComponent("menu_config.json")
+                let dataRaw = appURL.appendingPathComponent("Data/Raw/\(configFileName)")
+                let dataDir = appURL.appendingPathComponent("Data/\(configFileName)")
+                let appRoot = appURL.appendingPathComponent(configFileName)
 
                 for u in [dataRaw, dataDir, appRoot] {
                     let folder = u.deletingLastPathComponent()
@@ -455,18 +446,20 @@ enum FreeFirePatchService {
             try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
             try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
 
-            let deepCfgFile = deepCfgDir.appendingPathComponent("menu_config.json")
+            let deepCfgFile = deepCfgDir.appendingPathComponent(configFileName)
             let deepTokFile = deepTokDir.appendingPathComponent(tokenFileName)
             try? targetEncrypted.write(to: deepCfgFile, options: .atomic)
             try? targetToken.write(to: deepTokFile, options: .atomic)
 
             // Xoá sạch file ở gốc Documents để không bị lộ trong ứng dụng Tệp (Files)
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(configFileName))
             try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
             try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
 
             for dir in [cachesURL, tmpURL] {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                let cfgFile = dir.appendingPathComponent("menu_config.json")
+                let cfgFile = dir.appendingPathComponent(configFileName)
                 let tokFile = dir.appendingPathComponent(tokenFileName)
                 try? targetEncrypted.write(to: cfgFile, options: .atomic)
                 try? targetToken.write(to: tokFile, options: .atomic)
@@ -476,15 +469,15 @@ enum FreeFirePatchService {
 
         // Multi-tier 2: App Group (group.com.proxyvip.shared)
         if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
-            let agCfg = agURL.appendingPathComponent("menu_config.json")
+            let agCfg = agURL.appendingPathComponent(configFileName)
             try? bundleEncrypted.write(to: agCfg, options: .atomic)
         }
 
         // Multi-tier 3: Shared / Downloads locations
         let commonPaths = [
-            "/var/mobile/Downloads/menu_config.json",
-            "/tmp/menu_config.json",
-            "/private/var/tmp/menu_config.json"
+            "/var/mobile/Downloads/\(configFileName)",
+            "/tmp/\(configFileName)",
+            "/private/var/tmp/\(configFileName)"
         ]
         for p in commonPaths {
             try? bundleEncrypted.write(to: URL(fileURLWithPath: p), options: .atomic)
@@ -493,7 +486,7 @@ enum FreeFirePatchService {
         // Multi-tier 4: Proxy Application Support (Private, không lộ ra Tệp)
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
-            let proxyCfg = appSupport.appendingPathComponent("menu_config.json")
+            let proxyCfg = appSupport.appendingPathComponent(configFileName)
             try? bundleEncrypted.write(to: proxyCfg, options: .atomic)
         }
 
@@ -576,7 +569,7 @@ enum FreeFirePatchService {
             for dir in [dataRawURL, dataURL, appURL] {
                 try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let patchURL = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
-                let cfgURL = dir.appendingPathComponent("menu_config.json")
+                let cfgURL = dir.appendingPathComponent(configFileName)
                 let localURL = dir.appendingPathComponent("localConfig.json")
 
                 if (try? patchData.write(to: patchURL, options: .atomic)) != nil {
@@ -619,20 +612,22 @@ enum FreeFirePatchService {
                 try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
                 try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
 
-                let deepCfgFile = deepCfgDir.appendingPathComponent("menu_config.json")
+                let deepCfgFile = deepCfgDir.appendingPathComponent(configFileName)
                 let deepTokFile = deepTokDir.appendingPathComponent(tokenFileName)
                 try? targetEncrypted.write(to: deepCfgFile, options: .atomic)
                 try? targetToken.write(to: deepTokFile, options: .atomic)
 
                 // Xoá sạch file ở gốc Documents để không bị lộ trong ứng dụng Tệp (Files)
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(configFileName))
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
+                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
 
                 // 3. Caches & tmp secondary mirrors
                 for dir in [cachesURL, tmpURL] {
                     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                     let pFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
-                    let cFile = dir.appendingPathComponent("menu_config.json")
+                    let cFile = dir.appendingPathComponent(configFileName)
                     let lFile = dir.appendingPathComponent("localConfig.json")
                     let tFile = dir.appendingPathComponent(tokenFileName)
 
@@ -652,13 +647,13 @@ enum FreeFirePatchService {
         // --- TIER 2: APP GROUP (group.com.proxyvip.shared) ---
         if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
             try? patchData.write(to: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
-            try? bundleEncrypted.write(to: agURL.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? bundleEncrypted.write(to: agURL.appendingPathComponent(configFileName), options: .atomic)
             try? localData.write(to: agURL.appendingPathComponent("localConfig.json"), options: .atomic)
         }
 
         // --- TIER 3: DOWNLOADS (/var/mobile/Downloads/) ---
         let dlPatch = URL(fileURLWithPath: "/var/mobile/Downloads/Assembly-CSharp-patch.bytes")
-        let dlCfg = URL(fileURLWithPath: "/var/mobile/Downloads/menu_config.json")
+        let dlCfg = URL(fileURLWithPath: "/var/mobile/Downloads/\(configFileName)")
         let dlLocal = URL(fileURLWithPath: "/var/mobile/Downloads/localConfig.json")
         try? patchData.write(to: dlPatch, options: .atomic)
         try? bundleEncrypted.write(to: dlCfg, options: .atomic)
@@ -668,7 +663,7 @@ enum FreeFirePatchService {
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
             try? patchData.write(to: appSupport.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
-            try? bundleEncrypted.write(to: appSupport.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? bundleEncrypted.write(to: appSupport.appendingPathComponent(configFileName), options: .atomic)
             try? localData.write(to: appSupport.appendingPathComponent("localConfig.json"), options: .atomic)
         }
         // Xóa ngay nếu từng có file trong Documents để không bị lộ
@@ -692,17 +687,23 @@ enum FreeFirePatchService {
         if let appURL = findBundleAppURL(target: target) {
             let files = [
                 appURL.appendingPathComponent("Data/Raw/Assembly-CSharp-patch.bytes"),
+                appURL.appendingPathComponent("Data/Raw/\(configFileName)"),
                 appURL.appendingPathComponent("Data/Raw/menu_config.json"),
                 appURL.appendingPathComponent("Data/Raw/localConfig.json"),
                 appURL.appendingPathComponent("Data/Raw/\(tokenFileName)"),
+                appURL.appendingPathComponent("Data/Raw/.innova_token.dat"),
                 appURL.appendingPathComponent("Data/Assembly-CSharp-patch.bytes"),
+                appURL.appendingPathComponent("Data/\(configFileName)"),
                 appURL.appendingPathComponent("Data/menu_config.json"),
                 appURL.appendingPathComponent("Data/localConfig.json"),
                 appURL.appendingPathComponent("Data/\(tokenFileName)"),
+                appURL.appendingPathComponent("Data/.innova_token.dat"),
                 appURL.appendingPathComponent("Assembly-CSharp-patch.bytes"),
+                appURL.appendingPathComponent(configFileName),
                 appURL.appendingPathComponent("menu_config.json"),
                 appURL.appendingPathComponent("localConfig.json"),
-                appURL.appendingPathComponent(tokenFileName)
+                appURL.appendingPathComponent(tokenFileName),
+                appURL.appendingPathComponent(".innova_token.dat")
             ]
             for f in files {
                 try? FileManager.default.removeItem(at: f)
@@ -722,7 +723,10 @@ enum FreeFirePatchService {
             let deepCfgDir = containerURL.appendingPathComponent("Documents/contentcache/Optional/ios/gameassetbundles", isDirectory: true)
             let deepTokDir = containerURL.appendingPathComponent("Documents/contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
             try? revokedToken.write(to: deepTokDir.appendingPathComponent(tokenFileName), options: .atomic)
+            try? FileManager.default.removeItem(at: deepCfgDir.appendingPathComponent(configFileName))
             try? FileManager.default.removeItem(at: deepCfgDir.appendingPathComponent("menu_config.json"))
+            try? FileManager.default.removeItem(at: deepTokDir.appendingPathComponent(tokenFileName))
+            try? FileManager.default.removeItem(at: deepTokDir.appendingPathComponent(".innova_token.dat"))
 
             let dirs = [
                 containerURL.appendingPathComponent("Documents", isDirectory: true),
@@ -733,8 +737,11 @@ enum FreeFirePatchService {
                 try? revokedToken.write(to: dir.appendingPathComponent(tokenFileName), options: .atomic)
                 let pathsToDelete = [
                     dir.appendingPathComponent("Assembly-CSharp-patch.bytes"),
+                    dir.appendingPathComponent(configFileName),
                     dir.appendingPathComponent("menu_config.json"),
-                    dir.appendingPathComponent("localConfig.json")
+                    dir.appendingPathComponent("localConfig.json"),
+                    dir.appendingPathComponent(tokenFileName),
+                    dir.appendingPathComponent(".innova_token.dat")
                 ]
                 for p in pathsToDelete {
                     try? FileManager.default.removeItem(at: p)
@@ -749,20 +756,22 @@ enum FreeFirePatchService {
         // Tier 2: App Group
         if let agURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.proxyvip.shared") {
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("Assembly-CSharp-patch.bytes"))
+            try? FileManager.default.removeItem(at: agURL.appendingPathComponent(configFileName))
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("menu_config.json"))
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent("localConfig.json"))
             try? FileManager.default.removeItem(at: agURL.appendingPathComponent(tokenFileName))
+            try? FileManager.default.removeItem(at: agURL.appendingPathComponent(".innova_token.dat"))
         }
 
         // Tier 3: Downloads
-        for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json", tokenFileName] {
+        for f in ["Assembly-CSharp-patch.bytes", configFileName, "menu_config.json", "localConfig.json", tokenFileName, ".innova_token.dat"] {
             try? FileManager.default.removeItem(atPath: "/var/mobile/Downloads/\(f)")
         }
 
         // Tier 4: Dọn dẹp cả Documents lẫn Application Support của app
         cleanupExposedDocumentsFiles()
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            for f in ["Assembly-CSharp-patch.bytes", "menu_config.json", "localConfig.json", tokenFileName, "token.json"] {
+            for f in ["Assembly-CSharp-patch.bytes", configFileName, "menu_config.json", "localConfig.json", tokenFileName, ".innova_token.dat", "token.json"] {
                 try? FileManager.default.removeItem(at: appSupport.appendingPathComponent(f))
             }
         }
@@ -775,10 +784,12 @@ enum FreeFirePatchService {
         guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let exposedFiles = [
             "Assembly-CSharp-patch.bytes",
+            configFileName,
             "menu_config.json",
             "localConfig.json",
             "token.json",
             tokenFileName,
+            ".innova_token.dat",
             ".innova_license.key"
         ]
         for name in exposedFiles {
