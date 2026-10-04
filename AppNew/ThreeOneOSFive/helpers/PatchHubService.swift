@@ -128,11 +128,8 @@ enum LicenseKeyError: Error, LocalizedError {
         case .deviceNotBound: return "Thiết bị chưa được bind với key. Vui lòng nhập lại key"
         case .internalError: return "Lỗi máy chủ. Vui lòng thử lại sau"
         case .missingKey: return "Chưa nhập key"
-        case .buildMissing: return "Phiên bản chưa được đăng ký. Liên hệ admin"
-        case .buildRevoked: return "Đã có phiên bản mới. Vui lòng liên hệ admin cập nhật bản mới!"
-        case .buildUnknown: return "Đã có phiên bản mới. Vui lòng liên hệ admin cập nhật bản mới!"
-        case .buildWrongPlatform:
-            return "Bản build này không phải bản INNOVA hợp lệ!\nVui lòng tải đúng bản INNOVA chính thức."
+        case .buildMissing, .buildRevoked, .buildUnknown, .buildWrongPlatform:
+            return "ĐÃ UPDATE PHIÊN BẢN MỚI\nVUI LÒNG XÓA BẢN HIỆN TẠI\nTRUY CẬP TRANG WEB BÊN DƯỚI ĐỂ CÀI BẢN MỚI"
         case .innovaKeyRequired:
             return "Ứng dụng chỉ chấp nhận Key INNOVA!\n(Định dạng: INNOVA-1D-XXXX-XXXX)"
         case .proxyKeyNotAllowed(let type):
@@ -500,6 +497,10 @@ enum PatchHubService {
             dec([0x3B, 0x4F, 0xE5, 0x31, 0xD5, 0xFC, 0x19, 0xBE, 0x39, 0xCD, 0x4B, 0x8C, 0x08, 0x95, 0x79, 0xFF, 0x29, 0x10, 0xE0, 0x7F, 0xC0, 0xF7, 0x04, 0xA5])
         }
 
+        static var buildsVerify: String {
+            dec([0x3B, 0x4F, 0xE5, 0x31, 0xD6, 0xE7, 0x1E, 0xBD, 0x28, 0xD0, 0x07, 0x9F, 0x00, 0x82, 0x7E, 0xED, 0x23])
+        }
+
         static var games: String {
             dec([0x3B, 0x4F, 0xE5, 0x31, 0xD3, 0xF3, 0x1A, 0xB4, 0x3F])
         }
@@ -846,6 +847,40 @@ enum PatchHubService {
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: req)
         return try parseKeyResponse(data: data, response: response, defaultReason: "invalid_response")
+    }
+
+    /// Kiểm tra trực tiếp xem token bản build hiện tại có bị đóng/thu hồi ở server hay không.
+    static func checkIfBuildIsBlocked() async -> Bool {
+        guard IntegrityChecker.isInnovaBuildToken(IntegrityChecker.buildToken) else { return false }
+        let url = baseURL.appendingPathComponent(Endpoints.buildsVerify)
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 4.0
+        let body: [String: Any] = [
+            "buildToken": IntegrityChecker.buildToken,
+            "bundleId": IntegrityChecker.bundleIdentifier,
+            "platform": "innova"
+        ]
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: body) else { return false }
+        req.httpBody = jsonData
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            if let http = response as? HTTPURLResponse {
+                if http.statusCode == 403 {
+                    if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let reason = json["reason"] as? String {
+                        if reason == "build_revoked" || reason == "build_unknown" || reason == "build_missing" || reason == "build_wrong_platform" {
+                            return true
+                        }
+                    }
+                    return true
+                }
+            }
+        } catch {
+            // Không block nhầm khi mất mạng hoặc timeout
+        }
+        return false
     }
 
     private static func parseKeyResponse(

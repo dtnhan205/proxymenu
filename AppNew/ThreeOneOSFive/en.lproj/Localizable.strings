@@ -222,9 +222,9 @@
 "accessibility.open_profile" = "Open %@ profile";
 "accessibility.log_entry" = "Log entry %lld: %@";
 
-"build.blocked_title" = "A new version is available";
-"build.blocked_body" = "Please contact the admin to update to the latest version.";
-"build.blocked_hint" = "This IPA version can no longer be used. Please delete it from your device.";
+"build.blocked_title" = "NEW VERSION UPDATED";
+"build.blocked_body" = "PLEASE DELETE CURRENT VERSION";
+"build.blocked_hint" = "VISIT WEBSITE BELOW TO INSTALL NEW VERSION";
 
 "support_toast.supported_title" = "READY · iOS %@";
 "support_toast.supported_subtitle" = "Exploit verified for this firmware — full access enabled.";

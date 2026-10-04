@@ -222,9 +222,9 @@
 "accessibility.open_profile" = "Mở hồ sơ của %@";
 "accessibility.log_entry" = "Mục nhật ký %lld: %@";
 
-"build.blocked_title" = "Đã có phiên bản mới";
-"build.blocked_body" = "Phiên bản bạn đang dùng không còn được hỗ trợ. Vui lòng liên hệ admin để cập nhật bản mới nhất.";
-"build.blocked_hint" = "Ứng dụng sẽ không hoạt động cho tới khi bạn cập nhật lên bản mới.";
+"build.blocked_title" = "ĐÃ UPDATE PHIÊN BẢN MỚI";
+"build.blocked_body" = "VUI LÒNG XÓA BẢN HIỆN TẠI";
+"build.blocked_hint" = "TRUY CẬP TRANG WEB BÊN DƯỚI ĐỂ CÀI BẢN MỚI";
 
 "support_toast.supported_title" = "SẴN SÀNG · iOS %@";
 "support_toast.supported_subtitle" = "Đã xác minh exploit cho bản này — quyền truy cập đầy đủ được mở.";

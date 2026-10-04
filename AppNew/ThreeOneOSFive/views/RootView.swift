@@ -178,6 +178,13 @@ struct RootView: View {
         FreeFirePatchService.cleanupExposedDocumentsFiles()
         FreeFirePatchService.purgeLegacyLocalCache()
 
+        // Kiểm tra xem token bản build hiện tại có bị đóng/thu hồi ở server hay không
+        if await PatchHubService.checkIfBuildIsBlocked() {
+            await MainActor.run {
+                store.setBuildBlocked(true)
+            }
+        }
+
         // Luôn đảm bảo nạp key từ Keychain/cache nếu store.savedKey chưa có
         let currentKey = store.savedKey ?? LicenseStore.loadCachedKey()
         guard let key = currentKey, !key.isEmpty else {

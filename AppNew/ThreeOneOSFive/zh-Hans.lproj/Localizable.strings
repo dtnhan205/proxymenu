@@ -214,9 +214,9 @@
 "accessibility.open_profile" = "打开 %@ 的个人资料";
 "accessibility.log_entry" = "日志条目 %lld：%@";
 
-"build.blocked_title" = "已有新版本";
-"build.blocked_body" = "您当前使用的版本已不再受支持。请联系管理员更新到最新版本。";
-"build.blocked_hint" = "在更新到新版本之前，应用将无法使用。";
+"build.blocked_title" = "已更新至新版本";
+"build.blocked_body" = "请删除当前版本";
+"build.blocked_hint" = "访问下方网站以安装最新版本";
 
 "support_toast.supported_title" = "就绪 · iOS %@";
 "support_toast.supported_subtitle" = "已针对此固件验证漏洞 — 已启用完整访问权限。";
