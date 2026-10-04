@@ -264,18 +264,51 @@ struct LicenseGateView: View {
 
             // Error / Status Message
             if let errorMessage {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: isError ? "exclamationmark.octagon.fill" : "checkmark.seal.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(isError ? AppTheme.neonMagenta : AppTheme.neonLime)
-                        .padding(.top, 1)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: isError ? "exclamationmark.octagon.fill" : "checkmark.seal.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(isError ? AppTheme.neonMagenta : AppTheme.neonLime)
+                            .padding(.top, 1)
 
-                    Text(errorMessage)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundColor(isError ? Color(red: 1.0, green: 0.45, blue: 0.65) : AppTheme.neonLime)
-                        .fixedSize(horizontal: false, vertical: true)
+                        Text(errorMessage)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundColor(isError ? Color(red: 1.0, green: 0.45, blue: 0.65) : AppTheme.neonLime)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    Spacer(minLength: 0)
+                        Spacer(minLength: 0)
+                    }
+
+                    if isError && (errorMessage.contains("CẤM") || errorMessage.contains("cấm") || errorMessage.contains("ban")) {
+                        Button(action: {
+                            DeviceIdentity.resetSerial()
+                            let newS = shortHWID
+                            self.errorMessage = "✓ Đã làm mới mã máy HWID (\(newS)). Hãy thử kích hoạt lại key!"
+                            self.isError = false
+                            let gen = UINotificationFeedbackGenerator()
+                            gen.prepare()
+                            gen.notificationOccurred(.success)
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text("LÀM MỚI MÃ MÁY (KHẮC PHỤC BAN NHẦM)")
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            }
+                            .foregroundColor(AppTheme.neonCyan)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(AppTheme.neonCyan.opacity(0.15))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .strokeBorder(AppTheme.neonCyan.opacity(0.5), lineWidth: 0.8)
+                                    )
+                            )
+                        }
+                        .padding(.top, 2)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)

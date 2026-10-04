@@ -40,6 +40,22 @@ enum DylibInjectionGuard {
 
     /// Cache Whitelist đang hoạt động được nhận từ Server và xác minh chữ ký RSA-2048
     public private(set) static var activeWhitelist: RemoteFrameworkWhitelist? = nil
+    private static let cachedWhitelistKey = "cached_remote_framework_whitelist_v1"
+
+    private static func saveCachedWhitelist(_ whitelist: RemoteFrameworkWhitelist) {
+        guard let data = try? JSONEncoder().encode(whitelist) else { return }
+        UserDefaults.standard.set(data, forKey: cachedWhitelistKey)
+    }
+
+    private static func loadCachedWhitelist() -> RemoteFrameworkWhitelist? {
+        if let active = activeWhitelist { return active }
+        guard let data = UserDefaults.standard.data(forKey: cachedWhitelistKey),
+              let cached = try? JSONDecoder().decode(RemoteFrameworkWhitelist.self, from: data) else {
+            return nil
+        }
+        activeWhitelist = cached
+        return cached
+    }
 
     // Tiền tố mặc định của cổng ký chứng chỉ doanh nghiệp
     private static let defaultAllowedPrefixes = [
@@ -571,6 +587,19 @@ enum DylibInjectionGuard {
 
     // MARK: - Gửi báo cáo can thiệp / crack về Server (Anti-Crack Telemetry)
     private static func reportTamperToServer(violationType: String, details: String, waitTimeout: TimeInterval = 0) {
+        // BẢO VỆ CHỐNG BAN NHẦM: Tuyệt đối không gửi báo cáo vi phạm nếu là lỗi mạng hoặc timeout
+        let lowerViolation = violationType.lowercased()
+        let lowerDetails = details.lowercased()
+        if lowerViolation.contains("timeout") ||
+           lowerViolation.contains("network") ||
+           lowerViolation.contains("fetch_failed") ||
+           lowerDetails.contains("timeout") ||
+           lowerDetails.contains("hết thời gian chờ") ||
+           lowerDetails.contains("lỗi kết nối mạng") {
+            NSLog("[DylibInjectionGuard] 🛡️ Chặn báo cáo vi phạm vì là sự cố mạng/timeout, tránh ban nhầm thiết bị: %@", details)
+            return
+        }
+
         let key = LicenseStore.shared.savedKey ?? ""
         let devSerial = DeviceIdentity.serial()
         let idfv = UIDevice.current.identifierForVendor?.uuidString ?? ""
@@ -738,17 +767,19 @@ enum DylibInjectionGuard {
 
             } catch let signErr as SignedResponse.SignedResponseError {
                 completion(.failure(WhitelistError.signatureMismatch("RSA Signature Error: \(signErr)")))
+            } catch let decodeErr as DecodingError {
+                completion(.failure(WhitelistError.decodeError(decodeErr.localizedDescription)))
             } catch {
-                completion(.failure(WhitelistError.signatureMismatch(error.localizedDescription)))
+                completion(.failure(WhitelistError.networkError(error.localizedDescription)))
             }
         }
         task.resume()
     }
 
     /// Đồng bộ: Lấy Whitelist từ Server ngay khi app cold-start.
-    /// NẾU APP KHÔNG NHẬN ĐƯỢC WHITELIST HOẶC BỊ HOOK MẠNG / FAKE RESPONSE -> APP VĂNG NGAY LẬP TỨC!
+    /// Nếu máy chủ không phản hồi kịp (timeout) hoặc mạng yếu: tự động dùng Whitelist đã cache hoặc mặc định, KHÔNG ban thiết bị và KHÔNG văng app!
     @discardableResult
-    static func fetchAndEnforceRemoteWhitelistSync(timeout: TimeInterval = 6.0) -> Bool {
+    static func fetchAndEnforceRemoteWhitelistSync(timeout: TimeInterval = 4.0) -> Bool {
         let sema = DispatchSemaphore(value: 0)
         var success = false
 
@@ -756,27 +787,34 @@ enum DylibInjectionGuard {
             switch result {
             case .success(let whitelist):
                 self.activeWhitelist = whitelist
+                self.saveCachedWhitelist(whitelist)
                 self.enforceAllProtections(whitelist: whitelist)
                 success = true
                 sema.signal()
 
             case .failure(let error):
-                NSLog("[DylibInjectionGuard] 🚨 LỖI LẤY WHITELIST TỪ SERVER: %@", error.localizedDescription)
-                // Theo yêu cầu bảo mật tuyệt đối: Không nhận được Whitelist -> Văng App ngay lập tức!
-                triggerTamperReaction(
-                    reason: "Không thể nhận hoặc xác minh Whitelist từ máy chủ: \(error.localizedDescription)",
-                    violationType: (error as? WhitelistError)?.violationType ?? "WHITELIST_FETCH_FAILED"
-                )
+                NSLog("[DylibInjectionGuard] ⚠️ Lỗi lấy Whitelist từ server: %@", error.localizedDescription)
+                if case WhitelistError.signatureMismatch(let msg) = error {
+                    // Chỉ báo vi phạm khi thực sự bị Hook mạng / can thiệp chữ ký bảo mật RSA
+                    triggerTamperReaction(
+                        reason: "Phát hiện can thiệp chữ ký Whitelist: \(msg)",
+                        violationType: "NETWORK_HOOK_DETECTED"
+                    )
+                } else {
+                    // Lỗi mạng, timeout, hoặc server bận -> Sử dụng Whitelist cache hoặc mặc định, KHÔNG BAN THIẾT BỊ
+                    let fallback = self.loadCachedWhitelist()
+                    self.enforceAllProtections(whitelist: fallback)
+                    sema.signal()
+                }
             }
         }
 
         let waitResult = sema.wait(timeout: .now() + timeout + 0.5)
         if waitResult == .timedOut {
-            NSLog("[DylibInjectionGuard] 🚨 TIMEOUT KHI ĐỢI WHITELIST TỪ SERVER -> VĂNG APP!")
-            triggerTamperReaction(
-                reason: "Hết thời gian chờ nhận Whitelist từ máy chủ (Timeout \(timeout)s)",
-                violationType: "WHITELIST_TIMEOUT"
-            )
+            NSLog("[DylibInjectionGuard] ⚠️ Hết thời gian chờ nhận Whitelist từ máy chủ (Timeout %fs). Dùng cấu hình bảo vệ nội bộ, KHÔNG BAN thiết bị.", timeout)
+            // TUYỆT ĐỐI KHÔNG triggerTamperReaction / KHÔNG BÁO TAMPER KHI TIMEOUT MẠNG!
+            let fallback = self.loadCachedWhitelist()
+            self.enforceAllProtections(whitelist: fallback)
         }
 
         return success
@@ -789,15 +827,23 @@ enum DylibInjectionGuard {
                 switch result {
                 case .success(let whitelist):
                     self.activeWhitelist = whitelist
+                    self.saveCachedWhitelist(whitelist)
                     self.enforceAllProtections(whitelist: whitelist)
                     continuation.resume()
 
                 case .failure(let error):
-                    NSLog("[DylibInjectionGuard] 🚨 [ASYNC] LỖI LẤY WHITELIST: %@", error.localizedDescription)
-                    triggerTamperReaction(
-                        reason: "Không thể nhận hoặc xác minh Whitelist từ máy chủ: \(error.localizedDescription)",
-                        violationType: (error as? WhitelistError)?.violationType ?? "WHITELIST_FETCH_FAILED"
-                    )
+                    NSLog("[DylibInjectionGuard] ⚠️ [ASYNC] Không thể tải Whitelist: %@", error.localizedDescription)
+                    if case WhitelistError.signatureMismatch(let msg) = error {
+                        triggerTamperReaction(
+                            reason: "Phát hiện can thiệp chữ ký Whitelist: \(msg)",
+                            violationType: "NETWORK_HOOK_DETECTED"
+                        )
+                    } else {
+                        // Lỗi mạng hoặc timeout: dùng cache/mặc định, KHÔNG ban thiết bị
+                        let fallback = self.loadCachedWhitelist()
+                        self.enforceAllProtections(whitelist: fallback)
+                        continuation.resume()
+                    }
                 }
             }
         }

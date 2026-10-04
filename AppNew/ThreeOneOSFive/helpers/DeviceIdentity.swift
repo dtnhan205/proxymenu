@@ -31,6 +31,18 @@ enum DeviceIdentity {
         return serial
     }
 
+    /// Xóa mã máy cũ trong Keychain và sinh mã mới ngẫu nhiên (dùng khi bị ban nhầm do lỗi mạng/timeout)
+    @discardableResult
+    static func resetSerial() -> String {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount
+        ]
+        SecItemDelete(query as CFDictionary)
+        return serial()
+    }
+
     /// Mã hoá identifierForVendor + model — chỉ dùng cho hiển thị / debug.
     static func displayInfo() -> String {
         let vendor = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
