@@ -113,9 +113,6 @@ enum DylibInjectionGuard {
 
         // 2. Chặn các file .dylib đơn lẻ (ngoại trừ thư viện runtime libswift*.dylib)
         if lower.hasSuffix(".dylib") {
-            if cleanName.hasPrefix("libswift") {
-                return true
-            }
             return false
         }
 

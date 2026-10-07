@@ -1,0 +1,178 @@
+================================================================================
+             TỔNG HỢP CODE LIÊN QUAN TỚI KHỬ CỎ 100% / NO GRASS
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CƠ CHẾ CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+Hệ thống thảm thực vật trong Free Fire (COW Engine) được quản lý qua các biến Scale chiều cao cỏ
+nằm trong class COW.GameVarDef cho từng bản đồ (Neo - Bản đồ công nghệ tương lai / NeXTec và
+Shangrila - Bản đồ Bermuda kinh điển):
+
+1. COW.GameVarDef.HighGrassHeightScale_Neo (float - Offset 0x1c3c):
+   - Hệ số tỉ lệ chiều cao thảm cỏ cao bản đồ Neo.
+   - Mặc định: 1.0f. Khi đặt = 0.0f: Xóa sổ toàn bộ các bụi cỏ cao trên map Neo.
+
+2. COW.GameVarDef.MiddleGrassHeightScale_Neo (float - Offset 0x1c40):
+   - Hệ số tỉ lệ chiều cao thảm cỏ vừa bản đồ Neo.
+   - Mặc định: 1.0f. Khi đặt = 0.0f: Hạ phẳng bụi cỏ vừa trên map Neo xuống sát mặt đất.
+
+3. COW.GameVarDef.LowGrassHeightScale_Shangrila (float - Offset 0x1c44):
+   - Hệ số tỉ lệ chiều cao thảm cỏ thấp bản đồ Shangrila (Bermuda).
+   - Mặc định: 1.0f. Khi đặt = 0.0f: Triệt tiêu hoàn toàn thảm cỏ thấp.
+
+4. COW.GameVarDef.MiddleGrassHeightScale_Shangrila (float - Offset 0x1c48):
+   - Hệ số tỉ lệ chiều cao thảm cỏ vừa bản đồ Shangrila (Bermuda).
+   - Mặc định: 1.0f. Khi đặt = 0.0f: Xóa bỏ các khóm cỏ vừa.
+
+5. COW.GameVarDef.HighGrassHeightScale_Shangrila (float - Offset 0x1c4c):
+   - Hệ số tỉ lệ chiều cao thảm cỏ cao bản đồ Shangrila (Bermuda).
+   - Mặc định: 1.0f. Khi đặt = 0.0f: Triệt tiêu các bụi cỏ rậm rạp cao ngang ngực.
+
+KHI SET TẤT CẢ 5 BIẾN VỀ 0.0f:
+- 100% cỏ trên toàn bộ bản đồ bị làm phẳng thành 0 (cao 0 mét), biến mất hoàn toàn khỏi tầm nhìn.
+- Kẻ địch dù có nằm bò trườn, núp bụi rậm hay camp cỏ đều lộ rõ 100% như đang nằm trên nền đất phẳng.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+
+public static class NoGrassHelper
+{
+    // 1. Kích hoạt Khử cỏ 100% (Đặt scale chiều cao về 0)
+    public static void EnableNoGrass()
+    {
+        try
+        {
+            COW.GameVarDef.HighGrassHeightScale_Neo = 0f;
+            COW.GameVarDef.MiddleGrassHeightScale_Neo = 0f;
+            COW.GameVarDef.LowGrassHeightScale_Shangrila = 0f;
+            COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 0f;
+            COW.GameVarDef.HighGrassHeightScale_Shangrila = 0f;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Tắt Khử cỏ (Khôi phục chiều cao cỏ mặc định của game)
+    public static void DisableNoGrass()
+    {
+        try
+        {
+            COW.GameVarDef.HighGrassHeightScale_Neo = 1f;
+            COW.GameVarDef.MiddleGrassHeightScale_Neo = 1f;
+            COW.GameVarDef.LowGrassHeightScale_Shangrila = 1f;
+            COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 1f;
+            COW.GameVarDef.HighGrassHeightScale_Shangrila = 1f;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý Toggle theo trạng thái boolean
+    public static void SetNoGrass(bool isEnabled)
+    {
+        try
+        {
+            float scale = isEnabled ? 0f : 1f;
+            COW.GameVarDef.HighGrassHeightScale_Neo = scale;
+            COW.GameVarDef.MiddleGrassHeightScale_Neo = scale;
+            COW.GameVarDef.LowGrassHeightScale_Shangrila = scale;
+            COW.GameVarDef.MiddleGrassHeightScale_Shangrila = scale;
+            COW.GameVarDef.HighGrassHeightScale_Shangrila = scale;
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask Aux:
+private const int AuxNoGrass = 256; // Bit 8 (1 << 8)
+private const int AuxMask = 511;
+
+// 2. Thiết lập số dòng cho Tab 3 (Tiện Ích):
+rowCount = 13;
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI:
+else if (selectedRow == 10)
+{
+    auxState ^= AuxNoGrass; // Toggle Bật / Tắt Khử cỏ
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3):
+else if (row == 10)
+{
+    rowBit = -AuxNoGrass;
+    rowLabel = "🌾 Khử Cỏ 100% (No Grass / Xóa Bụi Cỏ)";
+}
+
+// 5. Kiểm tra trạng thái Active:
+else if (rowBit < 0)
+{
+    isRowActive = (auxState & -rowBit) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame) ---
+
+bool isNoGrass = isAuth && (auxState & AuxNoGrass) != 0;
+try
+{
+    if (isNoGrass)
+    {
+        COW.GameVarDef.HighGrassHeightScale_Neo = 0f;
+        COW.GameVarDef.MiddleGrassHeightScale_Neo = 0f;
+        COW.GameVarDef.LowGrassHeightScale_Shangrila = 0f;
+        COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 0f;
+        COW.GameVarDef.HighGrassHeightScale_Shangrila = 0f;
+    }
+    else
+    {
+        COW.GameVarDef.HighGrassHeightScale_Neo = 1f;
+        COW.GameVarDef.MiddleGrassHeightScale_Neo = 1f;
+        COW.GameVarDef.LowGrassHeightScale_Shangrila = 1f;
+        COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 1f;
+        COW.GameVarDef.HighGrassHeightScale_Shangrila = 1f;
+    }
+}
+catch (Exception)
+{
+}
+
+
+--- C. VỊ TRÍ 3: Trong Reset Cài Đặt Mặc Định (Row 11) ---
+
+COW.GameVarDef.HighGrassHeightScale_Neo = 1f;
+COW.GameVarDef.MiddleGrassHeightScale_Neo = 1f;
+COW.GameVarDef.LowGrassHeightScale_Shangrila = 1f;
+COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 1f;
+COW.GameVarDef.HighGrassHeightScale_Shangrila = 1f;
+
+
+[4] BẢNG PHÂN TÍCH LỢI THẾ CHIẾN THUẬT:
+--------------------------------------------------------------------------------
+1. Khắc chế hoàn toàn lối chơi Nằm Bo / Rắn Săn Mồi:
+   - Trong các vòng bo cuối (Vòng bo 4, 5, 6), hầu hết đối thủ đều nằm trườn trong cỏ để ẩn nấp.
+   - Khi bật Khử cỏ: Mọi chướng ngại vật bằng cỏ bị biến mất, bạn nhìn thấy rõ mồn một từng kẻ địch
+     đang trườn bò, dễ dàng headshot và dọn sạch map để giành Booyah!
+
+2. Tăng độ mượt và FPS:
+   - Việc không phải render hình học (geometry mesh) và shader của hàng nghìn bụi cỏ
+     giúp giảm tải đáng kể cho GPU và CPU, mang lại trải nghiệm mượt mà, ổn định FPS cao.
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Tính năng điều chỉnh trực tiếp các biến Scale chiều cao cỏ của COW.GameVarDef mà game cung cấp sẵn.
+- Thuần visual client-side, không can thiệp mesh colliders hay server packet, an toàn 100%.
+================================================================================

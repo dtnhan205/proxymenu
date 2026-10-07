@@ -1,0 +1,151 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI NẠP ĐẠN NHANH / FAST RELOAD
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.DebugWeaponReloadProgressAniTime (float - Offset 0x2eac):
+   - Thời gian hoạt ảnh nạp đạn (Reload Progress Animation Time).
+   - Mặc định của game: ~2.5f - 3.5f giây (tùy từng loại súng).
+   - Khi chỉnh thành: 0.05f giây
+     + Rút ngắn thời gian tiến trình nạp đạn xuống mức chớp mắt.
+     + Băng đạn được lấp đầy tức thì, xóa bỏ hoàn toàn thời gian chờ đợi.
+
+2. COW.GameVarDef.CanReloadContinueShoot (bool - Offset 0x272b):
+   - Cho phép nhấp bắn liên tục ngay cả khi đang trong animation nạp đạn.
+   - Tránh tình trạng bị khóa cò (lock fire) khi bất ngờ giáp mặt đối thủ.
+
+3. COW.GameVarDef.CanInvincibleReloadAndSwapWeapon (bool - Offset 0x272c):
+   - Cho phép vừa đổi vũ khí vừa nạp đạn mà không bị hủy ngang tiến trình.
+
+4. COW.GameVarDef.NoResetUplayerAnimationWhenReloading (bool - Offset 0x2787):
+   - Không reset lại hoạt ảnh của phần thân trên khi nạp đạn, giúp động tác mượt mà.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+
+public static class FastReloadHelper
+{
+    // 1. Kích hoạt Nạp đạn nhanh (0.05s)
+    public static void EnableFastReload()
+    {
+        try
+        {
+            COW.GameVarDef.DebugWeaponReloadProgressAniTime = 0.05f;
+            COW.GameVarDef.CanReloadContinueShoot = true;
+            COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+            COW.GameVarDef.NoResetUplayerAnimationWhenReloading = true;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Tắt nạp đạn nhanh (Khôi phục thời gian gốc của game)
+    public static void DisableFastReload()
+    {
+        try
+        {
+            COW.GameVarDef.DebugWeaponReloadProgressAniTime = 0f;
+            COW.GameVarDef.CanReloadContinueShoot = false;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý cập nhật Toggle mỗi Frame
+    public static void UpdateFastReload(bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                COW.GameVarDef.DebugWeaponReloadProgressAniTime = 0.05f;
+                COW.GameVarDef.CanReloadContinueShoot = true;
+                COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+                COW.GameVarDef.NoResetUplayerAnimationWhenReloading = true;
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask Aux (dòng 68):
+private const int AuxFastReload = 16;
+private const int AuxMask = 31;
+
+// 2. Thiết lập số dòng cho Tab 3 (Cài đặt / Di chuyển) (dòng 604):
+else
+{
+    rowCount = 10;
+}
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI (dòng 1115):
+else if (selectedRow == 7)
+{
+    auxState ^= AuxFastReload; // Bật / Tắt Nạp đạn nhanh
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3) (dòng 2097):
+else if (row == 7)
+{
+    rowBit = -AuxFastReload;
+    rowLabel = "⚡ Nạp Đạn Nhanh (Fast Reload / 0.05s)";
+}
+
+// 5. Kiểm tra trạng thái Active (dòng 2125):
+else if (rowBit < 0)
+{
+    isRowActive = (auxState & -rowBit) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame) ---
+
+bool isFastReload = isAuth && (auxState & AuxFastReload) != 0;
+try
+{
+    if (isFastReload)
+    {
+        COW.GameVarDef.DebugWeaponReloadProgressAniTime = 0.05f;
+        COW.GameVarDef.CanReloadContinueShoot = true;
+        COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+        COW.GameVarDef.NoResetUplayerAnimationWhenReloading = true;
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] BẢNG PHÂN TÍCH LỢI THẾ CHIẾN THUẬT:
+--------------------------------------------------------------------------------
+1. Lợi thế khi cầm Shotgun (M1887, M1014):
+   - M1887 chỉ có 2 viên và thời gian nạp rất lâu, thường bị địch sấy chết khi đang nạp đạn viên thứ 2.
+   - Khi bật Fast Reload: 2 viên nạp lại trong 0.05s, bạn có thể bắn nhịp 2 viên liên tục không ngừng nghỉ.
+
+2. Lợi thế khi cầm Tiểu liên / Súng trường (MP40, UMP, AK47, SCAR):
+   - Băng đạn xả hết là có ngay băng mới, áp đảo hoàn toàn đối phương trong các pha giao tranh 1v4.
+
+3. Không bị khóa cò:
+   - `CanReloadContinueShoot = true` giải quyết triệt để lỗi chết oan kinh điển của game thủ.
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Tính năng can thiệp trực tiếp vào các biến cơ chế Animation/Progress của GameVarDef.
+- 100% Client-side, không can thiệp phương thức cấm của game (`OnWeaponReloadSpeedChanged`),
+  vượt qua toàn bộ bộ lọc an toàn và mã InjectFix VM.
+================================================================================

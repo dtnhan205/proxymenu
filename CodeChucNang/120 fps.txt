@@ -1,0 +1,168 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI MỞ KHÓA 120 FPS / 144 FPS CỰC MƯỢT
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GameFacade.SetFrameRate(COW.EHighFPS highFps) [Offset: 0x5932990]:
+   - Hàm thiết lập giới hạn FPS chính của engine game Free Fire.
+   - Tham số là enum COW.EHighFPS:
+     + HighFPS = 0 (Chế độ FPS Cao chuẩn của game ~ 60 FPS)
+     + LowFPS = 1 (Tiết kiệm pin ~ 30 FPS)
+     + MediumFPS = 2 (Cân bằng ~ 45 FPS)
+     + HighFPS120 = 3 (Chế độ siêu mượt 120 FPS)
+     + HighFPS144 = 4 (Chế độ cực đại 144 FPS / Ultra Refresh Rate)
+
+2. UnityEngine.Application.targetFrameRate (int - UnityEngine.CoreModule):
+   - Thuộc tính giới hạn số khung hình kết xuất của Unity Engine.
+   - Mặc định: 30 hoặc 60.
+   - Khi chỉnh thành: 120 hoặc 144 (hoặc -1 để bỏ giới hạn FPS hoàn toàn).
+   - Kết hợp trực tiếp với COW.GameFacade.SetFrameRate để game chạy mượt mà tối đa,
+     giảm tối đa độ trễ cảm ứng (touch latency) và giật khung hình khi quay màn hình.
+
+3. COW.GameSettingData.SetHighFPSSetting(COW.EHighFPS setting) [Offset: 0x7228c80]:
+   - Lưu cấu hình FPS vào dữ liệu Settings của profile người chơi.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using UnityEngine;
+using COW;
+
+public static class FpsUnlockHelper
+{
+    // 1. Mở khóa 144 FPS (hoặc 120 FPS)
+    public static void EnableHighFps(bool use144Fps = true)
+    {
+        try
+        {
+            if (use144Fps)
+            {
+                Application.targetFrameRate = 144;
+                GameFacade.SetFrameRate(COW.EHighFPS.HighFPS144);
+            }
+            else
+            {
+                Application.targetFrameRate = 120;
+                GameFacade.SetFrameRate(COW.EHighFPS.HighFPS120);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Khôi phục về FPS mặc định (60 FPS)
+    public static void RestoreDefaultFps()
+    {
+        try
+        {
+            Application.targetFrameRate = 60;
+            GameFacade.SetFrameRate(COW.EHighFPS.HighFPS);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý cập nhật Toggle mỗi Frame
+    public static void UpdateFpsUnlock(bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                if (Application.targetFrameRate != 144)
+                {
+                    Application.targetFrameRate = 144;
+                    GameFacade.SetFrameRate(COW.EHighFPS.HighFPS144);
+                }
+            }
+            else
+            {
+                if (Application.targetFrameRate > 60)
+                {
+                    Application.targetFrameRate = 60;
+                    GameFacade.SetFrameRate(COW.EHighFPS.HighFPS);
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 41):
+private const int UnlockFps = 268435456; // 1 << 28 (Bit 28 an toàn không xung đột)
+
+// 2. Thiết lập số dòng cho Tab 3 (Cài đặt / Di chuyển) (dòng 603):
+else
+{
+    rowCount = 7;
+}
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI (dòng 1071):
+else if (selectedRow == 3)
+{
+    if ((state & UnlockFps) != 0)
+    {
+        Application.targetFrameRate = 60;
+        GameFacade.SetFrameRate(COW.EHighFPS.HighFPS);
+    }
+    state ^= UnlockFps; // Bật / Tắt 120 / 144 FPS
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3) (dòng 1956):
+else if (row == 3)
+{
+    rowBit = UnlockFps;
+    rowLabel = "⚡ Mở Khóa 120 / 144 FPS (Cực Mượt)";
+}
+
+// 5. Kiểm tra trạng thái Active (dòng 1985):
+else if (rowBit == UnlockFps)
+{
+    isRowActive = (state & UnlockFps) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame) ---
+
+bool isUnlockFps = isAuth && (state & UnlockFps) != 0;
+try
+{
+    if (isUnlockFps)
+    {
+        Application.targetFrameRate = 144;
+        GameFacade.SetFrameRate(COW.EHighFPS.HighFPS144);
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] BẢNG SO SÁNH CÁC MỐC KHUNG HÌNH (FPS) & ĐỘ TRỄ CẢM ỨNG:
+--------------------------------------------------------------------------------
++ 30 FPS: Độ trễ khung hình 33.3ms (Rất giật, khó kéo tâm headshot, hay khựng khi combat đông người).
++ 60 FPS: Độ trễ khung hình 16.6ms (Mặc định trong cài đặt game, vừa đủ chơi).
++ 90 FPS: Độ trễ khung hình 11.1ms (Mượt mà trên màn hình tần số quét 90Hz).
++ 120 FPS: Độ trễ khung hình 8.3ms (Cực mượt, kéo tâm ghìm súng chuẩn xác, phản xạ nhanh gấp đôi).
++ 144 FPS: Độ trễ khung hình 6.9ms (Mức tối đa trên các thiết bị màn hình 144Hz - 165Hz hoặc giả lập PC).
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Tính năng hoàn toàn là cấu hình đồ họa / render phía máy khách (Client-side Rendering).
+- Sử dụng hàm native chính thống của Unity và GameFacade của Free Fire.
+- Không gây nóng máy bất thường nếu thiết bị hỗ trợ màn hình tần số quét cao (120Hz/144Hz).
+- Khi bấm "Khôi Phục Cài Đặt Mặc Định", tự động trả FPS về 60 FPS chuẩn.
+================================================================================

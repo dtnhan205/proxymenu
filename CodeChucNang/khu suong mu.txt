@@ -1,0 +1,191 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI KHỬ SƯƠNG MÙ & TỐI ƯU TẦM NHÌN XA
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. UnityEngine.RenderSettings.fog (bool - UnityEngine.CoreModule):
+   - Thuộc tính bật/tắt toàn bộ hiệu ứng sương mù thể tích (Volumetric / Distance Fog)
+     trong thế giới 3D của Unity Engine.
+   - Mặc định trong game: true (Các vùng xa, thung lũng, ven biển bị bao phủ một lớp
+     sương mờ đục màu trắng/xám, làm che khuất hoàn toàn bóng dáng kẻ địch ở xa).
+   - Khi chỉnh thành: false
+     + Xóa sạch 100% lớp sương mù che chắn trên toàn bản đồ (Đảo Quân Sự, Đảo Thiên Đường, v.v.).
+     + Bầu trời, đồi núi, nhà cửa và mục tiêu ở xa trở nên trong vắt, rõ nét từng chi tiết.
+
+2. COW.GamePlay.CameraControllerManager (Quản lý Camera Game):
+   - Lấy instance: GameFacade.CurrentCameraControllerManager()
+   - SetFarClipPlane(float farClip) [Offset: 0x58dd988]:
+     + Đẩy mặt phẳng cắt xa (Far Clip Plane) của Game Camera lên mức cực đại (ví dụ: 1000f).
+     + Bình thường, Unity sẽ tự động ẩn (culling) các vật thể nằm ngoài tầm camera để tiết kiệm tài nguyên.
+       Khi đẩy FarClipPlane lên 1000m, nhân vật, xe cộ, hòm thính (Airdrop) và hiệu ứng ở khoảng cách cực xa
+       vẫn được render đầy đủ, không bị hiện tượng "tàng hình khi đứng xa" hay mất hình khi bật Cam Xa.
+   - ReSetFarClipPlane() [Offset: 0x58dda80]:
+     + Khôi phục khoảng cách cắt xa về mặc định của game.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using UnityEngine;
+using COW;
+using COW.GamePlay;
+
+public static class NoFogHelper
+{
+    // 1. Kích hoạt Khử sương mù & Mở rộng tầm nhìn xa cực đại
+    public static void EnableNoFog(float maxViewDistance = 1000f)
+    {
+        try
+        {
+            // Tắt hoàn toàn sương mù thế giới
+            RenderSettings.fog = false;
+
+            // Đẩy khoảng cách nhìn xa tối đa của Camera
+            CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+            if (camMgr != null)
+            {
+                camMgr.SetFarClipPlane(maxViewDistance);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Khôi phục sương mù & Tầm nhìn mặc định
+    public static void RestoreDefaultFog()
+    {
+        try
+        {
+            RenderSettings.fog = true;
+
+            CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+            if (camMgr != null)
+            {
+                camMgr.ReSetFarClipPlane();
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý cập nhật Toggle mỗi Frame
+    public static void UpdateNoFog(bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                if (RenderSettings.fog)
+                {
+                    RenderSettings.fog = false;
+                }
+                CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+                if (camMgr != null)
+                {
+                    camMgr.SetFarClipPlane(1000f);
+                }
+            }
+            else
+            {
+                if (!RenderSettings.fog)
+                {
+                    RenderSettings.fog = true;
+                    CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+                    if (camMgr != null)
+                    {
+                        camMgr.ReSetFarClipPlane();
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 42):
+private const int NoFog = 536870912; // 1 << 29 (Bit 29 an toàn không xung đột)
+
+// 2. Thiết lập số dòng cho Tab 3 (Cài đặt / Di chuyển) (dòng 603):
+else
+{
+    rowCount = 7;
+}
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI (dòng 1079):
+else if (selectedRow == 4)
+{
+    if ((state & NoFog) != 0)
+    {
+        RenderSettings.fog = true;
+        CameraControllerManager cMgr = GameFacade.CurrentCameraControllerManager();
+        if (cMgr != null)
+        {
+            cMgr.ReSetFarClipPlane();
+        }
+    }
+    state ^= NoFog; // Bật / Tắt Khử sương mù
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3) (dòng 1961):
+else if (row == 4)
+{
+    rowBit = NoFog;
+    rowLabel = "🌫 Khử Sương Mù & Tầm Nhìn Xa (No Fog)";
+}
+
+// 5. Kiểm tra trạng thái Active (dòng 1989):
+else if (rowBit == NoFog)
+{
+    isRowActive = (state & NoFog) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame) ---
+
+bool isNoFog = isAuth && (state & NoFog) != 0;
+try
+{
+    if (isNoFog)
+    {
+        RenderSettings.fog = false;
+        if (camMgr != null)
+        {
+            camMgr.SetFarClipPlane(1000f);
+        }
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] BẢNG PHÂN TÍCH LỢI THẾ CHIẾN THUẬT:
+--------------------------------------------------------------------------------
+1. Phát hiện địch tầm xa từ 200m - 500m:
+   - Bình thường địch ở ngọn đồi đối diện hoặc ngoài biển sẽ bị chìm trong sương mù mờ ảo.
+   - Khi bật No Fog: Mục tiêu hiện rõ ràng, sắc nét trên nền trời và cảnh quan.
+
+2. Hoàn hảo khi kết hợp với Sniper (AWM, M82B, Kar98k):
+   - Ngắm bắn qua ống ngắm x4, x8 không bị lóa trắng hay sương mờ cản trở hồng tâm.
+
+3. Triệt tiêu hiện tượng mất hình (Pop-in / Clipping):
+   - SetFarClipPlane(1000f) đảm bảo địa hình xa không bị đen hoặc biến mất khi nhảy dù hoặc bay cao.
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Hoạt động 100% trên hệ thống Shader / Lighting / Camera cục bộ (Client-side).
+- Không can thiệp network packets, không gửi thông tin bất thường lên máy chủ.
+- Giúp cải thiện chỉ số khung hình (FPS) trên một số dòng máy vì giảm bớt chi phí tính toán shader sương mù.
+================================================================================

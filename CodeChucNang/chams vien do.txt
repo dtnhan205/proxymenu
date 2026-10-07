@@ -1,0 +1,119 @@
+================================================================================
+          TỔNG HỢP CODE LIÊN QUAN TỚI CHAMS VIỀN ĐỎ PHÁT SÁNG XUYÊN TƯỜNG
+================================================================================
+
+[1] CƠ CHẾ HOẠT ĐỘNG (IN-ENGINE SHADER OUTLINE / CHAMS):
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.EnableShowPlayerOutline (bool):
+   - Kích hoạt hệ thống Shader viền phát sáng đối thủ (Player Outline) tích hợp sẵn
+     trong engine đồ họa Unity của Free Fire.
+   - Khi bật lên, toàn bộ mô hình nhân vật địch sẽ được engine phủ một lớp viền
+     màu phát sáng nổi bật xuyên qua mọi chướng ngại vật, tường, nhà và khói.
+   - Vì chạy trực tiếp bằng shader GPU gốc của game nên cực kỳ mượt mà, 0 giật lag,
+     không bị lệch tọa độ hay trễ khung hình như vẽ box/line GUI thông thường.
+
+2. COW.GameVarDef.ShowPlayerOutlineColor (uint):
+   - Mã màu viền phát sáng (ARGB / RGBA Hex).
+   - Mặc định màu đỏ VIP: 0xFFFF0000 (Đỏ rực, dễ nhận diện nhất trên mọi địa hình).
+   - Có thể đổi sang các màu khác tùy ý:
+     + 0xFF00FF00: Xanh lục dạ quang
+     + 0xFF00FFFF: Xanh ngọc Cyan
+     + 0xFFFFFF00: Vàng kim
+     + 0xFFFF00FF: Hồng dạ quang
+
+3. COW.GameVarDef.ShowPlayerOutlineWidth (float):
+   - Độ dày của nét viền phát sáng. Khuyên dùng từ 2.5f đến 4.0f để viền nổi rõ
+     mà không bị nhòe hình thể nhân vật.
+
+4. COW.GameVarDef.ShowPlayerOutlineMaxDistance (uint / float):
+   - Tầm nhìn xa tối đa của viền phát sáng (Mét).
+   - Đặt lên 500m hoặc 1000m để thấy rõ viền đối thủ từ đầu này sang đầu kia bản đồ.
+
+5. COW.GameVarDef.PCOBOutlineSolid (bool):
+   - Chế độ viền đặc nguyên khối chuẩn bản PC, giúp viền không bị đứt đoạn hay mờ
+     khi đối thủ ở khoảng cách xa.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using COW;
+
+public static class ChamsOutlineHelper
+{
+    // 1. Bật Chams Viền Đỏ (Màu đỏ 0xFFFF0000, tầm xa 500m)
+    public static void EnableChamsOutline(uint color = 0xFFFF0000, float width = 3.0f, uint maxDist = 500)
+    {
+        GameVarDef.EnableShowPlayerOutline = true;
+        GameVarDef.ShowPlayerOutlineColor = color;
+        GameVarDef.ShowPlayerOutlineWidth = width;
+        GameVarDef.ShowPlayerOutlineMaxDistance = maxDist;
+        GameVarDef.PCOBOutlineSolid = true;
+    }
+
+    // 2. Tắt Chams Viền Đỏ (Khôi phục mặc định)
+    public static void DisableChamsOutline()
+    {
+        GameVarDef.EnableShowPlayerOutline = false;
+        GameVarDef.PCOBOutlineSolid = false;
+    }
+
+    // 3. Bật / Tắt theo biến toggle boolean
+    public static void SetChamsOutline(bool enabled)
+    {
+        if (enabled)
+        {
+            EnableChamsOutline();
+        }
+        else
+        {
+            DisableChamsOutline();
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC / TÍCH HỢP TRONG SOURCE (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask & Menu OnGUI (Tab 0 ESP) ---
+
+// 1. Khai báo hằng số Bitmask (dòng ~69):
+private const int AuxChamsOutline = 32;
+
+// 2. Click Toggle trong OnGUI khi bấm hàng 7 Tab 0 (ESP):
+else if (selectedRow == 7)
+{
+    auxState ^= AuxChamsOutline;
+}
+
+// 3. Render nút bấm trong Tab ESP (activeTab == 0, row == 7):
+else if (row == 7)
+{
+    rowBit = -AuxChamsOutline;
+    rowLabel = "🔴 Chams Viền Đỏ Phát Sáng (Shader Outline)";
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý mỗi frame) ---
+
+bool isChams = isAuth && (auxState & AuxChamsOutline) != 0;
+try
+{
+    if (isChams)
+    {
+        COW.GameVarDef.EnableShowPlayerOutline = true;
+        COW.GameVarDef.ShowPlayerOutlineMaxDistance = 500;
+        COW.GameVarDef.ShowPlayerOutlineColor = 0xFFFF0000;
+        COW.GameVarDef.ShowPlayerOutlineWidth = 3f;
+        COW.GameVarDef.PCOBOutlineSolid = true;
+    }
+    else
+    {
+        COW.GameVarDef.EnableShowPlayerOutline = false;
+        COW.GameVarDef.PCOBOutlineSolid = false;
+    }
+}
+catch (Exception)
+{
+}
+================================================================================

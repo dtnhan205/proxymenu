@@ -1,0 +1,149 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI NHẢY CAO (HIGH JUMP)
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.MaxJumpHeight (float - Offset 0x1f0):
+   - Khái niệm: Độ cao nhảy tối đa cho phép trên toàn bộ hệ thống vật lý game.
+   - Mặc định trong game: ~1.0f.
+   - Khi chỉnh thành: 1.2f (hoặc cao hơn tùy chỉnh)
+     + Mở rộng trần giới hạn nhảy của nhân vật, cho phép vượt qua các bức tường, chướng ngại vật cao.
+
+2. COW.GamePlay.Player.IHAAHDPHAEO (Thuộc tính PhysicalCCT - Getter Offset 0x56268c4):
+   - Đối tượng điều khiển chuyển động vật lý nhân vật (Character Controller).
+   - Lấy instance: localPlayer.IHAAHDPHAEO
+   - Thuộc tính con: localPlayer.IHAAHDPHAEO.JumpHeight (float - Offset 0x78)
+     + Lực bật nhảy trực tiếp khi người chơi bấm nút Jump.
+     + Chỉnh thành: 1.2f (hoặc 1.5f, 2.0f) để nhân vật phóng lên cao vượt trội.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+using COW.GamePlay;
+
+public static class HighJumpHelper
+{
+    // 1. Kích hoạt Nhảy Cao (mặc định x1.2)
+    public static void EnableHighJump(Player localPlayer, float jumpScale = 1.2f)
+    {
+        try
+        {
+            COW.GameVarDef.MaxJumpHeight = jumpScale;
+            if (localPlayer != null && localPlayer.IHAAHDPHAEO != null)
+            {
+                localPlayer.IHAAHDPHAEO.JumpHeight = jumpScale;
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Tắt Nhảy Cao (Khôi phục mặc định 1.0f)
+    public static void DisableHighJump(Player localPlayer)
+    {
+        try
+        {
+            COW.GameVarDef.MaxJumpHeight = 1.0f;
+            if (localPlayer != null && localPlayer.IHAAHDPHAEO != null)
+            {
+                localPlayer.IHAAHDPHAEO.JumpHeight = 1.0f;
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Cập nhật mỗi Frame trong Update / Draw
+    public static void UpdateHighJump(Player localPlayer, bool isEnabled, float jumpScale = 1.2f)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                COW.GameVarDef.MaxJumpHeight = jumpScale;
+                if (localPlayer != null && localPlayer.IHAAHDPHAEO != null)
+                {
+                    localPlayer.IHAAHDPHAEO.JumpHeight = jumpScale;
+                }
+            }
+            else
+            {
+                if (COW.GameVarDef.MaxJumpHeight > 1.05f)
+                {
+                    COW.GameVarDef.MaxJumpHeight = 1.0f;
+                    if (localPlayer != null && localPlayer.IHAAHDPHAEO != null)
+                    {
+                        localPlayer.IHAAHDPHAEO.JumpHeight = 1.0f;
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 39):
+private const int HighJump = 67108864; // 1 << 26 (Bit 26 an toàn không xung đột)
+
+// 2. Số dòng trong Tab VIP (activeTab == 2) (dòng 597):
+rowCount = 8;
+
+// 3. Xử lý click trong OnGUI (dòng 1042):
+else if (selectedRow == 7)
+{
+    state ^= HighJump;
+}
+
+// 4. Hiển thị dòng trong Menu VIP (dòng 1930):
+else if (row == 7)
+{
+    rowBit = HighJump;
+    rowLabel = "🦘 Nhảy Cao Siêu Cấp (High Jump 1.2x)";
+}
+
+// 5. Kiểm tra trạng thái Active (dòng 1968):
+else if (rowBit == HighJump)
+{
+    isRowActive = (state & HighJump) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame trên Local Player) ---
+
+bool isHighJump = isAuth && (state & HighJump) != 0;
+try
+{
+    if (isHighJump)
+    {
+        COW.GameVarDef.MaxJumpHeight = 1.2f;
+        COW.GamePlay.PhysicalCCT cct = localPlayer.IHAAHDPHAEO;
+        if (cct != null)
+        {
+            cct.JumpHeight = 1.2f;
+        }
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] HIỆU QUẢ TRONG THI ĐẤU & ĐỘ AN TOÀN:
+--------------------------------------------------------------------------------
+- Leo lên các mái nhà, nóc thùng container và các địa hình hiểm trở mà đối thủ không thể nhảy tới.
+- Né đạn khi cận chiến hoặc nhảy qua tường băng (keo) một cách dễ dàng.
+- Tùy chỉnh mức 1.2f là mức tối ưu nhất: vừa nhảy cao vượt trội vừa không bị giật lùi hay bị hệ thống server kick.
+================================================================================

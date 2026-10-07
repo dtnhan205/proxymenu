@@ -1,0 +1,159 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI LOOT ĐỒ NHANH / AUTO PICKUP & HÚT ĐỒ
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.AutoPickupPoolOptEnabled (bool - Offset 0x2c95):
+   - Bật tối ưu hóa bộ nhớ đệm (Pool Optimization) của hệ thống nhặt đồ tự động.
+   - Khi bật: Loại bỏ độ trễ khi phát hiện trang bị rơi dưới đất, hút đồ vào balo tức thì.
+
+2. COW.GameVarDef.AutoPickupInvokeOptEnabled (bool - Offset 0x2c96):
+   - Tối ưu hóa chu kỳ gọi lệnh Invoke nhặt đồ.
+   - Giảm chu kỳ quét đồ từ 0.5s xuống mức tối thiểu, nhân vật chạy lướt ngang qua là đồ tự nhặt.
+
+3. COW.GameVarDef.AutoPickUpSortAttachmentEnable (bool - Offset 0x2c97):
+   - Kích hoạt tính năng tự động lọc và gắn phụ kiện súng tối ưu nhất:
+     + Tự động lắp nòng súng, tay cầm, băng đạn mở rộng, báng súng và scope cấp cao nhất vào súng chính.
+     + Tự động thay thế phụ kiện cấp thấp bằng phụ kiện cấp cao (Level 1 -> Level 2 -> Level 3).
+
+4. COW.GameVarDef.EnableBackgroundCacheAutoPickupWeapon (bool - Offset 0x17ed):
+   - Cho phép nạp trước dữ liệu vũ khí trong nền để tự động nhặt súng không bị khựng hình.
+
+5. COW.GameVarDef.EnableBackgroundCacheAutoPickupFppWeapon (bool - Offset 0x17f0):
+   - Đảm bảo cơ chế tự nhặt hoạt động trơn tru ở cả góc nhìn thứ nhất (FPP) và góc nhìn thứ 3 (TPP).
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+
+public static class FastLootHelper
+{
+    // 1. Kích hoạt Loot Đồ Nhanh
+    public static void EnableFastLoot()
+    {
+        try
+        {
+            COW.GameVarDef.AutoPickupPoolOptEnabled = true;
+            COW.GameVarDef.AutoPickupInvokeOptEnabled = true;
+            COW.GameVarDef.AutoPickUpSortAttachmentEnable = true;
+            COW.GameVarDef.EnableBackgroundCacheAutoPickupWeapon = true;
+            COW.GameVarDef.EnableBackgroundCacheAutoPickupFppWeapon = true;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Khôi phục về nhặt đồ bình thường
+    public static void DisableFastLoot()
+    {
+        try
+        {
+            COW.GameVarDef.AutoPickupPoolOptEnabled = false;
+            COW.GameVarDef.AutoPickupInvokeOptEnabled = false;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý cập nhật Toggle mỗi Frame
+    public static void UpdateFastLoot(bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                if (!COW.GameVarDef.AutoPickupPoolOptEnabled)
+                {
+                    COW.GameVarDef.AutoPickupPoolOptEnabled = true;
+                    COW.GameVarDef.AutoPickupInvokeOptEnabled = true;
+                    COW.GameVarDef.AutoPickUpSortAttachmentEnable = true;
+                    COW.GameVarDef.EnableBackgroundCacheAutoPickupWeapon = true;
+                    COW.GameVarDef.EnableBackgroundCacheAutoPickupFppWeapon = true;
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask Aux (dòng 67):
+private const int AuxFastLoot = 8;
+private const int AuxMask = 15;
+
+// 2. Thiết lập số dòng cho Tab 3 (Cài đặt / Di chuyển) (dòng 603):
+else
+{
+    rowCount = 9;
+}
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI (dòng 1111):
+else if (selectedRow == 6)
+{
+    auxState ^= AuxFastLoot; // Bật / Tắt Loot đồ nhanh
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3) (dòng 2072):
+else if (row == 6)
+{
+    rowBit = -AuxFastLoot;
+    rowLabel = "🧲 Loot Đồ Nhanh (Auto Pickup / Hút Đồ)";
+}
+
+// 5. Kiểm tra trạng thái Active (dòng 2095):
+else if (rowBit < 0)
+{
+    isRowActive = (auxState & -rowBit) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame) ---
+
+bool isFastLoot = isAuth && (auxState & AuxFastLoot) != 0;
+try
+{
+    if (isFastLoot)
+    {
+        COW.GameVarDef.AutoPickupPoolOptEnabled = true;
+        COW.GameVarDef.AutoPickupInvokeOptEnabled = true;
+        COW.GameVarDef.AutoPickUpSortAttachmentEnable = true;
+        COW.GameVarDef.EnableBackgroundCacheAutoPickupWeapon = true;
+        COW.GameVarDef.EnableBackgroundCacheAutoPickupFppWeapon = true;
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] BẢNG PHÂN TÍCH LỢI THẾ CHIẾN THUẬT:
+--------------------------------------------------------------------------------
+1. Tiết kiệm thời gian Loot:
+   - Bình thường khi hạ gục đối thủ, người chơi phải đứng yên 3-5 giây để nhặt từng món đồ
+     trong hòm xác, rất dễ bị kẻ địch khác bắn lén (third-party).
+   - Khi bật Loot Đồ Nhanh: Chỉ cần chạy lướt qua hòm xác, balo tự động gom sạch đạn, giáp,
+     máu và phụ kiện.
+
+2. Tự động nâng cấp trang bị thông minh:
+   - Tự nhặt mũ 3, giáp 3 thay thế mũ giáp rách.
+   - Tự động thay thế phụ kiện cấp cao và nhặt loại đạn tương ứng với 2 khẩu súng đang cầm.
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Tính năng can thiệp trực tiếp vào các biến cơ chế Pickup có sẵn của GameVarDef.
+- 100% Client-side, không gửi gói tin bất thường lên máy chủ, an toàn tuyệt đối.
+- Kết hợp hoàn hảo với tính năng "Nhảy Dù Siêu Tốc" để vừa tiếp đất là có ngay súng và giáp.
+================================================================================

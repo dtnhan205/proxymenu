@@ -1,0 +1,168 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI ĐỔI SÚNG NHANH (FAST WEAPON SWAP)
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.SwapWeaponCD (float - Offset 0x598):
+   - Khái niệm: Thời gian hồi chiêu / cooldown giữa 2 lần đổi súng.
+   - Mặc định trong game: ~0.5f - 1.0f (Mỗi lần đổi súng người chơi phải chờ hết CD mới được đổi tiếp).
+   - Khi chỉnh thành: 0.0f
+     + Triệt tiêu hoàn toàn thời gian delay. Đổi súng liên tục không giới hạn (0s delay).
+
+2. COW.GameVarDef.CanSwapWeaponContinueShoot (bool - Offset 0x1858):
+   - Khái niệm: Cho phép tiếp tục bắn ngay lập tức trong hoặc sau khi chuyển đổi vũ khí.
+   - Mặc định trong game: false (Nhân vật phải chờ animation rút súng hoàn tất mới được bóp cò).
+   - Khi chỉnh thành: true
+     + Bỏ qua khựng súng. Đổi súng xong xả đạn tức thì. Cực kỳ bá đạo khi dùng combo 2 khẩu Shotgun (M1887) hoặc AWM / Barrett.
+
+3. COW.GameVarDef.CanInvincibleReloadAndSwapWeapon (bool - Offset 0x1857):
+   - Khái niệm: Cho phép đổi vũ khí và thay đạn không bị gián đoạn hay bị hủy thao tác.
+   - Khi chỉnh thành: true
+
+4. COW.GameVarDef.EnableLowFallingSwapWeapon (bool - Offset 0x3055):
+   - Cho phép đổi vũ khí tự do khi đang rơi thấp hoặc đang trên không.
+   - Khi chỉnh thành: true
+
+5. COW.GameVarDef.EnableSnowSlideGrabSwapWeapon (bool - Offset 0x3078):
+   - Cho phép đổi súng khi trượt tuyết/dốc hoặc bám gờ tường.
+   - Khi chỉnh thành: true
+
+6. COW.GamePlay.Player.ResetSwapWeaponTime() (Offset 0x5636dfc):
+   - Phương thức xóa sạch bộ đếm thời gian đang chờ đổi vũ khí của nhân vật cục bộ.
+   - Gọi: localPlayer.ResetSwapWeaponTime() mỗi frame để đảm bảo 0s cooldown luôn có hiệu lực.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+using COW.GamePlay;
+
+public static class FastSwapWeaponHelper
+{
+    // 1. Bật Đổi Súng Nhanh 0s
+    public static void EnableFastSwap(Player localPlayer = null)
+    {
+        try
+        {
+            COW.GameVarDef.SwapWeaponCD = 0.0f;
+            COW.GameVarDef.CanSwapWeaponContinueShoot = true;
+            COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+            COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+            COW.GameVarDef.EnableSnowSlideGrabSwapWeapon = true;
+
+            if (localPlayer != null)
+            {
+                localPlayer.ResetSwapWeaponTime();
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Tắt Đổi Súng Nhanh (Khôi phục mặc định)
+    public static void DisableFastSwap()
+    {
+        try
+        {
+            COW.GameVarDef.SwapWeaponCD = 0.5f;
+            COW.GameVarDef.CanSwapWeaponContinueShoot = false;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Cập nhật mỗi Frame trong Update / Draw / OnGUI
+    public static void UpdateFastSwap(Player localPlayer, bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                COW.GameVarDef.SwapWeaponCD = 0.0f;
+                COW.GameVarDef.CanSwapWeaponContinueShoot = true;
+                COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+                COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+                COW.GameVarDef.EnableSnowSlideGrabSwapWeapon = true;
+
+                if (localPlayer != null)
+                {
+                    localPlayer.ResetSwapWeaponTime();
+                }
+            }
+            else
+            {
+                if (COW.GameVarDef.SwapWeaponCD < 0.1f)
+                {
+                    COW.GameVarDef.SwapWeaponCD = 0.5f;
+                    COW.GameVarDef.CanSwapWeaponContinueShoot = false;
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 38):
+private const int FastSwapWeapon = 33554432; // 1 << 25 (Bit 25 an toàn không xung đột)
+
+// 2. Xử lý click trong OnGUI (dòng 1039):
+else if (selectedRow == 6)
+{
+    state ^= FastSwapWeapon;
+}
+
+// 3. Hiển thị dòng trong Menu VIP (dòng 1925):
+else if (row == 6)
+{
+    rowBit = FastSwapWeapon;
+    rowLabel = "🔄 Đổi Súng Nhanh (Fast Swap / 0s Delay)";
+}
+
+// 4. Kiểm tra trạng thái Active (dòng 1964):
+else if (rowBit == FastSwapWeapon)
+{
+    isRowActive = (state & FastSwapWeapon) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame trên GameVarDef) ---
+
+bool isFastSwap = isAuth && (state & FastSwapWeapon) != 0;
+try
+{
+    if (isFastSwap)
+    {
+        COW.GameVarDef.SwapWeaponCD = 0.0f;
+        COW.GameVarDef.CanSwapWeaponContinueShoot = true;
+        COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+        COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+        COW.GameVarDef.EnableSnowSlideGrabSwapWeapon = true;
+        localPlayer.ResetSwapWeaponTime();
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] BẢNG HIỆU QUẢ TRONG THI ĐẤU (METAGAME):
+--------------------------------------------------------------------------------
+1. Combo 2 Shotgun M1887 (2 viên x 2 khẩu):
+   - Bình thường: Bắn 2 viên phải chờ nạp đạn hoặc đổi súng bị delay 0.6s.
+   - Có Fast Swap: Bắn 1 viên -> Đổi khẩu 2 -> Bắn ngay viên thứ 2. Tốc độ bắn tương đương súng tiểu liên nhưng sát thương là shotgun cực hạn!
+
+2. Combo 2 Sniper (AWM / Kar98k / Barrett M82B):
+   - Đổi qua lại giữa 2 khẩu bắn liên thanh không cần kéo quy lát (animation lên đạn).
+================================================================================

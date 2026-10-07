@@ -334,6 +334,18 @@ enum FreeFirePatchService {
             "cam_distance": Int(state.camDistance),
             "speed_run": state.speedRun ? 1 : 0,
             "fast_parachute": state.fastParachute ? 1 : 0,
+            "back_jump": state.backJump ? 1 : 0,
+            "high_jump": state.highJump ? 1 : 0,
+            "fast_rotation": state.fastRotation ? 1 : 0,
+            "chams_outline": state.chamsOutline ? 1 : 0,
+            "fast_swap": state.fastSwap ? 1 : 0,
+            "no_grass": state.noGrass ? 1 : 0,
+            "no_fog": state.noFog ? 1 : 0,
+            "fast_loot": state.fastLoot ? 1 : 0,
+            "fast_crouch": state.fastCrouch ? 1 : 0,
+            "super_emote": state.superEmote ? 1 : 0,
+            "fast_reload": state.fastReload ? 1 : 0,
+            "unlock_fps": state.unlockFps ? 1 : 0,
             "line_bottom": 0
         ]
     }

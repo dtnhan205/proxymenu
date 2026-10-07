@@ -1,0 +1,162 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI ĐẢO NHƯ PC 360° (QUAY ĐẦU TỨC THÌ)
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+Toàn bộ tốc độ xoay người góc tự do (Free Move Angular Speed) nằm trong COW.GameVarDef:
+
+1. COW.GameVarDef.FreeMoveAngularSpeed (float - Offset 0x2f4):
+   - Khái niệm: Tốc độ xoay góc tổng thể khi di chuyển tự do.
+   - Mặc định trong game: ~360f (độ/giây).
+   - Khi chỉnh thành: 9999.9f
+     + Nhân vật quay đầu ngay lập tức theo hướng joystick hoặc vuốt màn hình, không có độ trễ quán tính xoay.
+
+2. COW.GameVarDef.FreeMoveAngularSpeedStand (float - Offset 0x2fc):
+   - Tốc độ xoay khi nhân vật đang đứng thẳng.
+   - Mặc định: 360f -> Chỉnh thành: 9999.9f
+
+3. COW.GameVarDef.FreeMoveAngularSpeedCrouch (float - Offset 0x300):
+   - Tốc độ xoay khi nhân vật đang ngồi (Crouch).
+   - Mặc định: 240f -> Chỉnh thành: 9999.9f
+
+4. COW.GameVarDef.FreeMoveAngularSpeedCreep (float - Offset 0x304):
+   - Tốc độ xoay khi nhân vật đang bò / trườn (Creep / Prone).
+   - Mặc định: 180f -> Chỉnh thành: 9999.9f
+
+5. COW.GameVarDef.FreeMoveAngularSpeedKnockDown (float - Offset 0x308):
+   - Tốc độ xoay khi nhân vật bị gục ngã (Knocked down).
+   - Mặc định: 90f -> Chỉnh thành: 9999.9f
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+
+public static class FastRotationHelper
+{
+    // 1. Kích hoạt Đảo Như PC (Tốc độ xoay cực đại 9999.9f)
+    public static void EnableFastRotation()
+    {
+        try
+        {
+            COW.GameVarDef.FreeMoveAngularSpeed = 9999.9f;
+            COW.GameVarDef.FreeMoveAngularSpeedStand = 9999.9f;
+            COW.GameVarDef.FreeMoveAngularSpeedCrouch = 9999.9f;
+            COW.GameVarDef.FreeMoveAngularSpeedCreep = 9999.9f;
+            COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 9999.9f;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Tắt Đảo Như PC (Khôi phục tốc độ xoay mặc định của game)
+    public static void DisableFastRotation()
+    {
+        try
+        {
+            COW.GameVarDef.FreeMoveAngularSpeed = 360f;
+            COW.GameVarDef.FreeMoveAngularSpeedStand = 360f;
+            COW.GameVarDef.FreeMoveAngularSpeedCrouch = 240f;
+            COW.GameVarDef.FreeMoveAngularSpeedCreep = 180f;
+            COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 90f;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Cập nhật mỗi Frame trong Update / Draw / OnGUI
+    public static void UpdateFastRotation(bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                COW.GameVarDef.FreeMoveAngularSpeed = 9999.9f;
+                COW.GameVarDef.FreeMoveAngularSpeedStand = 9999.9f;
+                COW.GameVarDef.FreeMoveAngularSpeedCrouch = 9999.9f;
+                COW.GameVarDef.FreeMoveAngularSpeedCreep = 9999.9f;
+                COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 9999.9f;
+            }
+            else
+            {
+                if (COW.GameVarDef.FreeMoveAngularSpeed > 5000f)
+                {
+                    COW.GameVarDef.FreeMoveAngularSpeed = 360f;
+                    COW.GameVarDef.FreeMoveAngularSpeedStand = 360f;
+                    COW.GameVarDef.FreeMoveAngularSpeedCrouch = 240f;
+                    COW.GameVarDef.FreeMoveAngularSpeedCreep = 180f;
+                    COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 90f;
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 58):
+private const int VipFastRotation = 2; // Nằm trong vipMask
+
+// 2. Xử lý click trong OnGUI:
+int vipBit = selectedRow == 0 ? VipFastFire
+    : (selectedRow == 2 ? VipHeadDamage : (selectedRow == 3 ? VipWideView : VipFastRotation));
+vipMask ^= vipBit;
+modalState.z = (float)((vipMask & 15) | (customB << 4));
+driverObject.transform.localScale = modalState;
+
+// 3. Hiển thị dòng trong Menu VIP (dòng 1915):
+else if (row == 4)
+{
+    rowBit = VipFastRotation;
+    rowLabel = "🌪 Đảo Như PC 360° (Quay Đầu Tức Thì)";
+}
+
+// 4. Kiểm tra trạng thái Active:
+isRowActive = (vipMask & rowBit) != 0;
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame trên GameVarDef) ---
+
+bool isAuth = (state & StateAuthorized) != 0;
+bool fastRot = isAuth && (vipMask & VipFastRotation) != 0;
+try
+{
+    if (fastRot)
+    {
+        COW.GameVarDef.FreeMoveAngularSpeed = 9999.9f;
+        COW.GameVarDef.FreeMoveAngularSpeedStand = 9999.9f;
+        COW.GameVarDef.FreeMoveAngularSpeedCrouch = 9999.9f;
+        COW.GameVarDef.FreeMoveAngularSpeedCreep = 9999.9f;
+        COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 9999.9f;
+    }
+    else if (COW.GameVarDef.FreeMoveAngularSpeed > 5000f)
+    {
+        COW.GameVarDef.FreeMoveAngularSpeed = 360f;
+        COW.GameVarDef.FreeMoveAngularSpeedStand = 360f;
+        COW.GameVarDef.FreeMoveAngularSpeedCrouch = 240f;
+        COW.GameVarDef.FreeMoveAngularSpeedCreep = 180f;
+        COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 90f;
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] HIỆU QUẢ TRONG THI ĐẤU:
+--------------------------------------------------------------------------------
+- Nhân vật xoay chuyển hướng tức thì 180° - 360° như khi dùng chuột trên PC (giả lập BlueStacks / MSI App Player).
+- Vẩy tâm cực nhanh, đặt keo (wall) vòng tròn 360 độ quanh người không có độ trễ.
+- Đảo người dẻo, né đạn sniper và lẩn tránh giao tranh cực kỳ linh hoạt.
+================================================================================

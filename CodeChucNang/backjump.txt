@@ -1,0 +1,152 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI BACKJUMP / KHỬ GIA TỐC RƠI / NHẢY LÙI
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.EnableAccelerationOnFalling (bool - Offset 0x2cdf):
+   - Khái niệm: Cờ bật/tắt gia tốc trọng trường khi nhân vật đang rơi hoặc ở trên không.
+   - Mặc định trong game: true (Nhân vật rơi xuống đất với tốc độ tăng dần theo trọng lực,
+     khi rơi từ gờ cao hoặc nhảy lùi sẽ bị cắm đầu tụt xuống đất rất nhanh và bị khựng chân tiếp đất).
+   - Khi chỉnh thành: false
+     + Triệt tiêu hoàn toàn gia tốc rơi tăng dần. Nhân vật rơi từ từ, êm ái với tốc độ tuyến tính.
+     + Đây là cơ chế nền tảng cho kĩ thuật "Backjump" (nhảy giật lùi né đạn) và Bunny Hop:
+       Nhân vật có thể lướt trên không trung khi nhảy giật lùi mà không bị rơi chúi xuống đất.
+
+2. COW.GameVarDef.EnableLowFallingSwapWeapon (bool - Offset 0x3055):
+   - Khái niệm: Cờ cho phép chuyển đổi súng khi đang rơi ở độ cao thấp / đang trên không.
+   - Mặc định trong game: false (Game khóa hoặc làm khựng hành động đổi súng khi đang ở trên không).
+   - Khi chỉnh thành: true
+     + Cho phép nhân vật tự do thao tác đổi vũ khí khi đang nhảy lùi hoặc đang rơi mà không bị khựng.
+
+3. COW.GamePlay.Player.get_EnableAccelerationOnFalling() (Offset 0x5789484):
+   - Getter kiểm tra trạng thái gia tốc rơi của đối tượng Player cục bộ.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+
+public static class BackJumpHelper
+{
+    // 1. Kích hoạt Backjump (Khử gia tốc rơi + Cho phép đổi vũ khí khi rơi)
+    public static void EnableBackJump()
+    {
+        try
+        {
+            COW.GameVarDef.EnableAccelerationOnFalling = false;
+            COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Tắt Backjump (Khôi phục vật lý rơi mặc định của game)
+    public static void DisableBackJump()
+    {
+        try
+        {
+            COW.GameVarDef.EnableAccelerationOnFalling = true;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý cập nhật mỗi Frame (Update / Draw / OnGUI)
+    public static void UpdateBackJump(bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                COW.GameVarDef.EnableAccelerationOnFalling = false;
+                COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+            }
+            else
+            {
+                // Khôi phục nếu trước đó đang tắt gia tốc
+                if (!COW.GameVarDef.EnableAccelerationOnFalling)
+                {
+                    COW.GameVarDef.EnableAccelerationOnFalling = true;
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 40):
+private const int BackJump = 134217728; // 1 << 27 (Bit 27 an toàn không xung đột)
+
+// 2. Thiết lập số dòng cho Tab 3 (Cài đặt / Di chuyển) (dòng 600):
+else
+{
+    rowCount = 5;
+}
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI (dòng 1066):
+else if (selectedRow == 2)
+{
+    state ^= BackJump; // Bật / Tắt Backjump
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3) (dòng 1947):
+else if (row == 2)
+{
+    rowBit = BackJump;
+    rowLabel = "🦘 Backjump (Khử Gia Tốc Rơi / Nhảy Lùi)";
+}
+
+// 5. Kiểm tra trạng thái Active (dòng 1971):
+else if (rowBit == BackJump)
+{
+    isRowActive = (state & BackJump) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame trên GameVarDef) ---
+
+bool isBackJump = isAuth && (state & BackJump) != 0;
+try
+{
+    if (isBackJump)
+    {
+        COW.GameVarDef.EnableAccelerationOnFalling = false;
+        COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] BẢNG PHÂN TÍCH CƠ CHẾ VẬT LÝ & HIỆU QUẢ TRONG THI ĐẤU:
+--------------------------------------------------------------------------------
+1. Bình thường khi giao tranh:
+   - Khi bị địch sấy hoặc cận chiến, người chơi thường nhảy lùi (Backjump).
+   - Tuy nhiên vật lý gốc của game khiến nhân vật rơi cắm xuống đất nhanh và bị khựng chân khi tiếp đất.
+
+2. Khi bật chức năng Backjump:
+   - EnableAccelerationOnFalling = false: Trọng lực rơi trở nên mượt mà, lướt êm ái trên không.
+   - EnableLowFallingSwapWeapon = true: Đổi vũ khí khi đang trên không mà không bị khựng động tác.
+   - Nhân vật có thể lướt lùi né đạn, tạo quỹ đạo di chuyển khó đoán, khiến địch bắn trượt.
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Thay đổi các biến trong COW.GameVarDef là hoàn toàn client-side trên hệ thống vật lý cục bộ.
+- Không can thiệp vào các biến vũ khí khác.
+- Không gây desync vị trí nhân vật với máy chủ.
+- Không gây lag hay đứng hình địch (fakelag).
+================================================================================

@@ -1,0 +1,133 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI CAMERA HACK (KHỬ RUNG / TỐI ƯU GÓC)
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+Toàn bộ các biến cấu hình camera nằm trong lớp COW.GameVarDef (Static Fields):
+
+1. COW.GameVarDef.CameraShakeCabinFactor (float - Offset 0x3028):
+   - Khái niệm: Hệ số rung lắc camera khi ngồi trong cabin/phương tiện hoặc khi chịu rung chấn nổ.
+   - Mặc định trong game: ~2.0f - 5.0f.
+   - Khi chỉnh thành: 1.0f (hoặc 0.0f)
+     + Khử hoàn toàn rung lắc màn hình khi di chuyển, lái xe hoặc bị bom nổ gần.
+
+2. COW.GameVarDef.CameraBackOffectLowerCutAngle (float - Offset 0x30a4):
+   - Khái niệm: Góc cắt hạ thấp camera sau lưng nhân vật.
+   - Khi chỉnh thành: 1.0f
+     + Góc nhìn từ sau lưng nhân vật được giữ ổn định, không bị méo góc khi nhìn xuống dốc.
+
+3. COW.GameVarDef.CameraBackOffectLowerAngleDist (float - Offset 0x30a8):
+   - Khái niệm: Khoảng cách bù trừ góc nghiêng camera sau lưng.
+   - Khi chỉnh thành: 1.0f
+     + Giữ camera sau lưng nhân vật luôn ở khoảng cách quan sát tối ưu, không bị giật zoom lại gần.
+
+4. COW.GameVarDef.CameraUpOffectLowerAngleDist (float - Offset 0x30ac):
+   - Khái niệm: Khoảng cách góc hạ trục nâng camera.
+   - Khi chỉnh thành: 1.0f
+     + Giữ trục camera hướng thẳng, không bị cụp đầu xuống khi nhân vật đứng sát tường.
+
+5. COW.GameVarDef.CameraUpOffectLowerHitDrawBackDist (float - Offset 0x30b0):
+   - Khái niệm: Khoảng cách giật lùi camera khi va chạm địa hình / góc hẹp.
+   - Mặc định: Camera bị giật kéo áp sát vào lưng nhân vật khi đứng gần tường hoặc trong nhà hẹp.
+   - Khi chỉnh thành: 1.0f
+     + Triệt tiêu hiện tượng camera bị giật zoom che khuất tầm nhìn trong nhà hoặc sau vật cản.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+
+public static class CameraHackHelper
+{
+    // 1. Kích hoạt Camera Hack (Khử rung lắc + Ổn định góc nhìn camera)
+    public static void EnableCameraHack()
+    {
+        try
+        {
+            COW.GameVarDef.CameraShakeCabinFactor = 1.0f;
+            COW.GameVarDef.CameraBackOffectLowerCutAngle = 1.0f;
+            COW.GameVarDef.CameraBackOffectLowerAngleDist = 1.0f;
+            COW.GameVarDef.CameraUpOffectLowerAngleDist = 1.0f;
+            COW.GameVarDef.CameraUpOffectLowerHitDrawBackDist = 1.0f;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Cập nhật mỗi Frame trong Update / Draw / OnGUI
+    public static void UpdateCameraHack(bool isEnabled)
+    {
+        try
+        {
+            if (isEnabled)
+            {
+                COW.GameVarDef.CameraShakeCabinFactor = 1.0f;
+                COW.GameVarDef.CameraBackOffectLowerCutAngle = 1.0f;
+                COW.GameVarDef.CameraBackOffectLowerAngleDist = 1.0f;
+                COW.GameVarDef.CameraUpOffectLowerAngleDist = 1.0f;
+                COW.GameVarDef.CameraUpOffectLowerHitDrawBackDist = 1.0f;
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 37):
+private const int CameraHack = 16777216; // 1 << 24 (Bit 24 an toàn không xung đột)
+
+// 2. Xử lý click trong OnGUI (dòng 1035):
+else if (selectedRow == 5)
+{
+    state ^= CameraHack;
+}
+
+// 3. Hiển thị dòng trong Menu VIP (dòng 1920):
+else if (row == 5)
+{
+    rowBit = CameraHack;
+    rowLabel = "🎥 Camera Hack (Khử Rung / Tối Ưu Góc)";
+}
+
+// 4. Kiểm tra trạng thái Active (dòng 1960):
+else if (rowBit == CameraHack)
+{
+    isRowActive = (state & CameraHack) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame trên GameVarDef) ---
+
+bool isCamHack = isAuth && (state & CameraHack) != 0;
+try
+{
+    if (isCamHack)
+    {
+        COW.GameVarDef.CameraShakeCabinFactor = 1.0f;
+        COW.GameVarDef.CameraBackOffectLowerCutAngle = 1.0f;
+        COW.GameVarDef.CameraBackOffectLowerAngleDist = 1.0f;
+        COW.GameVarDef.CameraUpOffectLowerAngleDist = 1.0f;
+        COW.GameVarDef.CameraUpOffectLowerHitDrawBackDist = 1.0f;
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] HIỆU QUẢ TRONG THI ĐẤU:
+--------------------------------------------------------------------------------
+- Bắn sấy đạn liên tục mà màn hình đứng yên tuyệt đối, không có cảm giác chóng mặt hay rung lắc.
+- Khi camp trong góc nhà hẹp, camera không bị lỗi tự động zoom sát vào gáy nhân vật làm mất tầm nhìn.
+- Kết hợp hoàn hảo với Cam Xa (FOV 88°) để có tầm nhìn rộng rãi, ổn định nhất.
+================================================================================

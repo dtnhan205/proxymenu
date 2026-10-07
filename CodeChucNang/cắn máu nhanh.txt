@@ -1,0 +1,106 @@
+================================================================================
+     TỔNG HỢP CODE LIÊN QUAN TỚI CẮN MÁU NHANH & VỪA CHẠY VỪA CẮN MÁU
+================================================================================
+
+[1] CƠ CHẾ VỪA CHẠY NHANH VỪA CẮN MÁU (COW.GameVarDef):
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.IsUseMedkitForceStand (bool):
+   - Mặc định: true (Khi bấm dùng túi cứu thương Medkit, game bắt buộc nhân vật
+     phải đứng yên một chỗ hoặc bị khóa đi bộ chậm).
+   - Khi set = false: Xóa bỏ hoàn toàn lệnh bắt đứng yên khi cắn máu, người chơi
+     vừa di chuyển thoải mái vừa bơm máu.
+
+2. COW.GameVarDef.IsUseMedkitForceStandOnlyEffectSprint (bool):
+   - Mặc định: true (Hành động chạy nước rút Sprint sẽ lập tức ngắt quãng quá trình
+     dùng túi cứu thương).
+   - Khi set = false: Cho phép người chơi vừa CHẠY NƯỚC RÚT (Sprint hết tốc độ)
+     vừa dùng túi cứu thương Medkit mà không bị hủy! Vừa chạy bo né đạn vừa đầy cây máu.
+
+
+[2] CÁC THUỘC TÍNH CAN THIỆP TRONG COW.GamePlay.PlayerAttributes:
+--------------------------------------------------------------------------------
+1. EatSpeedScale (float):
+   - Hệ số tốc độ ăn/tiêu thụ vật phẩm hồi phục (Túi cứu thương Medkit, Super Medkit,
+     Nấm năng lượng EP, Bình xịt Inhaler).
+   - Mặc định: 1.0f. Đặt lên 5.0f - 10.0f để cắn máu siêu tốc trong chớp mắt.
+
+2. FSModeUseMedikitFasterRate (float):
+   - Hệ số bổ trợ tăng tốc độ dùng túi cứu thương Medkit riêng biệt.
+
+3. BeHealingIncreaseRatio (float):
+   - Hệ số nhân lượng máu nhận được khi hồi phục (Buff HP nhận vào).
+   - Đặt lên 5.0f để 1 túi máu hồi đầy cây 200 HP ngay lập tức.
+
+
+[3] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using COW;
+using COW.GamePlay;
+
+public static class FastHealHelper
+{
+    // 1. Bật Vừa Chạy Nước Rút Vừa Cắn Máu
+    public static void EnableSprintMedkit()
+    {
+        GameVarDef.IsUseMedkitForceStand = false;
+        GameVarDef.IsUseMedkitForceStandOnlyEffectSprint = false;
+    }
+
+    // 2. Tắt Vừa Chạy Vừa Cắn Máu (Khôi phục mặc định)
+    public static void DisableSprintMedkit()
+    {
+        GameVarDef.IsUseMedkitForceStand = true;
+        GameVarDef.IsUseMedkitForceStandOnlyEffectSprint = true;
+    }
+
+    // 3. Bật / Tắt theo biến toggle boolean
+    public static void SetSprintMedkit(bool enabled)
+    {
+        if (enabled) EnableSprintMedkit();
+        else DisableSprintMedkit();
+    }
+}
+
+
+[4] ĐOẠN CODE GỐC / TÍCH HỢP TRONG SOURCE (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask & Menu OnGUI (Tab 3 Tiện Ích) ---
+
+// 1. Khai báo hằng số Bitmask (dòng ~68):
+private const int AuxRunMedkit = 64;
+
+// 2. Click Toggle trong OnGUI khi bấm hàng 8 Tab 3:
+else if (selectedRow == 8)
+{
+    auxState ^= AuxRunMedkit;
+}
+
+// 3. Render nút bấm trong Tab 3 (row == 8):
+else if (row == 8)
+{
+    rowBit = -AuxRunMedkit;
+    rowLabel = "💊 Vừa Chạy Vừa Cắn Máu (Sprint Medkit)";
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý mỗi frame) ---
+
+bool isRunMedkit = isAuth && (auxState & AuxRunMedkit) != 0;
+try
+{
+    if (isRunMedkit)
+    {
+        COW.GameVarDef.IsUseMedkitForceStand = false;
+        COW.GameVarDef.IsUseMedkitForceStandOnlyEffectSprint = false;
+    }
+    else
+    {
+        COW.GameVarDef.IsUseMedkitForceStand = true;
+        COW.GameVarDef.IsUseMedkitForceStandOnlyEffectSprint = true;
+    }
+}
+catch (Exception)
+{
+}
+================================================================================

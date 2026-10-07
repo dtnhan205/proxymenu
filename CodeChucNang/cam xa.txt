@@ -1,0 +1,224 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI CAM XA / FOV RỘNG / IPAD & DRONE VIEW
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GamePlay.CameraControllerManager (Bộ quản lý Camera chính của game):
+   - Lấy instance: GameFacade.CurrentCameraControllerManager()
+   - SetFov(float fov) [Offset: 0x58ddb4c]:
+     + Đặt trực tiếp góc nhìn FOV (Field Of View) cho game camera.
+     + Các mốc góc nhìn phổ biến: 85.0f, 88.0f (iPad view), 95.0f, 105.0f (Drone view).
+   - ReSetFov() [Offset: 0x58ddc4c]:
+     + Khôi phục góc nhìn FOV về mặc định của game (mặc định tầm 60°).
+   - get_GameCamera() [Offset: 0x58dd930]:
+     + Lấy đối tượng UnityEngine.Camera đang render thế giới 3D.
+   - SetFarClipPlane(float farClip) [Offset: 0x58dd988]:
+     + Nâng khoảng cách hiển thị xa (chống mù sương / chống mất hình khi cam quá cao/xa).
+   - ReSetFarClipPlane() [Offset: 0x58dda80]:
+     + Đưa khoảng cách hiển thị về mặc định.
+
+2. COW.GamePlay.FollowCamera (Camera góc nhìn thứ ba TPP bám theo nhân vật):
+   - Lấy instance: localPlayer.get_MyFollowCamera() [Offset: 0x56347e8]
+   - FOVOffset (float - Offset 0x84):
+     + Hệ số bù trừ FOV góc nhìn.
+   - BackOffset (float - Offset 0x80):
+     + Khoảng cách đẩy camera lùi ra sau lưng nhân vật.
+     + Đây là cơ chế "Cam Xa / Drone View" chuẩn nhất: Camera lùi ra xa nhân vật nhưng
+       KHÔNG làm méo mó hình tròn hay cong viền màn hình dạng thấu kính mắt cá (Fisheye).
+   - UpOffset (float - Offset 0x7c):
+     + Nâng độ cao camera lên trên đầu nhân vật, giúp quan sát từ trên cao xuống bao quát.
+   - RightOffset (float - Offset 0x78):
+     + Căn chỉnh camera lệch sang phải qua vai nhân vật.
+   - GetFovNormal() [Offset: 0x58eef50]: Hàm lấy FOV chuẩn của FollowCamera.
+   - get_OffsetForNormal() [Offset: 0x58ee590]: Hàm lấy khoảng cách offset chuẩn.
+
+3. UnityEngine.Camera.main (Camera cơ bản của Unity Engine):
+   - Camera.main.fieldOfView (float):
+     + Thuộc tính FOV trực tiếp của camera chính trong Unity.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using UnityEngine;
+using COW;
+using COW.GamePlay;
+
+public static class WideViewHelper
+{
+    // 1. Bật Cam Xa FOV đơn giản (Chuẩn góc nhìn iPad 88 độ)
+    public static void EnableWideFov(float fov = 88f)
+    {
+        CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+        if (camMgr != null)
+        {
+            camMgr.SetFov(fov);
+        }
+    }
+
+    // 2. Tắt Cam Xa (Khôi phục FOV gốc)
+    public static void DisableWideFov()
+    {
+        CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+        if (camMgr != null)
+        {
+            camMgr.ReSetFov();
+        }
+    }
+
+    // 3. Xử lý Cam Xa thông minh (Tự động hạ scope khi ngắm bắn)
+    // Lưu ý: Khi ngắm súng (Scope x2, x4, x8), cần tạm thời Reset FOV để tâm ngắm
+    // không bị thu nhỏ hoặc lệch tâm, khi nhả ngắm thì tự bật lại Cam Xa.
+    public static void UpdateSmartCamera(Player localPlayer, bool enabled, float customFov = 88f)
+    {
+        if (localPlayer == null) return;
+        CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+        if (camMgr == null) return;
+
+        if (enabled)
+        {
+            // Kiểm tra trạng thái đang bật ngắm (Sighting/Scoping)
+            if (localPlayer.GetSightingState())
+            {
+                camMgr.ReSetFov(); // Tạm tắt FOV rộng để hiển thị tâm ngắm bình thường
+            }
+            else
+            {
+                camMgr.SetFov(customFov); // Bật góc nhìn rộng khi không ngắm
+            }
+        }
+        else
+        {
+            camMgr.ReSetFov();
+        }
+    }
+
+    // 4. Bật Drone View chuyên nghiệp bằng FollowCamera (Đẩy xa + nâng cao góc nhìn)
+    public static void SetDroneView(Player localPlayer, bool enabled, float backDistance = 5.0f, float upHeight = 2.5f)
+    {
+        if (localPlayer == null) return;
+        FollowCamera followCam = localPlayer.get_MyFollowCamera();
+        if (followCam == null) return;
+
+        if (enabled)
+        {
+            followCam.BackOffset = backDistance; // Đẩy cam ra xa sau lưng (Mặc định thường ~0f hoặc âm)
+            followCam.UpOffset = upHeight;       // Nâng cam lên cao hơn đầu
+        }
+        else
+        {
+            followCam.BackOffset = 0f;
+            followCam.UpOffset = 0f;
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Hiển thị Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ VIP (dòng 55):
+private const int VipWideView = 8;
+
+// 2. Click xử lý Toggle trong OnGUI (dòng 1034):
+int vipBit = selectedRow == 0 ? VipFastFire
+    : (selectedRow == 1 ? NoRecoil
+    : (selectedRow == 2 ? VipHeadDamage : VipWideView));
+vipMask ^= vipBit;
+modalState.z = (float)(((int)modalState.z & ~15) | (vipMask & 15));
+driverObject.transform.localScale = modalState;
+
+// 3. Hiển thị dòng nút trong Tab VIP (activeTab == 2, dòng 1802):
+else if (row == 3)
+{
+    rowBit = VipWideView;
+    rowLabel = "📱 Góc Nhìn Rộng iPad / Cam Xa (FOV 88°)";
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý mỗi frame trên Local Player, dòng 1101-1145) ---
+(Tự động điều chỉnh FOV và kiểm tra GetSightingState để không làm hỏng tâm ngắm scope):
+
+Player localPlayer = GameFacade.CurrentLocalPlayer();
+if (localPlayer != null)
+{
+    bool isWide = (vipMask & VipWideView) != 0;
+    bool camWideApplied = driverObject != null && driverObject.transform.localEulerAngles.x > 0.5f;
+    CameraControllerManager camMgr = GameFacade.CurrentCameraControllerManager();
+    if (camMgr != null)
+    {
+        if (isWide)
+        {
+            if (localPlayer.GetSightingState())
+            {
+                if (camWideApplied)
+                {
+                    camMgr.ReSetFov();
+                    if (driverObject != null)
+                    {
+                        driverObject.transform.localEulerAngles = new Vector3(
+                            0f,
+                            driverObject.transform.localEulerAngles.y,
+                            0f);
+                    }
+                }
+            }
+            else
+            {
+                camMgr.SetFov(88f);
+                if (!camWideApplied && driverObject != null)
+                {
+                    driverObject.transform.localEulerAngles = new Vector3(
+                        1f,
+                        driverObject.transform.localEulerAngles.y,
+                        0f);
+                }
+            }
+        }
+        else if (camWideApplied)
+        {
+            camMgr.ReSetFov();
+            if (driverObject != null)
+            {
+                driverObject.transform.localEulerAngles = new Vector3(
+                    0f,
+                    driverObject.transform.localEulerAngles.y,
+                    0f);
+            }
+        }
+    }
+}
+
+
+[4] BẢNG THAM SỐ GÓC NHÌN FOV & KHOẢNG CÁCH KHUYÊN DÙNG:
+--------------------------------------------------------------------------------
++ 60°: Góc nhìn mặc định điện thoại (Tầm nhìn hẹp, dễ bị móc lốp hai bên).
++ 75°: Mở rộng nhẹ (Tự nhiên, legit khi quay màn hình livestream).
++ 85° - 88°: Góc nhìn iPad View chuẩn (Được ưa chuộng nhất, không méo hình, bao quát 2 bên).
++ 95° - 100°: Góc nhìn Drone View rộng (Quan sát địch núp cây, sau tảng đá cực rõ).
++ 110° - 120°: Góc nhìn Toàn cảnh cực đại (Góc nhìn toàn bản đồ, viền màn hình hơi cong).
+
++ Khoảng cách FollowCamera (BackOffset / UpOffset):
+  - BackOffset: +3.0f đến +6.0f (Cam lùi xa khỏi nhân vật).
+  - UpOffset: +1.5f đến +3.5f (Cam nhìn từ trên cao xuống).
+
+
+[5] CÁCH WEAVE / RETARGET MONO.CECIL (NẾU CẦN DÙNG FOLLOWCAMERA TRONG SOURCE):
+--------------------------------------------------------------------------------
+Trong Free Fire, `CameraControllerManager.SetFov()` đã có sẵn trong Assembly-CSharp.
+Nếu muốn can thiệp sâu vào `FollowCamera.BackOffset` và `UpOffset` thông qua C# patch,
+ta thêm đoạn sau vào `src/WeaveEsp.cs` để Mono.Cecil giải mã property nếu bị obfuscate:
+
+TypeDefinition playerType = module.GetType("COW.GamePlay.Player");
+MethodDefinition getFollowCam = playerType.Methods.SingleOrDefault(m =>
+    m.Name == "get_MyFollowCamera" && m.Parameters.Count == 0);
+if (getFollowCam != null && !playerType.Properties.Any(p => p.Name == "MyFollowCamera"))
+{
+    playerType.Properties.Add(new PropertyDefinition("MyFollowCamera", PropertyAttributes.None, getFollowCam.ReturnType)
+    {
+        GetMethod = getFollowCam
+    });
+}
+================================================================================

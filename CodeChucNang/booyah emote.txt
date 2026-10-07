@@ -1,0 +1,174 @@
+================================================================================
+           TỔNG HỢP CODE LIÊN QUAN TỚI BẬT ĐIỆU NHẢY BOOYAH / SUPER EMOTE
+================================================================================
+
+[1] CÁC THUỘC TÍNH VÀ CLASS CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GamePlay.Player.StartCheckBooyahEmote() [Offset: 0x56f3f4c]:
+   - Hàm kích hoạt chuỗi kiểm tra và kích hoạt điệu nhảy Booyah Emote của nhân vật.
+   - Bình thường game chỉ cho phép nhảy khi đã kết thúc trận đấu và đạt chiến thắng Booyah.
+   - Khi gọi trực tiếp trong trận: Cho phép nhân vật kích hoạt trạng thái nhảy Booyah mọi lúc.
+
+2. COW.GamePlay.Player.PlayCarni25GPDanceEmote() [Offset: 0x561d53c]:
+   - Hàm phát trực tiếp điệu nhảy Dance Emote (Carnival Dance) độc quyền của nhân vật
+     mà không cần truyền tham số ID rườm rà.
+   - Tạo hoạt ảnh múa nhảy mượt mà ngay cả khi đang trong trận đấu.
+
+3. COW.GamePlay.Player.RequestPlayBooyahSuperEmote(System.UInt32 emoteId) [Offset: 0x57d4c8c]:
+   - Hàm gửi yêu cầu phát Super Emote Booyah (Điệu nhảy tương tác VIP đặc biệt).
+   - Truyền emoteId = 0 để kích hoạt điệu nhảy Booyah mặc định của nhân vật.
+
+4. COW.GamePlay.Player.StopCheckBooyahEmote(System.Boolean isClear) [Offset: 0x5659344]:
+   - Hàm dừng điệu nhảy và đưa nhân vật trở về trạng thái chiến đấu/di chuyển bình thường.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+using COW.GamePlay;
+
+public static class SuperEmoteHelper
+{
+    // 1. Kích hoạt Điệu nhảy Booyah / Super Emote
+    public static void PlayBooyahEmote(Player localPlayer)
+    {
+        if (localPlayer == null) return;
+        try
+        {
+            localPlayer.StartCheckBooyahEmote();
+            localPlayer.PlayCarni25GPDanceEmote();
+            localPlayer.RequestPlayBooyahSuperEmote(0);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Dừng Điệu nhảy (Trở về trạng thái chiến đấu bình thường)
+    public static void StopBooyahEmote(Player localPlayer)
+    {
+        if (localPlayer == null) return;
+        try
+        {
+            localPlayer.StopCheckBooyahEmote(true);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý cập nhật Toggle theo chu kỳ (tránh bị giật khựng do lặp animation mỗi frame)
+    public static void UpdateSuperEmote(Player localPlayer, bool isEnabled, int currentFrame)
+    {
+        if (localPlayer == null) return;
+        try
+        {
+            if (isEnabled)
+            {
+                // Kích hoạt lặp lại mỗi ~3 giây (180 frame ở 60 FPS) để giữ điệu nhảy liên tục
+                if (currentFrame % 180 == 1)
+                {
+                    localPlayer.StartCheckBooyahEmote();
+                    localPlayer.PlayCarni25GPDanceEmote();
+                    localPlayer.RequestPlayBooyahSuperEmote(0);
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask (dòng 43):
+private const int SuperEmote = 1073741824; // 1 << 30 (Bit 30 an toàn tuyệt đối)
+
+// 2. Thiết lập số dòng cho Tab 3 (Cài đặt / Di chuyển) (dòng 602):
+else
+{
+    rowCount = 8;
+}
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI (dòng 1092):
+else if (selectedRow == 5)
+{
+    if ((state & SuperEmote) != 0)
+    {
+        try
+        {
+            Player lp = GameFacade.CurrentLocalPlayer();
+            if (lp != null)
+            {
+                lp.StopCheckBooyahEmote(true);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+    state ^= SuperEmote; // Bật / Tắt Điệu nhảy Booyah
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3) (dòng 2023):
+else if (row == 5)
+{
+    rowBit = SuperEmote;
+    rowLabel = "🕺 Bật Điệu Nhảy Booyah / Super Emote";
+}
+
+// 5. Kiểm tra trạng thái Active (dòng 2060):
+else if (rowBit == SuperEmote)
+{
+    isRowActive = (state & SuperEmote) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame) ---
+
+bool isSuperEmote = isAuth && (state & SuperEmote) != 0;
+try
+{
+    if (isSuperEmote)
+    {
+        if (curFrame % 180 == 1)
+        {
+            localPlayer.StartCheckBooyahEmote();
+            localPlayer.PlayCarni25GPDanceEmote();
+            localPlayer.RequestPlayBooyahSuperEmote(0);
+        }
+    }
+}
+catch (Exception)
+{
+}
+
+
+[4] BẢNG PHÂN TÍCH CƠ CHẾ HOẠT ĐỘNG & TÍNH NĂNG:
+--------------------------------------------------------------------------------
+1. Bình thường trong Free Fire:
+   - Điệu nhảy Booyah và Super Emote tương tác chỉ được phép phát khi game kết thúc
+     hoặc trong phòng chờ / sảnh chờ.
+   - Trong trận đấu sinh tồn, khi đang chạy bo hoặc combat thì nút emote bị khóa hoặc
+     chỉ phát được các emote cơ bản và sẽ bị ngắt ngay khi di chuyển.
+
+2. Khi bật tính năng này:
+   - Gọi trực tiếp chuỗi hàm hoạt ảnh native của nhân vật.
+   - Nhảy liên tục mỗi chu kỳ ~3 giây mà không cần bấm tay vào vòng xoay emote.
+   - Dùng để trêu đùa đối thủ khi knock hoặc tạo highlight cực vui nhộn.
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Hoạt động trực tiếp trên hệ thống Animation/State của Player cục bộ.
+- Xử lý điều độ nhịp theo `curFrame % 180 == 1` giúp hoạt ảnh phát trọn vẹn,
+  không bị hiện tượng reset frame đầu gây giật lắc nhân vật.
+- Khi tắt nút hoặc bấm "Khôi Phục Cài Đặt Mặc Định", hàm `StopCheckBooyahEmote(true)`
+  sẽ tự động đưa nhân vật trở lại tư thế cầm súng sẵn sàng chiến đấu.
+================================================================================

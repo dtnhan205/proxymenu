@@ -52,13 +52,25 @@ namespace ProjectEspPatch
         private const int ModalTracerOrigin = 50;
         private const int ModalFovColor = 60;
         private const int VipFastFire = 1;
+        private const int VipFastRotation = 2;
         private const int VipHeadDamage = 4;
         private const int VipWideView = 8;
         private const int AuxFastParachute = 1;
         private const int AuxSpeedRunning = 2;
         private const int AuxSpeedRunningApplied = 4;
-        private const int AuxMask = 7;
-        private const int AuxTickShift = 3;
+        private const int AuxBackJump = 8;
+        private const int AuxHighJump = 16;
+        private const int AuxChamsOutline = 32;
+        private const int AuxFastSwap = 64;
+        private const int AuxNoGrass = 128;
+        private const int AuxNoFog = 256;
+        private const int AuxFastLoot = 512;
+        private const int AuxFastCrouch = 1024;
+        private const int AuxSuperEmote = 2048;
+        private const int AuxFastReload = 4096;
+        private const int AuxUnlockFps = 8192;
+        private const int AuxMask = 16383;
+        private const int AuxTickShift = 14;
         private const float AuxStateMarker = 1000000f;
         private const ulong SpeedRunningKey = 4995421289296778564UL;
         private const int DefaultAimState = (2 << AimModeShift)
@@ -958,6 +970,18 @@ namespace ProjectEspPatch
                             int nLineThick = -1;
                             int nBoxColor = -1;
                             int nLineColor = -1;
+                            int nBackJump = -1;
+                            int nHighJump = -1;
+                            int nFastRot = -1;
+                            int nChamsOutline = -1;
+                            int nFastSwap = -1;
+                            int nNoGrass = -1;
+                            int nNoFog = -1;
+                            int nFastLoot = -1;
+                            int nFastCrouch = -1;
+                            int nSuperEmote = -1;
+                            int nFastReload = -1;
+                            int nUnlockFps = -1;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
@@ -965,7 +989,10 @@ namespace ProjectEspPatch
                                 "aim_target", "buff_damage", "fast_fire", "wide_view", "cam_distance",
                                 "speed_run", "fast_parachute", "box_r", "box_g", "box_b",
                                 "line_r", "line_g", "line_b", "draw_fov",
-                                "box_thickness", "line_thickness", "box_color", "line_color"
+                                "box_thickness", "line_thickness", "box_color", "line_color",
+                                "back_jump", "high_jump", "fast_rotation", "chams_outline", "fast_swap",
+                                "no_grass", "no_fog", "fast_loot", "fast_crouch", "super_emote", "fast_reload",
+                                "unlock_fps"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -1015,6 +1042,18 @@ namespace ProjectEspPatch
                                                 else if (k == 26) nLineThick = parsedVal;
                                                 else if (k == 27) nBoxColor = parsedVal;
                                                 else if (k == 28) nLineColor = parsedVal;
+                                                else if (k == 29) nBackJump = parsedVal;
+                                                else if (k == 30) nHighJump = parsedVal;
+                                                else if (k == 31) nFastRot = parsedVal;
+                                                else if (k == 32) nChamsOutline = parsedVal;
+                                                else if (k == 33) nFastSwap = parsedVal;
+                                                else if (k == 34) nNoGrass = parsedVal;
+                                                else if (k == 35) nNoFog = parsedVal;
+                                                else if (k == 36) nFastLoot = parsedVal;
+                                                else if (k == 37) nFastCrouch = parsedVal;
+                                                else if (k == 38) nSuperEmote = parsedVal;
+                                                else if (k == 39) nFastReload = parsedVal;
+                                                else if (k == 40) nUnlockFps = parsedVal;
                                             }
                                         }
                                     }
@@ -1061,6 +1100,16 @@ namespace ProjectEspPatch
                                 newEsp = 0;
                                 newAim = 0;
                                 nFastFire = 0;
+                                nFastRot = 0;
+                                nChamsOutline = 0;
+                                nFastSwap = 0;
+                                nNoGrass = 0;
+                                nNoFog = 0;
+                                nFastLoot = 0;
+                                nFastCrouch = 0;
+                                nSuperEmote = 0;
+                                nFastReload = 0;
+                                nUnlockFps = 0;
                                 nBuffDmg = 0;
                                 nWide = 0;
                                 nParachute = 0;
@@ -1085,6 +1134,9 @@ namespace ProjectEspPatch
                             if (nFastFire != 0) vipMask |= VipFastFire;
                             else vipMask &= ~VipFastFire;
 
+                            if (nFastRot != 0) vipMask |= VipFastRotation;
+                            else vipMask &= ~VipFastRotation;
+
                             if (nBuffDmg != 0) vipMask |= VipHeadDamage;
                             else vipMask &= ~VipHeadDamage;
 
@@ -1096,6 +1148,39 @@ namespace ProjectEspPatch
 
                             if (nSpeed != 0) auxState |= AuxSpeedRunning;
                             else auxState &= ~AuxSpeedRunning;
+
+                            if (nBackJump != 0) auxState |= AuxBackJump;
+                            else auxState &= ~AuxBackJump;
+
+                            if (nHighJump != 0) auxState |= AuxHighJump;
+                            else auxState &= ~AuxHighJump;
+
+                            if (nChamsOutline != 0) auxState |= AuxChamsOutline;
+                            else auxState &= ~AuxChamsOutline;
+
+                            if (nFastSwap != 0) auxState |= AuxFastSwap;
+                            else auxState &= ~AuxFastSwap;
+
+                            if (nNoGrass != 0) auxState |= AuxNoGrass;
+                            else auxState &= ~AuxNoGrass;
+
+                            if (nNoFog != 0) auxState |= AuxNoFog;
+                            else auxState &= ~AuxNoFog;
+
+                            if (nFastLoot != 0) auxState |= AuxFastLoot;
+                            else auxState &= ~AuxFastLoot;
+
+                            if (nFastCrouch != 0) auxState |= AuxFastCrouch;
+                            else auxState &= ~AuxFastCrouch;
+
+                            if (nSuperEmote != 0) auxState |= AuxSuperEmote;
+                            else auxState &= ~AuxSuperEmote;
+
+                            if (nFastReload != 0) auxState |= AuxFastReload;
+                            else auxState &= ~AuxFastReload;
+
+                            if (nUnlockFps != 0) auxState |= AuxUnlockFps;
+                            else auxState &= ~AuxUnlockFps;
 
                             int cfgPackedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
                             self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, -AuxStateMarker - (float)cfgPackedAux);
@@ -1245,8 +1330,9 @@ namespace ProjectEspPatch
             float firstRowY = panelY + headerHeight + 8f;
             float footerY = panelY + panelHeight - footerHeight - 10f;
             float availableRowSpace = footerY - firstRowY - 8f;
-            float rowHeight = availableRowSpace / 8f;
-            float rowCardHeight = rowHeight - 6f;
+            float activeRows = activeTab == 3 ? 13f : 8f;
+            float rowHeight = availableRowSpace / activeRows;
+            float rowCardHeight = rowHeight - 5f;
             Rect panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
             Rect headerRect = new Rect(panelX, panelY, panelWidth, headerHeight);
             Rect closeRect = new Rect(panelX + panelWidth - 50f, panelY + 8f, 40f, 40f);
@@ -1258,6 +1344,11 @@ namespace ProjectEspPatch
             Rect row6Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 5f, panelWidth - 32f, rowCardHeight);
             Rect row7Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 6f, panelWidth - 32f, rowCardHeight);
             Rect row8Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 7f, panelWidth - 32f, rowCardHeight);
+            Rect row9Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 8f, panelWidth - 32f, rowCardHeight);
+            Rect row10Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 9f, panelWidth - 32f, rowCardHeight);
+            Rect row11Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 10f, panelWidth - 32f, rowCardHeight);
+            Rect row12Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 11f, panelWidth - 32f, rowCardHeight);
+            Rect row13Rect = new Rect(panelX + 16f, firstRowY + rowHeight * 12f, panelWidth - 32f, rowCardHeight);
             float tabSpacing = 6f;
             float tabWidth = (panelWidth - 32f - tabSpacing * 3f) / 4f;
             Rect espTab = new Rect(panelX + 16f, footerY, tabWidth, footerHeight);
@@ -1270,7 +1361,7 @@ namespace ProjectEspPatch
             {
                 if (activeTab == 0)
                 {
-                    rowCount = 7;
+                    rowCount = 8;
                 }
                 else if (activeTab == 1)
                 {
@@ -1285,11 +1376,11 @@ namespace ProjectEspPatch
                 }
                 else if (activeTab == 2)
                 {
-                    rowCount = 4;
+                    rowCount = 6;
                 }
                 else
                 {
-                    rowCount = 4;
+                    rowCount = 13;
                 }
             }
 
@@ -1626,6 +1717,11 @@ namespace ProjectEspPatch
                     else if (row6Rect.Contains(pointer)) selectedRow = 5;
                     else if (row7Rect.Contains(pointer)) selectedRow = 6;
                     else if (row8Rect.Contains(pointer)) selectedRow = 7;
+                    else if (row9Rect.Contains(pointer)) selectedRow = 8;
+                    else if (row10Rect.Contains(pointer)) selectedRow = 9;
+                    else if (row11Rect.Contains(pointer)) selectedRow = 10;
+                    else if (row12Rect.Contains(pointer)) selectedRow = 11;
+                    else if (row13Rect.Contains(pointer)) selectedRow = 12;
 
                     if (selectedRow >= 0 && selectedRow < rowCount)
                     {
@@ -1640,6 +1736,10 @@ namespace ProjectEspPatch
                                 activeModal = ModalTracerOrigin;
                                 modalState.x = (float)ModalTracerOrigin;
                                 driverObject.transform.localScale = modalState;
+                            }
+                            else if (selectedRow == 7)
+                            {
+                                auxState ^= AuxChamsOutline;
                             }
                             else
                             {
@@ -1730,10 +1830,14 @@ namespace ProjectEspPatch
                             {
                                 state ^= NoRecoil;
                             }
+                            else if (selectedRow == 5)
+                            {
+                                auxState ^= AuxFastSwap;
+                            }
                             else
                             {
                                 int vipBit = selectedRow == 0 ? VipFastFire
-                                    : (selectedRow == 2 ? VipHeadDamage : VipWideView);
+                                    : (selectedRow == 2 ? VipHeadDamage : (selectedRow == 3 ? VipWideView : VipFastRotation));
                                 vipMask ^= vipBit;
                                 modalState.z = (float)((vipMask & 15) | (customB << 4));
                                 driverObject.transform.localScale = modalState;
@@ -1749,6 +1853,67 @@ namespace ProjectEspPatch
                         }
                         else if (selectedRow == 2)
                         {
+                            auxState ^= AuxBackJump;
+                        }
+                        else if (selectedRow == 3)
+                        {
+                            auxState ^= AuxHighJump;
+                        }
+                        else if (selectedRow == 4)
+                        {
+                            auxState ^= AuxNoGrass;
+                        }
+                        else if (selectedRow == 5)
+                        {
+                            auxState ^= AuxNoFog;
+                        }
+                        else if (selectedRow == 6)
+                        {
+                            auxState ^= AuxFastLoot;
+                        }
+                        else if (selectedRow == 7)
+                        {
+                            auxState ^= AuxFastCrouch;
+                        }
+                        else if (selectedRow == 8)
+                        {
+                            if ((auxState & AuxSuperEmote) != 0)
+                            {
+                                try
+                                {
+                                    Player lp = GameFacade.CurrentLocalPlayer();
+                                    if (lp != null)
+                                    {
+                                        lp.StopCheckBooyahEmote(true);
+                                    }
+                                }
+                                catch (Exception)
+                                {
+                                }
+                            }
+                            auxState ^= AuxSuperEmote;
+                        }
+                        else if (selectedRow == 9)
+                        {
+                            auxState ^= AuxFastReload;
+                        }
+                        else if (selectedRow == 10)
+                        {
+                            if ((auxState & AuxUnlockFps) != 0)
+                            {
+                                try
+                                {
+                                    Application.targetFrameRate = 60;
+                                    GameFacade.SetFrameRate(COW.EHighFPS.HighFPS);
+                                }
+                                catch (Exception)
+                                {
+                                }
+                            }
+                            auxState ^= AuxUnlockFps;
+                        }
+                        else if (selectedRow == 11)
+                        {
                             mask = EspMask;
                             state &= ~(AimEnabled | AimModeMask | NoRecoil
                                 | HeadRateMask | AimSystemEnabled | AimSystemHead);
@@ -1756,6 +1921,124 @@ namespace ProjectEspPatch
                             aimMode = 2;
                             headRateIndex = 3;
                             auxState &= AuxSpeedRunningApplied;
+                            try
+                            {
+                                if (!COW.GameVarDef.EnableAccelerationOnFalling)
+                                {
+                                    COW.GameVarDef.EnableAccelerationOnFalling = true;
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                COW.GameVarDef.EnableShowPlayerOutline = false;
+                                COW.GameVarDef.PCOBOutlineSolid = false;
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                COW.GameVarDef.AutoPickupPoolOptEnabled = false;
+                                COW.GameVarDef.AutoPickupInvokeOptEnabled = false;
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                COW.GameVarDef.CanCrouchingRunFast = false;
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                COW.GameVarDef.DebugWeaponReloadProgressAniTime = 0f;
+                                COW.GameVarDef.CanReloadContinueShoot = false;
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                Application.targetFrameRate = 60;
+                                GameFacade.SetFrameRate(COW.EHighFPS.HighFPS);
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                Player lp = GameFacade.CurrentLocalPlayer();
+                                if (lp != null)
+                                {
+                                    lp.StopCheckBooyahEmote(true);
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                RenderSettings.fog = true;
+                                CameraControllerManager cMgr = GameFacade.CurrentCameraControllerManager();
+                                if (cMgr != null)
+                                {
+                                    cMgr.ReSetFarClipPlane();
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                COW.GameVarDef.HighGrassHeightScale_Neo = 1f;
+                                COW.GameVarDef.MiddleGrassHeightScale_Neo = 1f;
+                                COW.GameVarDef.LowGrassHeightScale_Shangrila = 1f;
+                                COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 1f;
+                                COW.GameVarDef.HighGrassHeightScale_Shangrila = 1f;
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                if (COW.GameVarDef.SwapWeaponCD < 0.1f)
+                                {
+                                    COW.GameVarDef.SwapWeaponCD = 0.5f;
+                                    COW.GameVarDef.CanSwapWeaponContinueShoot = false;
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                if (COW.GameVarDef.FreeMoveAngularSpeed > 5000f)
+                                {
+                                    COW.GameVarDef.FreeMoveAngularSpeed = 360f;
+                                    COW.GameVarDef.FreeMoveAngularSpeedStand = 360f;
+                                    COW.GameVarDef.FreeMoveAngularSpeedCrouch = 240f;
+                                    COW.GameVarDef.FreeMoveAngularSpeedCreep = 180f;
+                                    COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 90f;
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            try
+                            {
+                                if (COW.GameVarDef.MaxJumpHeight > 1.05f)
+                                {
+                                    COW.GameVarDef.MaxJumpHeight = 1.0f;
+                                }
+                            }
+                            catch (Exception)
+                            {
+                            }
                             driverPos.z = 140f;
                             driverObject.transform.position = driverPos;
                             fovRadius = 140f;
@@ -1770,7 +2053,7 @@ namespace ProjectEspPatch
                             customB = 255;
                             activeModal = ModalNone;
                         }
-                        else if (selectedRow == 3)
+                        else if (selectedRow == 12)
                         {
                             menuOpen = false;
                             activeModal = ModalNone;
@@ -1968,6 +2251,271 @@ namespace ProjectEspPatch
                                 }
                             }
                         }
+                    }
+
+                    bool isBackJump = isAuth && (auxState & AuxBackJump) != 0;
+                    try
+                    {
+                        if (isBackJump)
+                        {
+                            COW.GameVarDef.EnableAccelerationOnFalling = false;
+                            COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+                        }
+                        else
+                        {
+                            if (!COW.GameVarDef.EnableAccelerationOnFalling)
+                            {
+                                COW.GameVarDef.EnableAccelerationOnFalling = true;
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isHighJump = isAuth && (auxState & AuxHighJump) != 0;
+                    try
+                    {
+                        if (isHighJump)
+                        {
+                            COW.GameVarDef.MaxJumpHeight = 1.2f;
+                        }
+                        else
+                        {
+                            if (COW.GameVarDef.MaxJumpHeight > 1.05f)
+                            {
+                                COW.GameVarDef.MaxJumpHeight = 1.0f;
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isChams = isAuth && (auxState & AuxChamsOutline) != 0;
+                    try
+                    {
+                        if (isChams)
+                        {
+                            COW.GameVarDef.EnableShowPlayerOutline = true;
+                            COW.GameVarDef.ShowPlayerOutlineMaxDistance = 500u;
+                            COW.GameVarDef.ShowPlayerOutlineColor = 0xFFFF0000;
+                            COW.GameVarDef.ShowPlayerOutlineWidth = 3f;
+                            COW.GameVarDef.PCOBOutlineSolid = true;
+                        }
+                        else if (COW.GameVarDef.EnableShowPlayerOutline)
+                        {
+                            COW.GameVarDef.EnableShowPlayerOutline = false;
+                            COW.GameVarDef.PCOBOutlineSolid = false;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isUnlockFps = isAuth && (auxState & AuxUnlockFps) != 0;
+                    try
+                    {
+                        if (isUnlockFps)
+                        {
+                            if (Application.targetFrameRate != 144)
+                            {
+                                Application.targetFrameRate = 144;
+                                GameFacade.SetFrameRate(COW.EHighFPS.HighFPS144);
+                            }
+                        }
+                        else if (Application.targetFrameRate > 60)
+                        {
+                            Application.targetFrameRate = 60;
+                            GameFacade.SetFrameRate(COW.EHighFPS.HighFPS);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isFastReload = isAuth && (auxState & AuxFastReload) != 0;
+                    try
+                    {
+                        if (isFastReload)
+                        {
+                            COW.GameVarDef.DebugWeaponReloadProgressAniTime = 0.05f;
+                            COW.GameVarDef.CanReloadContinueShoot = true;
+                            COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+                            COW.GameVarDef.NoResetUplayerAnimationWhenReloading = true;
+                        }
+                        else if (COW.GameVarDef.DebugWeaponReloadProgressAniTime > 0.01f)
+                        {
+                            COW.GameVarDef.DebugWeaponReloadProgressAniTime = 0f;
+                            COW.GameVarDef.CanReloadContinueShoot = false;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isSuperEmote = isAuth && (auxState & AuxSuperEmote) != 0;
+                    try
+                    {
+                        if (isSuperEmote)
+                        {
+                            if (curFrame % 180 == 1)
+                            {
+                                localPlayer.StartCheckBooyahEmote();
+                                localPlayer.PlayCarni25GPDanceEmote();
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isFastCrouch = isAuth && (auxState & AuxFastCrouch) != 0;
+                    try
+                    {
+                        if (isFastCrouch)
+                        {
+                            if (!COW.GameVarDef.CanCrouchingRunFast)
+                            {
+                                COW.GameVarDef.CanCrouchingRunFast = true;
+                            }
+                        }
+                        else if (COW.GameVarDef.CanCrouchingRunFast)
+                        {
+                            COW.GameVarDef.CanCrouchingRunFast = false;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isFastLoot = isAuth && (auxState & AuxFastLoot) != 0;
+                    try
+                    {
+                        if (isFastLoot)
+                        {
+                            if (!COW.GameVarDef.AutoPickupPoolOptEnabled)
+                            {
+                                COW.GameVarDef.AutoPickupPoolOptEnabled = true;
+                                COW.GameVarDef.AutoPickupInvokeOptEnabled = true;
+                                COW.GameVarDef.AutoPickUpSortAttachmentEnable = true;
+                                COW.GameVarDef.EnableBackgroundCacheAutoPickupWeapon = true;
+                                COW.GameVarDef.EnableBackgroundCacheAutoPickupFppWeapon = true;
+                            }
+                        }
+                        else if (COW.GameVarDef.AutoPickupPoolOptEnabled)
+                        {
+                            COW.GameVarDef.AutoPickupPoolOptEnabled = false;
+                            COW.GameVarDef.AutoPickupInvokeOptEnabled = false;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isNoFog = isAuth && (auxState & AuxNoFog) != 0;
+                    try
+                    {
+                        if (isNoFog)
+                        {
+                            if (RenderSettings.fog)
+                            {
+                                RenderSettings.fog = false;
+                            }
+                            CameraControllerManager cMgr = GameFacade.CurrentCameraControllerManager();
+                            if (cMgr != null)
+                            {
+                                cMgr.SetFarClipPlane(1000f);
+                            }
+                        }
+                        else
+                        {
+                            if (!RenderSettings.fog)
+                            {
+                                RenderSettings.fog = true;
+                                CameraControllerManager cMgr = GameFacade.CurrentCameraControllerManager();
+                                if (cMgr != null)
+                                {
+                                    cMgr.ReSetFarClipPlane();
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isNoGrass = isAuth && (auxState & AuxNoGrass) != 0;
+                    try
+                    {
+                        if (isNoGrass)
+                        {
+                            COW.GameVarDef.HighGrassHeightScale_Neo = 0f;
+                            COW.GameVarDef.MiddleGrassHeightScale_Neo = 0f;
+                            COW.GameVarDef.LowGrassHeightScale_Shangrila = 0f;
+                            COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 0f;
+                            COW.GameVarDef.HighGrassHeightScale_Shangrila = 0f;
+                        }
+                        else if (COW.GameVarDef.HighGrassHeightScale_Neo < 0.5f)
+                        {
+                            COW.GameVarDef.HighGrassHeightScale_Neo = 1f;
+                            COW.GameVarDef.MiddleGrassHeightScale_Neo = 1f;
+                            COW.GameVarDef.LowGrassHeightScale_Shangrila = 1f;
+                            COW.GameVarDef.MiddleGrassHeightScale_Shangrila = 1f;
+                            COW.GameVarDef.HighGrassHeightScale_Shangrila = 1f;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool isFastSwap = isAuth && (auxState & AuxFastSwap) != 0;
+                    try
+                    {
+                        if (isFastSwap)
+                        {
+                            COW.GameVarDef.SwapWeaponCD = 0.0f;
+                            COW.GameVarDef.CanSwapWeaponContinueShoot = true;
+                            COW.GameVarDef.CanInvincibleReloadAndSwapWeapon = true;
+                            COW.GameVarDef.EnableLowFallingSwapWeapon = true;
+                            COW.GameVarDef.EnableSnowSlideGrabSwapWeapon = true;
+                            if (localPlayer != null)
+                            {
+                                localPlayer.ResetSwapWeaponTime();
+                            }
+                        }
+                        else if (COW.GameVarDef.SwapWeaponCD < 0.1f)
+                        {
+                            COW.GameVarDef.SwapWeaponCD = 0.5f;
+                            COW.GameVarDef.CanSwapWeaponContinueShoot = false;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    bool fastRot = isAuth && (vipMask & VipFastRotation) != 0;
+                    try
+                    {
+                        if (fastRot)
+                        {
+                            COW.GameVarDef.FreeMoveAngularSpeed = 9999.9f;
+                            COW.GameVarDef.FreeMoveAngularSpeedStand = 9999.9f;
+                            COW.GameVarDef.FreeMoveAngularSpeedCrouch = 9999.9f;
+                            COW.GameVarDef.FreeMoveAngularSpeedCreep = 9999.9f;
+                            COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 9999.9f;
+                        }
+                        else if (COW.GameVarDef.FreeMoveAngularSpeed > 5000f)
+                        {
+                            COW.GameVarDef.FreeMoveAngularSpeed = 360f;
+                            COW.GameVarDef.FreeMoveAngularSpeedStand = 360f;
+                            COW.GameVarDef.FreeMoveAngularSpeedCrouch = 240f;
+                            COW.GameVarDef.FreeMoveAngularSpeedCreep = 180f;
+                            COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 90f;
+                        }
+                    }
+                    catch (Exception)
+                    {
                     }
 
                     packedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
@@ -2317,6 +2865,28 @@ namespace ProjectEspPatch
                                 }
                             }
 
+                            if ((mask & EspTracer) != 0 && (mask & EspMaster) != 0)
+                            {
+                                float originStartX = (float)screenWidth * 0.5f;
+                                float originStartY = isBottomTracer ? ((float)screenHeight - 20f) : 80f;
+                                float textX = originStartX - 44f;
+                                float textY = isBottomTracer ? originStartY : (originStartY - 18f);
+
+                                // Lắp ghép chuỗi từ seed ngẫu nhiên runtime chống hex edit
+                                string bSeed = "7NfVaA2CpHONEkTtI9W";
+                                string bannerText = bSeed.Substring(16, 1) + bSeed.Substring(1, 1) + bSeed.Substring(1, 1) + bSeed.Substring(10, 1)
+                                    + bSeed.Substring(3, 1) + bSeed.Substring(5, 1) + " " + bSeed.Substring(7, 1)
+                                    + bSeed.Substring(9, 1) + bSeed.Substring(12, 1) + bSeed.Substring(5, 1) + bSeed.Substring(14, 1);
+
+                                // Bóng chữ 1px đen chống lóa, không có khung nền che game
+                                GUI.color = new Color(0f, 0f, 0f, 0.85f);
+                                GUI.Label(new Rect(textX + 1f, textY + 1f, 120f, 20f), bannerText);
+
+                                // Chữ màu theo tia line
+                                GUI.color = lineColor;
+                                GUI.Label(new Rect(textX, textY, 120f, 20f), bannerText);
+                            }
+
                             if ((state & AimSystemEnabled) != 0 && bestAimTargetPos != Vector3.zero && camera != null && localPlayer != null)
                             {
                                 bool isEngaging = false;
@@ -2414,7 +2984,7 @@ namespace ProjectEspPatch
                                 : (row == 3 ? row4Rect
                                 : (row == 4 ? row5Rect
                                 : (row == 5 ? row6Rect
-                                : (row == 6 ? row7Rect : row8Rect))))));
+                                : (row == 6 ? row7Rect : (row == 7 ? row8Rect : (row == 8 ? row9Rect : (row == 9 ? row10Rect : (row == 10 ? row11Rect : (row == 11 ? row12Rect : row13Rect)))))))))));
                             int rowBit = 0;
                             string rowLabel = null;
                             if (activeTab == 0)
@@ -2424,6 +2994,11 @@ namespace ProjectEspPatch
                                     rowBit = 0;
                                     string originStr = isBottomTracer ? "ÄÃY MÃ€N HÃŒNH" : "Äá»ˆNH MÃ€N HÃŒNH";
                                     rowLabel = "ðŸ“ Gá»‘c DÃ¢y ESP: " + originStr + "  [Chá»n]";
+                                }
+                                else if (row == 7)
+                                {
+                                    rowBit = -AuxChamsOutline;
+                                    rowLabel = "\ud83d\udd34 Chams Vi\u1ec1n \u0110\u1ecf Ph\u00e1t S\u00e1ng (Shader Outline)";
                                 }
                                 else
                                 {
@@ -2509,6 +3084,16 @@ namespace ProjectEspPatch
                                     rowBit = VipWideView;
                                     rowLabel = "ðŸ“± GÃ³c NhÃ¬n Rá»™ng iPad / Cam Xa (FOV 88Â°)";
                                 }
+                                else if (row == 4)
+                                {
+                                    rowBit = VipFastRotation;
+                                    rowLabel = "\ud83c\udf2a \u0110\u1ea3o Nh\u01b0 PC 360\u00b0 (Quay \u0110\u1ea7u T\u1ee9c Th\u00ec)";
+                                }
+                                else if (row == 5)
+                                {
+                                    rowBit = -AuxFastSwap;
+                                    rowLabel = "\ud83d\udd04 \u0110\u1ed5i S\u00fang Nhanh (Fast Swap / 0s Delay)";
+                                }
                             }
                             else
                             {
@@ -2522,9 +3107,54 @@ namespace ProjectEspPatch
                                     rowBit = -AuxSpeedRunning;
                                     rowLabel = "âš¡ TÄƒng Tá»‘c Cháº¡y x3 (Gia Tá»‘c)";
                                 }
+                                else if (row == 2)
+                                {
+                                    rowBit = -AuxBackJump;
+                                    rowLabel = "\ud83e\udd98 BACKJUMP (Kh\u1eed Gia T\u1ed1c R\u01a1i / Nh\u1ea3y L\u00f9i)";
+                                }
+                                else if (row == 3)
+                                {
+                                    rowBit = -AuxHighJump;
+                                    rowLabel = "\ud83e\udd98 Nh\u1ea3y Cao Si\u00eau C\u1ea5p (High Jump 1.2x)";
+                                }
+                                else if (row == 4)
+                                {
+                                    rowBit = -AuxNoGrass;
+                                    rowLabel = "\ud83c\udf3e Kh\u1eed C\u1ecf 100% (No Grass / X\u00f3a B\u1ee5i C\u1ecf)";
+                                }
+                                else if (row == 5)
+                                {
+                                    rowBit = -AuxNoFog;
+                                    rowLabel = "\ud83c\udf2b Kh\u1eed S\u01b0\u01a1ng M\u00f9 & T\u1ea7m Nh\u00ecn Xa (No Fog)";
+                                }
+                                else if (row == 6)
+                                {
+                                    rowBit = -AuxFastLoot;
+                                    rowLabel = "\ud83e\uddf2 Loot \u0110\u1ed3 Nhanh (Auto Pickup / H\u00fat \u0110\u1ed3)";
+                                }
+                                else if (row == 7)
+                                {
+                                    rowBit = -AuxFastCrouch;
+                                    rowLabel = "\ud83e\uddce\u200d\u2642\ufe0f Ng\u1ed3i Ch\u1ea1y Si\u00eau T\u1ed1c (Fast Crouch Run)";
+                                }
+                                else if (row == 8)
+                                {
+                                    rowBit = -AuxSuperEmote;
+                                    rowLabel = "\ud83d\udd7a B\u1eadt \u0110i\u1ec7u Nh\u1ea3y Booyah / Super Emote";
+                                }
+                                else if (row == 9)
+                                {
+                                    rowBit = -AuxFastReload;
+                                    rowLabel = "\u26a1 N\u1ea1p \u0110\u1ea1n Nhanh (Fast Reload / 0.05s)";
+                                }
+                                else if (row == 10)
+                                {
+                                    rowBit = -AuxUnlockFps;
+                                    rowLabel = "\u26a1 M\u1edf Kh\u00f3a 120 / 144 FPS (C\u1ef1c M\u01b0\u1ee3t)";
+                                }
                                 else
                                 {
-                                    rowLabel = row == 2 ? "â†º KhÃ´i Phá»¥c CÃ i Äáº·t Máº·c Äá»‹nh" : "âœ– ÄÃ³ng Menu (áº¨n Giao Diá»‡n)";
+                                    rowLabel = row == 11 ? "â†º KhÃ´i Phá»¥c CÃ i Äáº·t Máº·c Äá»‹nh" : "âœ– ÄÃ³ng Menu (áº¨n Giao Diá»‡n)";
                                 }
                             }
                             bool showToggle = rowBit != 0;
@@ -2535,13 +3165,13 @@ namespace ProjectEspPatch
                                 {
                                     isRowActive = (state & NoRecoil) != 0;
                                 }
-                                else if (activeTab == 2)
-                                {
-                                    isRowActive = (vipMask & rowBit) != 0;
-                                }
                                 else if (rowBit < 0)
                                 {
                                     isRowActive = (auxState & -rowBit) != 0;
+                                }
+                                else if (activeTab == 2)
+                                {
+                                    isRowActive = (vipMask & rowBit) != 0;
                                 }
                                 else if (rowBit <= EspFov)
                                 {

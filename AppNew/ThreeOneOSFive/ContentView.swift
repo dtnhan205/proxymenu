@@ -356,6 +356,90 @@ final class CheatMenuState: ObservableObject {
             syncIfInjected()
         }
     }
+    @Published var backJump: Bool {
+        didSet {
+            UserDefaults.standard.set(backJump, forKey: "cheat.backJump")
+            AppLog.shared.append("[SURVIVAL] BACKJUMP: \(backJump ? "ENABLED" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var highJump: Bool {
+        didSet {
+            UserDefaults.standard.set(highJump, forKey: "cheat.highJump")
+            AppLog.shared.append("[SURVIVAL] NHẢY CAO (High Jump): \(highJump ? "ENABLED (1.2x)" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var fastRotation: Bool {
+        didSet {
+            UserDefaults.standard.set(fastRotation, forKey: "cheat.fastRotation")
+            AppLog.shared.append("[SURVIVAL] ĐẢO NHƯ PC (Fast Rotation): \(fastRotation ? "ENABLED (9999.9°/s)" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var chamsOutline: Bool {
+        didSet {
+            UserDefaults.standard.set(chamsOutline, forKey: "cheat.chamsOutline")
+            AppLog.shared.append("[ESP] VIỀN ĐỎ NHÂN VẬT (Chams Outline): \(chamsOutline ? "ENABLED (500m)" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var fastSwap: Bool {
+        didSet {
+            UserDefaults.standard.set(fastSwap, forKey: "cheat.fastSwap")
+            AppLog.shared.append("[COMBAT] ĐỔI SÚNG NHANH (Fast Swap): \(fastSwap ? "ENABLED (0s Delay)" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var noGrass: Bool {
+        didSet {
+            UserDefaults.standard.set(noGrass, forKey: "cheat.noGrass")
+            AppLog.shared.append("[SURVIVAL] KHỬ CỎ 100% (No Grass): \(noGrass ? "ENABLED" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var noFog: Bool {
+        didSet {
+            UserDefaults.standard.set(noFog, forKey: "cheat.noFog")
+            AppLog.shared.append("[SURVIVAL] KHỬ SƯƠNG MÙ (No Fog): \(noFog ? "ENABLED (1000m)" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var fastLoot: Bool {
+        didSet {
+            UserDefaults.standard.set(fastLoot, forKey: "cheat.fastLoot")
+            AppLog.shared.append("[SURVIVAL] LOOT ĐỒ NHANH (Fast Loot): \(fastLoot ? "ENABLED" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var fastCrouch: Bool {
+        didSet {
+            UserDefaults.standard.set(fastCrouch, forKey: "cheat.fastCrouch")
+            AppLog.shared.append("[SURVIVAL] NGỒI DI CHUYỂN NHANH (Fast Crouch Run): \(fastCrouch ? "ENABLED" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var superEmote: Bool {
+        didSet {
+            UserDefaults.standard.set(superEmote, forKey: "cheat.superEmote")
+            AppLog.shared.append("[SURVIVAL] ĐIỆU NHẢY BOOYAH (Super Emote): \(superEmote ? "ENABLED" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var fastReload: Bool {
+        didSet {
+            UserDefaults.standard.set(fastReload, forKey: "cheat.fastReload")
+            AppLog.shared.append("[COMBAT] NẠP ĐẠN NHANH (Fast Reload): \(fastReload ? "ENABLED (0.05s)" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var unlockFps: Bool {
+        didSet {
+            UserDefaults.standard.set(unlockFps, forKey: "cheat.unlockFps")
+            AppLog.shared.append("[SYSTEM] MỞ KHÓA 120/144 FPS (Ultra Smooth): \(unlockFps ? "ENABLED (144 FPS)" : "DISABLED (60 FPS)")")
+            syncIfInjected()
+        }
+    }
 
     // 7 Rich, Vibrant Gaming Color Palette
     let colorOptions: [CheatColorOption] = [
@@ -566,6 +650,18 @@ final class CheatMenuState: ObservableObject {
         self.camDistance = ud.object(forKey: "cheat.camDistance") as? Double ?? 85.0
         self.speedRun = ud.object(forKey: "cheat.speedRun") as? Bool ?? false
         self.fastParachute = ud.object(forKey: "cheat.fastParachute") as? Bool ?? false
+        self.backJump = ud.object(forKey: "cheat.backJump") as? Bool ?? false
+        self.highJump = ud.object(forKey: "cheat.highJump") as? Bool ?? false
+        self.fastRotation = ud.object(forKey: "cheat.fastRotation") as? Bool ?? false
+        self.chamsOutline = ud.object(forKey: "cheat.chamsOutline") as? Bool ?? false
+        self.fastSwap = ud.object(forKey: "cheat.fastSwap") as? Bool ?? false
+        self.noGrass = ud.object(forKey: "cheat.noGrass") as? Bool ?? false
+        self.noFog = ud.object(forKey: "cheat.noFog") as? Bool ?? false
+        self.fastLoot = ud.object(forKey: "cheat.fastLoot") as? Bool ?? false
+        self.fastCrouch = ud.object(forKey: "cheat.fastCrouch") as? Bool ?? false
+        self.superEmote = ud.object(forKey: "cheat.superEmote") as? Bool ?? false
+        self.fastReload = ud.object(forKey: "cheat.fastReload") as? Bool ?? false
+        self.unlockFps = ud.object(forKey: "cheat.unlockFps") as? Bool ?? false
     }
 
     func resetToDefaults() {
@@ -584,6 +680,7 @@ final class CheatMenuState: ObservableObject {
         distanceTag = false
         skeletonESP = false
         espCount = false
+        chamsOutline = false
         espAlert = false
         espColorEnabled = true
         espSelectedColorId = 1
@@ -620,10 +717,21 @@ final class CheatMenuState: ObservableObject {
         noRecoil = false
         buffDamage = false
         fastFire = false
+        fastSwap = false
         wideView = false
         camDistance = 85.0
         speedRun = false
         fastParachute = false
+        backJump = false
+        highJump = false
+        fastRotation = false
+        noGrass = false
+        noFog = false
+        fastLoot = false
+        fastCrouch = false
+        superEmote = false
+        fastReload = false
+        unlockFps = false
 
         AppLog.shared.append("[CONFIG] Cheat settings reset to default values.")
         syncIfInjected()
@@ -2290,6 +2398,19 @@ struct ContentView: View {
                         showColorPickerPopup = true
                     }
                 )
+
+                Divider().background(CyberTheme.divider)
+
+                // Viền Đỏ Nhân Vật (Chams Outline)
+                CyberRowView(
+                    iconName: "person.crop.rectangle.stack.fill",
+                    title: "VIỀN ĐỎ NHÂN VẬT (Chams)",
+                    subtitle: "Shader viền đỏ phát sáng xuyên tường 500m mượt mà trên GPU",
+                    isOn: $cheatState.chamsOutline,
+                    activeColor: CyberTheme.crimsonRed,
+                    badgeText: "CHAMS",
+                    badgeColor: CyberTheme.crimsonRed
+                )
             }
 
             // Card 2: Dedicated RGB Color & Thickness Customizer per ESP Type
@@ -2537,7 +2658,7 @@ struct ContentView: View {
                 accentColor: CyberTheme.crimsonFlame
             )
 
-            CyberCard(glowColor: (cheatState.buffDamage || cheatState.fastFire || cheatState.noRecoil || cheatState.fastMedkit) ? CyberTheme.crimsonFlame.opacity(0.12) : Color.clear) {
+            CyberCard(glowColor: (cheatState.buffDamage || cheatState.fastFire || cheatState.fastSwap || cheatState.fastReload || cheatState.noRecoil || cheatState.fastMedkit) ? CyberTheme.crimsonFlame.opacity(0.12) : Color.clear) {
                 // Buff Dame
                 CyberRowView(
                     iconName: "flame.fill",
@@ -2556,6 +2677,32 @@ struct ContentView: View {
                     subtitle: "Tăng tốc độ nhả đạn của súng liên thanh",
                     isOn: $cheatState.fastFire,
                     activeColor: CyberTheme.mechaGold
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Đổi Súng Nhanh (Fast Weapon Swap)
+                CyberRowView(
+                    iconName: "arrow.triangle.swap",
+                    title: "ĐỔI SÚNG NHANH",
+                    subtitle: "Triệt tiêu 0s delay đổi súng, bắn liên tục không khựng (Shotgun & Sniper)",
+                    isOn: $cheatState.fastSwap,
+                    activeColor: CyberTheme.flameOrange,
+                    badgeText: "0s DELAY",
+                    badgeColor: CyberTheme.flameOrange
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Nạp Đạn Nhanh (Fast Reload)
+                CyberRowView(
+                    iconName: "bolt.badge.clock.fill",
+                    title: "NẠP ĐẠN NHANH",
+                    subtitle: "Rút ngắn thời gian nạp đạn xuống 0.05s, vừa nạp vừa bắn không bị khóa cò",
+                    isOn: $cheatState.fastReload,
+                    activeColor: CyberTheme.flameOrange,
+                    badgeText: "0.05s RELOAD",
+                    badgeColor: CyberTheme.flameOrange
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -2658,7 +2805,7 @@ struct ContentView: View {
                 accentColor: CyberTheme.cyberCyan
             )
 
-            CyberCard(glowColor: (cheatState.wideView || cheatState.speedRun || cheatState.fastParachute) ? CyberTheme.cyberCyan.opacity(0.12) : Color.clear) {
+            CyberCard(glowColor: (cheatState.wideView || cheatState.speedRun || cheatState.fastParachute || cheatState.backJump || cheatState.highJump || cheatState.fastRotation || cheatState.noGrass || cheatState.noFog || cheatState.fastLoot || cheatState.fastCrouch || cheatState.superEmote || cheatState.unlockFps) ? CyberTheme.cyberCyan.opacity(0.12) : Color.clear) {
                 // Cam Xa (Wide View) Row
                 CyberRowView(
                     iconName: "camera.viewfinder",
@@ -2789,6 +2936,121 @@ struct ContentView: View {
                     subtitle: "Rơi tự do và tiếp đất cực nhanh",
                     isOn: $cheatState.fastParachute,
                     activeColor: CyberTheme.mechaGold
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // BACKJUMP (Khử Gia Tốc Rơi / Nhảy Lùi)
+                CyberRowView(
+                    iconName: "arrow.uturn.backward.circle.fill",
+                    title: "BACKJUMP",
+                    subtitle: "Khử gia tốc rơi, nhảy giật lùi né đạn & đổi súng trên không",
+                    isOn: $cheatState.backJump,
+                    activeColor: CyberTheme.cyberCyan
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Nhảy Cao (High Jump)
+                CyberRowView(
+                    iconName: "arrow.up.circle.fill",
+                    title: "NHẢY CAO (High Jump)",
+                    subtitle: "Bật nhảy 1.2x vượt tường keo, leo nóc nhà & vượt chướng ngại vật",
+                    isOn: $cheatState.highJump,
+                    activeColor: CyberTheme.matrixGreen,
+                    badgeText: "1.2X",
+                    badgeColor: CyberTheme.matrixGreen
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Đảo Như PC (Fast Rotation 360°)
+                CyberRowView(
+                    iconName: "arrow.triangle.2.circlepath",
+                    title: "ĐẢO NHƯ PC (360°)",
+                    subtitle: "Quay đầu tức thì 9999°/s không quán tính, xoay mượt như chuột PC",
+                    isOn: $cheatState.fastRotation,
+                    activeColor: CyberTheme.mechaGold,
+                    badgeText: "9999°",
+                    badgeColor: CyberTheme.mechaGold
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Khử Cỏ 100% (No Grass)
+                CyberRowView(
+                    iconName: "leaf.fill",
+                    title: "KHỬ CỎ 100% (No Grass)",
+                    subtitle: "Làm phẳng 0m mọi bụi cỏ cao & vừa trên toàn bản đồ, khắc chế nằm bo",
+                    isOn: $cheatState.noGrass,
+                    activeColor: CyberTheme.matrixGreen,
+                    badgeText: "NO GRASS",
+                    badgeColor: CyberTheme.matrixGreen
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Khử Sương Mù (No Fog)
+                CyberRowView(
+                    iconName: "sun.haze.fill",
+                    title: "KHỬ SƯƠNG MÙ (No Fog)",
+                    subtitle: "Xóa sạch sương mù che chắn, mở rộng tầm nhìn xa 1000m cực đại",
+                    isOn: $cheatState.noFog,
+                    activeColor: CyberTheme.cyberCyan,
+                    badgeText: "1000M",
+                    badgeColor: CyberTheme.cyberCyan
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Loot Đồ Nhanh (Fast Loot / Auto Pickup)
+                CyberRowView(
+                    iconName: "hand.grab.fill",
+                    title: "LOOT ĐỒ NHANH",
+                    subtitle: "Tối ưu hóa bộ nhớ đệm nhặt đồ, chạy lướt qua hút sạch trang bị",
+                    isOn: $cheatState.fastLoot,
+                    activeColor: CyberTheme.mechaGold,
+                    badgeText: "AUTO LOOT",
+                    badgeColor: CyberTheme.mechaGold
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Ngồi Di Chuyển Nhanh (Fast Crouch Run)
+                CyberRowView(
+                    iconName: "figure.walk",
+                    title: "NGỒI DI CHUYỂN NHANH",
+                    subtitle: "Di chuyển tốc độ tối đa ở tư thế ngồi, thu nhỏ hitbox né đạn",
+                    isOn: $cheatState.fastCrouch,
+                    activeColor: CyberTheme.cyberCyan,
+                    badgeText: "FAST CROUCH",
+                    badgeColor: CyberTheme.cyberCyan
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Điệu Nhảy Booyah (Super Emote)
+                CyberRowView(
+                    iconName: "figure.dance",
+                    title: "ĐIỆU NHẢY BOOYAH",
+                    subtitle: "Kích hoạt nhảy Booyah & Carnival Dance liên tục trong trận đấu",
+                    isOn: $cheatState.superEmote,
+                    activeColor: CyberTheme.crimsonNeon,
+                    badgeText: "BOOYAH DANCE",
+                    badgeColor: CyberTheme.crimsonNeon
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Mở Khóa 120 / 144 FPS (Ultra Smooth)
+                CyberRowView(
+                    iconName: "speedometer",
+                    title: "MỞ KHÓA 120 / 144 FPS",
+                    subtitle: "Mở khóa tần số quét cực hạn, hình ảnh siêu mượt và giảm giật lag cảm ứng",
+                    isOn: $cheatState.unlockFps,
+                    activeColor: CyberTheme.mechaGold,
+                    badgeText: "144 FPS MAX",
+                    badgeColor: CyberTheme.mechaGold
                 )
             }
         }

@@ -458,7 +458,8 @@ namespace ProjectEspPatch
                 bindings.TypeName("COW.GamePlay.GMPGMPFNMFP"),
                 bindings.TypeName("COW.GamePlay.JKCLPFEFMNG"),
                 "COW.GamePlay.PlayerAttributes",
-                "COW.GamePlay.CameraControllerManager"
+                "COW.GamePlay.CameraControllerManager",
+                "COW.GamePlay.PhysicalCCT"
             })
             {
                 TypeDefinition type = RequireType(module, name);
@@ -471,7 +472,7 @@ namespace ProjectEspPatch
                 "RootTransform", "CurHP", "MaxHP", "NickName", "IsDieing",
                 "AimStartPostion", "HeadCollider", "NeckBone", "FireColliders",
                 "Attributes", "IsSkyDiving", "IsSkySurfing", "IsParachuting",
-                "CharacterController", "IsSighting"
+                "CharacterController", "IsSighting", "PhysicalCCT"
             })
             {
                 if (player.Properties.Any(property => property.Name == name)) continue;
@@ -488,6 +489,12 @@ namespace ProjectEspPatch
             player.Methods.Single(method =>
                 method.Name == "<>iFixBaseProxy_get_IsMovableEntity"
                 && method.Parameters.Count == 0).Name = "EspBaseIsMovableEntity";
+
+            MethodDefinition resetSwap = player.Methods.FirstOrDefault(m => m.Name == "ResetSwapWeaponTime" && m.Parameters.Count == 0);
+            if (resetSwap != null)
+            {
+                resetSwap.Attributes = (resetSwap.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public;
+            }
 
             TypeDefinition attackable = module.GetType("COW.GamePlay.AttackableEntity");
             attackable.Properties.Single(property => property.SetMethod != null
@@ -553,6 +560,74 @@ namespace ProjectEspPatch
                 FieldDefinition field = sceneTool.Fields.Single(value => value.Name == name);
                 field.Attributes = (field.Attributes & ~FieldAttributes.FieldAccessMask)
                     | FieldAttributes.Public;
+            }
+
+            TypeDefinition camMgrDef = module.GetType("COW.GamePlay.CameraControllerManager");
+            if (camMgrDef != null)
+            {
+                foreach (MethodDefinition m in camMgrDef.Methods)
+                {
+                    if (m.Name == "SetFarClipPlane" || m.Name == "ReSetFarClipPlane")
+                    {
+                        m.Attributes = (m.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public;
+                    }
+                }
+            }
+
+            TypeDefinition facadeDef = module.GetType("COW.GameFacade");
+            if (facadeDef != null)
+            {
+                foreach (MethodDefinition m in facadeDef.Methods)
+                {
+                    if (m.Name == "CurrentCameraControllerManager")
+                    {
+                        m.Attributes = (m.Attributes & ~MethodAttributes.MemberAccessMask) | MethodAttributes.Public;
+                    }
+                }
+            }
+
+            TypeDefinition gameVarDef = module.GetType("COW.GameVarDef");
+            if (gameVarDef != null)
+            {
+                foreach (string fname in new[] {
+                    "MaxJumpHeight",
+                    "FreeMoveAngularSpeed",
+                    "FreeMoveAngularSpeedStand",
+                    "FreeMoveAngularSpeedCrouch",
+                    "FreeMoveAngularSpeedCreep",
+                    "FreeMoveAngularSpeedKnockDown",
+                    "EnableShowPlayerOutline",
+                    "ShowPlayerOutlineColor",
+                    "ShowPlayerOutlineWidth",
+                    "ShowPlayerOutlineMaxDistance",
+                    "PCOBOutlineSolid",
+                    "SwapWeaponCD",
+                    "CanSwapWeaponContinueShoot",
+                    "CanInvincibleReloadAndSwapWeapon",
+                    "EnableLowFallingSwapWeapon",
+                    "EnableSnowSlideGrabSwapWeapon",
+                    "HighGrassHeightScale_Neo",
+                    "MiddleGrassHeightScale_Neo",
+                    "LowGrassHeightScale_Shangrila",
+                    "MiddleGrassHeightScale_Shangrila",
+                    "HighGrassHeightScale_Shangrila",
+                    "AutoPickupPoolOptEnabled",
+                    "AutoPickupInvokeOptEnabled",
+                    "AutoPickUpSortAttachmentEnable",
+                    "EnableBackgroundCacheAutoPickupWeapon",
+                    "EnableBackgroundCacheAutoPickupFppWeapon",
+                    "CanCrouchingRunFast",
+                    "DebugWeaponReloadProgressAniTime",
+                    "CanReloadContinueShoot",
+                    "NoResetUplayerAnimationWhenReloading"
+                })
+                {
+                    FieldDefinition field = gameVarDef.Fields.SingleOrDefault(value => value.Name == fname);
+                    if (field != null)
+                    {
+                        field.Attributes &= ~FieldAttributes.InitOnly;
+                    }
+                }
             }
 
             assembly.Write(output);

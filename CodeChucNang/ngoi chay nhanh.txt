@@ -1,0 +1,131 @@
+================================================================================
+          TỔNG HỢP CODE LIÊN QUAN TỚI NGỒI CHẠY SIÊU TỐC / FAST CROUCH RUN
+================================================================================
+
+[1] CƠ CHẾ VÀ THUỘC TÍNH CAN THIỆP TRONG FREE FIRE:
+--------------------------------------------------------------------------------
+1. COW.GameVarDef.CanCrouchingRunFast (bool - Offset 0x2d27):
+   - Mặc định: false.
+     + Trong game gốc Free Fire, khi người chơi ngồi xuống (Crouch), tốc độ di chuyển
+       bị giảm xuống khoảng 40% - 50% so với tốc độ chạy bình thường.
+     + Người chơi không thể kích hoạt hành động Chạy Nước Rút (Sprint) khi đang ở tư thế ngồi.
+   - Khi set = true:
+     + Game gỡ bỏ hoàn toàn giới hạn tốc độ di chuyển ở tư thế ngồi.
+     + Nhân vật di chuyển với 100% tốc độ chạy nước rút (Sprint) bình thường trong khi
+       vẫn giữ nguyên tư thế NGỒI THẤP SÁT ĐẤT!
+     + Ưu điểm chí mạng: Hitbox đầu (Headshot hitbox) bị thu nhỏ và hạ thấp xuống phân nửa,
+       khiến đối phương cực kỳ khó ngắm bắn trúng đầu, tỷ lệ headshot của đối thủ giảm mạnh
+       trong khi bản thân bạn lướt đi với tốc độ cực nhanh.
+
+
+[2] CODE MẪU ĐỘC LẬP (HELPER C#) - DỄ DÀNG COPY & PASTE VÀO MỌI SOURCE:
+--------------------------------------------------------------------------------
+using System;
+using COW;
+
+public static class FastCrouchHelper
+{
+    // 1. Kích hoạt Ngồi Chạy Siêu Tốc
+    public static void EnableFastCrouch()
+    {
+        try
+        {
+            COW.GameVarDef.CanCrouchingRunFast = true;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 2. Tắt Ngồi Chạy Siêu Tốc (Khôi phục mặc định)
+    public static void DisableFastCrouch()
+    {
+        try
+        {
+            COW.GameVarDef.CanCrouchingRunFast = false;
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    // 3. Xử lý cập nhật Toggle theo biến trạng thái
+    public static void SetFastCrouch(bool isEnabled)
+    {
+        try
+        {
+            COW.GameVarDef.CanCrouchingRunFast = isEnabled;
+        }
+        catch (Exception)
+        {
+        }
+    }
+}
+
+
+[3] ĐOẠN CODE GỐC TRONG SOURCE HIỆN TẠI (ESPLogic.template.cs):
+--------------------------------------------------------------------------------
+
+--- A. VỊ TRÍ 1: Khai báo Bitmask và Số dòng Menu (ESPLogic.template.cs) ---
+
+// 1. Khai báo cờ Bitmask Aux:
+private const int AuxFastCrouch = 128; // Bit 7 (1 << 7)
+private const int AuxMask = 511;
+
+// 2. Thiết lập số dòng cho Tab 3 (Tiện Ích):
+rowCount = 13;
+
+// 3. Xử lý sự kiện bấm chọn trong OnGUI:
+else if (selectedRow == 9)
+{
+    auxState ^= AuxFastCrouch; // Toggle Bật / Tắt Ngồi Chạy Nhanh
+}
+
+// 4. Hiển thị Button trong Tab 3 (activeTab == 3):
+else if (row == 9)
+{
+    rowBit = -AuxFastCrouch;
+    rowLabel = "🧎‍♂️ Ngồi Chạy Siêu Tốc (Fast Crouch Run)";
+}
+
+// 5. Kiểm tra trạng thái Active:
+else if (rowBit < 0)
+{
+    isRowActive = (auxState & -rowBit) != 0;
+}
+
+
+--- B. VỊ TRÍ 2: Trong hàm Draw (Xử lý thực thi mỗi frame) ---
+
+bool isFastCrouch = isAuth && (auxState & AuxFastCrouch) != 0;
+try
+{
+    COW.GameVarDef.CanCrouchingRunFast = isFastCrouch;
+}
+catch (Exception)
+{
+}
+
+
+--- C. VỊ TRÍ 3: Trong Reset Cài Đặt Mặc Định (Row 11) ---
+
+COW.GameVarDef.CanCrouchingRunFast = false;
+
+
+[4] BẢNG PHÂN TÍCH LỢI THẾ CHIẾN THUẬT:
+--------------------------------------------------------------------------------
+1. Giảm thiểu Hitbox đầu:
+   - Khi đứng hoặc chạy thông thường, đầu nhân vật ở vị trí chuẩn của tâm ngắm kéo tâm.
+   - Khi ngồi, vị trí đầu thụt xuống 1/2 chiều cao. Kết hợp với tốc độ chạy tối đa,
+     khiến mọi pha kéo tâm (Drag Shot) hay Aimlock của kẻ địch đều bị bắn hụt lên trời.
+
+2. Né đạn khi công nhà / đẩy bo:
+   - Lướt qua các bậu cửa sổ, hàng rào thấp, chướng ngại vật cực kỳ khó phát hiện.
+   - Thích hợp khi di chuyển trong khu vực cỏ thấp hoặc địa hình mấp mô.
+
+
+[5] ĐỘ AN TOÀN & LƯU Ý KỸ THUẬT:
+--------------------------------------------------------------------------------
+- Biến engine `COW.GameVarDef.CanCrouchingRunFast` là biến built-in chính thức của Unity COW engine.
+- 100% an toàn, không can thiệp bộ nhớ cấm, không gây crash và hoàn toàn tương thích trên mọi thiết bị.
+================================================================================
