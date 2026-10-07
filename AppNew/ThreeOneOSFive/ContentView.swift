@@ -749,6 +749,8 @@ private enum CyberTheme {
     static let crimsonNeon = Color(red: 1.00, green: 0.18, blue: 0.25)
     static let crimsonFlame = Color(red: 0.95, green: 0.32, blue: 0.12)
     static let crimsonDark = Color(red: 0.40, green: 0.05, blue: 0.10)
+    static let crimsonRed = Color(red: 1.00, green: 0.18, blue: 0.25)
+    static let flameOrange = Color(red: 0.95, green: 0.32, blue: 0.12)
 
     // Cyber High-Tech Accents
     static let cyberCyan = Color(red: 0.00, green: 0.88, blue: 0.98)
@@ -2407,9 +2409,9 @@ struct ContentView: View {
                     title: "VIỀN ĐỎ NHÂN VẬT (Chams)",
                     subtitle: "Shader viền đỏ phát sáng xuyên tường 500m mượt mà trên GPU",
                     isOn: $cheatState.chamsOutline,
-                    activeColor: CyberTheme.crimsonRed,
+                    activeColor: CyberTheme.crimsonNeon,
                     badgeText: "CHAMS",
-                    badgeColor: CyberTheme.crimsonRed
+                    badgeColor: CyberTheme.crimsonNeon
                 )
             }
 
@@ -2687,9 +2689,9 @@ struct ContentView: View {
                     title: "ĐỔI SÚNG NHANH",
                     subtitle: "Triệt tiêu 0s delay đổi súng, bắn liên tục không khựng (Shotgun & Sniper)",
                     isOn: $cheatState.fastSwap,
-                    activeColor: CyberTheme.flameOrange,
+                    activeColor: CyberTheme.crimsonFlame,
                     badgeText: "0s DELAY",
-                    badgeColor: CyberTheme.flameOrange
+                    badgeColor: CyberTheme.crimsonFlame
                 )
 
                 Divider().background(CyberTheme.divider)
@@ -2700,9 +2702,9 @@ struct ContentView: View {
                     title: "NẠP ĐẠN NHANH",
                     subtitle: "Rút ngắn thời gian nạp đạn xuống 0.05s, vừa nạp vừa bắn không bị khóa cò",
                     isOn: $cheatState.fastReload,
-                    activeColor: CyberTheme.flameOrange,
+                    activeColor: CyberTheme.crimsonFlame,
                     badgeText: "0.05s RELOAD",
-                    badgeColor: CyberTheme.flameOrange
+                    badgeColor: CyberTheme.crimsonFlame
                 )
 
                 Divider().background(CyberTheme.divider)
