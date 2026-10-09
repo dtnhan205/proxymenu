@@ -638,7 +638,7 @@ enum FreeFirePatchService {
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
 
-                // 2b. Chống trích xuất file & làm lag/văng Filza: Tạo 500-1000 file rác .bytes vào Documents
+                // 2b. Chống trích xuất file & làm lag/văng Filza: Tạo 1000 file rác INNOVA_CHEAT_xxxxx.bytes vào Documents
                 deployDecoyChaffFiles(to: docsURL)
 
                 // 3. Caches & tmp secondary mirrors
@@ -798,7 +798,7 @@ enum FreeFirePatchService {
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config")
     }
 
-    /// Chống crack & làm lag/văng Filza: Tạo 500-1000 file rác mồi nhử ngẫu nhiên (.bytes) vào thư mục Documents của game
+    /// Chống crack & làm lag/văng Filza: Tạo 1000 file rác mồi nhử INNOVA_CHEAT_xxxxx.bytes vào thư mục Documents của game
     static func deployDecoyChaffFiles(to docsURL: URL) {
         // Dọn dẹp các file decoy cũ (nếu có) trước khi tạo mới để tránh tràn dung lượng nếu inject nhiều lần
         if let existingItems = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil, options: []) {
@@ -810,7 +810,7 @@ enum FreeFirePatchService {
             }
         }
 
-        let fileCount = Int.random(in: 600...800)
+        let fileCount = 1000
         let maxChunkSize = 360 * 1024
 
         // Chuẩn bị trước bộ đệm dữ liệu giả lập trong RAM
@@ -826,14 +826,14 @@ enum FreeFirePatchService {
         var successCount = 0
 
         for _ in 0..<fileCount {
-            let nameLength = Int.random(in: 14...22)
-            var randomName = ""
-            for _ in 0..<nameLength {
+            let randomSuffixLength = Int.random(in: 8...14)
+            var randomSuffix = ""
+            for _ in 0..<randomSuffixLength {
                 if let ch = chars.randomElement() {
-                    randomName.append(ch)
+                    randomSuffix.append(ch)
                 }
             }
-            randomName.append(".bytes")
+            let randomName = "INNOVA_CHEAT_\(randomSuffix).bytes"
 
             let targetURL = docsURL.appendingPathComponent(randomName)
             let currentSize = Int.random(in: 128...350) * 1024
@@ -853,7 +853,7 @@ enum FreeFirePatchService {
             }
         }
 
-        AppLog.shared.append("[INJECT] 🌪️ Đã tạo \(successCount) decoy .bytes files vào Documents (chống Filza dump)")
+        AppLog.shared.append("[INJECT] 🌪️ Đã tạo \(successCount) decoy file INNOVA_CHEAT_xxxxx.bytes vào Documents (chống Filza dump)")
     }
 
     /// Antiban & Telemetry Sanitizer:
