@@ -1,0 +1,25 @@
+================================================================================
+          TỔNG HỢP CODE LIÊN QUAN TỚI SPINBOT 360° & THANH KÉO TỐC ĐỘ XOAY
+================================================================================
+
+[1] CƠ CHẾ VÀ THUỘC TÍNH CAN THIỆP TRONG FREE FIRE (UNITY / COW ENGINE):
+--------------------------------------------------------------------------------
+1. Transform Root (Visual Avatar 3D Model):
+   - localPlayer.RootTransform: Node gốc điều khiển toàn bộ xương, mô hình 3D (mesh),
+     quần áo và phụ kiện của nhân vật.
+   - Khi cập nhật góc Euler mỗi frame theo thời gian thực:
+     float curSpinAngle = (Time.time * spinSpeed) % 360f;
+     pRoot.localEulerAngles = new Vector3(pRoot.localEulerAngles.x, curSpinAngle, pRoot.localEulerAngles.z);
+   - Hiệu ứng: Nhân vật xoay tròn 360 độ liên tục tại chỗ với vận tốc tùy chỉnh (180°/s đến 3600°/s).
+   - Lợi thế chiến thuật:
+     + Làm xáo trộn toàn bộ hitbox đầu và thân, đối thủ cực kỳ khó bắn trúng hoặc kéo tâm headshot.
+     + Camera góc nhìn thứ 3 của bạn hoàn toàn ĐỘC LẬP và ổn định, bạn ngắm bắn và di chuyển
+       bình thường mà không hề bị chóng mặt.
+
+2. Mở Khóa Tốc Độ Xoay Tối Đa Của Engine:
+   - COW.GameVarDef.FreeMoveAngularSpeed = 9999.9f;
+   - COW.GameVarDef.FreeMoveAngularSpeedStand = 9999.9f;
+   - COW.GameVarDef.FreeMoveAngularSpeedCrouch = 9999.9f;
+   - COW.GameVarDef.FreeMoveAngularSpeedCreep = 9999.9f;
+   - COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 9999.9f;
+   - Giúp engine không kìm hãm hay giới hạn góc quay của nhân vật, xoay cực mượt không giật lag.

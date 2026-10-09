@@ -69,8 +69,9 @@ namespace ProjectEspPatch
         private const int AuxSuperEmote = 2048;
         private const int AuxFastReload = 4096;
         private const int AuxUnlockFps = 8192;
-        private const int AuxMask = 16383;
-        private const int AuxTickShift = 14;
+        private const int AuxSpinBot = 16384;
+        private const int AuxMask = 32767;
+        private const int AuxTickShift = 15;
         private const float AuxStateMarker = 1000000f;
         private const ulong SpeedRunningKey = 4995421289296778564UL;
         private const int DefaultAimState = (2 << AimModeShift)
@@ -123,6 +124,13 @@ namespace ProjectEspPatch
                         guard = new GameObject("__esp_core");
                         guard.transform.position = Vector3.zero;
                         UnityEngine.Object.DontDestroyOnLoad(guard);
+                    }
+                    GameObject spinDriver = GameObject.Find("__esp_spin_driver");
+                    if (spinDriver == null)
+                    {
+                        spinDriver = new GameObject("__esp_spin_driver");
+                        spinDriver.transform.position = new Vector3(1080f, 0f, 0f);
+                        UnityEngine.Object.DontDestroyOnLoad(spinDriver);
                     }
                 }
                 else if (driver.transform.position.z < 10f)
@@ -182,6 +190,16 @@ namespace ProjectEspPatch
             driverPos.z = fovRadius;
             float customCamFov = (driverPos.y >= 50f && driverPos.y <= 140f) ? driverPos.y : 85f;
             driverPos.y = customCamFov;
+            GameObject spinDriver = GameObject.Find("__esp_spin_driver");
+            if (spinDriver == null)
+            {
+                spinDriver = new GameObject("__esp_spin_driver");
+                spinDriver.transform.position = new Vector3(1080f, 0f, 0f);
+                UnityEngine.Object.DontDestroyOnLoad(spinDriver);
+            }
+            float spinSpeed = (spinDriver.transform.position.x >= 180f && spinDriver.transform.position.x <= 3600f)
+                ? spinDriver.transform.position.x
+                : 1080f;
             Vector3 modalState = driverObject.transform.localScale;
             int activeModal = (int)modalState.x;
             if (activeModal != ModalAimMode && activeModal != ModalHeadRate
@@ -986,6 +1004,8 @@ namespace ProjectEspPatch
                             int nSuperEmote = -1;
                             int nFastReload = -1;
                             int nUnlockFps = -1;
+                            int nSpinBot = -1;
+                            int nSpinSpeed = -1;
 
                             string[] cfgKeys = new string[] {
                                 "box_esp", "line_esp", "health_bar", "name_tag", "distance_tag",
@@ -996,7 +1016,7 @@ namespace ProjectEspPatch
                                 "box_thickness", "line_thickness", "box_color", "line_color",
                                 "back_jump", "high_jump", "fast_rotation", "chams_outline", "fast_swap",
                                 "no_grass", "no_fog", "fast_loot", "fast_crouch", "super_emote", "fast_reload",
-                                "unlock_fps"
+                                "unlock_fps", "spin_bot", "spin_speed"
                             };
 
                             for (int k = 0; k < cfgKeys.Length; k++)
@@ -1058,6 +1078,8 @@ namespace ProjectEspPatch
                                                 else if (k == 38) nSuperEmote = parsedVal;
                                                 else if (k == 39) nFastReload = parsedVal;
                                                 else if (k == 40) nUnlockFps = parsedVal;
+                                                else if (k == 41) nSpinBot = parsedVal;
+                                                else if (k == 42) nSpinSpeed = parsedVal;
                                             }
                                         }
                                     }
@@ -1114,6 +1136,8 @@ namespace ProjectEspPatch
                                 nSuperEmote = 0;
                                 nFastReload = 0;
                                 nUnlockFps = 0;
+                                nSpinBot = 0;
+                                nSpinSpeed = 0;
                                 nBuffDmg = 0;
                                 nWide = 0;
                                 nParachute = 0;
@@ -1185,6 +1209,18 @@ namespace ProjectEspPatch
 
                             if (nUnlockFps != 0) auxState |= AuxUnlockFps;
                             else auxState &= ~AuxUnlockFps;
+
+                            if (nSpinBot != 0) auxState |= AuxSpinBot;
+                            else auxState &= ~AuxSpinBot;
+
+                            if (nSpinSpeed >= 180 && nSpinSpeed <= 3600)
+                            {
+                                spinSpeed = (float)nSpinSpeed;
+                                if (spinDriver != null)
+                                {
+                                    spinDriver.transform.position = new Vector3(spinSpeed, 0f, 0f);
+                                }
+                            }
 
                             int cfgPackedAux = (lastTapTick << AuxTickShift) | (auxState & AuxMask);
                             self.{{SCENE_STATE_FIELD}} = new Vector2((float)state, -AuxStateMarker - (float)cfgPackedAux);
@@ -1334,7 +1370,7 @@ namespace ProjectEspPatch
             float firstRowY = panelY + headerHeight + 8f;
             float footerY = panelY + panelHeight - footerHeight - 10f;
             float availableRowSpace = footerY - firstRowY - 8f;
-            float activeRows = activeTab == 3 ? 13f : 8f;
+            float activeRows = activeTab == 3 ? 13f : (activeTab == 2 ? 7f : 8f);
             float rowHeight = availableRowSpace / activeRows;
             float rowCardHeight = rowHeight - 5f;
             Rect panelRect = new Rect(panelX, panelY, panelWidth, panelHeight);
@@ -1380,7 +1416,7 @@ namespace ProjectEspPatch
                 }
                 else if (activeTab == 2)
                 {
-                    rowCount = 6;
+                    rowCount = 7;
                 }
                 else
                 {
@@ -1422,6 +1458,25 @@ namespace ProjectEspPatch
                         currentEvent.Use();
                         break;
                     }
+                }
+            }
+
+            if (menuOpen && activeModal == ModalNone && activeTab == 2
+                && (currentEvent.type == EventType.MouseDown || currentEvent.type == EventType.MouseDrag))
+            {
+                float spinRowTop = firstRowY + 6f * rowHeight;
+                float spinSliderW = Mathf.Clamp((panelWidth - 32f) * 0.28f, 100f, 150f);
+                float spinSliderX = (panelX + panelWidth - 16f) - 70f - 16f - spinSliderW - 14f;
+                Rect spinHit = new Rect(spinSliderX - 10f, spinRowTop, spinSliderW + 20f, rowHeight);
+                if (spinHit.Contains(pointer))
+                {
+                    float pct = Mathf.Clamp01((pointer.x - spinSliderX) / spinSliderW);
+                    spinSpeed = Mathf.Clamp(Mathf.Round(180f + pct * (3600f - 180f)), 180f, 3600f);
+                    if (spinDriver != null)
+                    {
+                        spinDriver.transform.position = new Vector3(spinSpeed, 0f, 0f);
+                    }
+                    currentEvent.Use();
                 }
             }
 
@@ -1837,6 +1892,17 @@ namespace ProjectEspPatch
                             else if (selectedRow == 5)
                             {
                                 auxState ^= AuxFastSwap;
+                            }
+                            else if (selectedRow == 6)
+                            {
+                                float spinRowTop = firstRowY + 6f * rowHeight;
+                                float spinSliderW = Mathf.Clamp((panelWidth - 32f) * 0.28f, 100f, 150f);
+                                float spinSliderX = (panelX + panelWidth - 16f) - 70f - 16f - spinSliderW - 14f;
+                                Rect spinHit = new Rect(spinSliderX - 10f, spinRowTop, spinSliderW + 20f, rowHeight);
+                                if (!spinHit.Contains(pointer))
+                                {
+                                    auxState ^= AuxSpinBot;
+                                }
                             }
                             else
                             {
@@ -2505,9 +2571,10 @@ namespace ProjectEspPatch
                     }
 
                     bool fastRot = isAuth && (vipMask & VipFastRotation) != 0;
+                    bool isSpinBot = isAuth && (auxState & AuxSpinBot) != 0;
                     try
                     {
-                        if (fastRot)
+                        if (fastRot || isSpinBot)
                         {
                             COW.GameVarDef.FreeMoveAngularSpeed = 9999.9f;
                             COW.GameVarDef.FreeMoveAngularSpeedStand = 9999.9f;
@@ -2522,6 +2589,16 @@ namespace ProjectEspPatch
                             COW.GameVarDef.FreeMoveAngularSpeedCrouch = 240f;
                             COW.GameVarDef.FreeMoveAngularSpeedCreep = 180f;
                             COW.GameVarDef.FreeMoveAngularSpeedKnockDown = 90f;
+                        }
+
+                        if (isSpinBot && localPlayer != null)
+                        {
+                            Transform pRoot = localPlayer.RootTransform;
+                            if (pRoot != null)
+                            {
+                                float curSpinAngle = (Time.time * spinSpeed) % 360f;
+                                pRoot.localEulerAngles = new Vector3(pRoot.localEulerAngles.x, curSpinAngle, pRoot.localEulerAngles.z);
+                            }
                         }
                     }
                     catch (Exception)
@@ -3105,6 +3182,11 @@ namespace ProjectEspPatch
                                     rowBit = -AuxFastSwap;
                                     rowLabel = "\ud83d\udd04 \u0110\u1ed5i S\u00fang Nhanh (Fast Swap / 0s Delay)";
                                 }
+                                else if (row == 6)
+                                {
+                                    rowBit = -AuxSpinBot;
+                                    rowLabel = "\ud83c\udf2a Spinbot 360\u00b0 [" + Mathf.RoundToInt(spinSpeed) + "\u00b0/s]";
+                                }
                             }
                             else
                             {
@@ -3217,7 +3299,7 @@ namespace ProjectEspPatch
                                 : new Color(0.70f, 0.76f, 0.84f, 1f);
                             GUI.Label(new Rect(
                                 rowRect.x + 18f, rowRect.y + (rowRect.height - 24f) * 0.5f,
-                                rowRect.width - (showToggle ? 110f : (activeTab == 1 && row == 5 ? 200f : (activeTab == 1 && row == 6 ? 70f : 30f))), 24f),
+                                rowRect.width - ((activeTab == 2 && row == 6) ? 260f : (showToggle ? 110f : (activeTab == 1 && row == 5 ? 200f : (activeTab == 1 && row == 6 ? 70f : 30f)))), 24f),
                                 rowLabel);
                             if (activeTab == 1 && row == 5)
                             {
@@ -3253,6 +3335,32 @@ namespace ProjectEspPatch
                                 GUI.DrawTexture(new Rect(swBoxRect.x, swBoxRect.y + swBoxRect.height - 1f, swBoxRect.width, 1f), pixel);
                                 GUI.DrawTexture(new Rect(swBoxRect.x, swBoxRect.y, 1f, swBoxRect.height), pixel);
                                 GUI.DrawTexture(new Rect(swBoxRect.x + swBoxRect.width - 1f, swBoxRect.y, 1f, swBoxRect.height), pixel);
+                            }
+                            else if (activeTab == 2 && row == 6)
+                            {
+                                float spinSliderW = Mathf.Clamp(rowRect.width * 0.28f, 100f, 150f);
+                                float spinSliderH = 14f;
+                                float spinSliderX = (rowRect.x + rowRect.width - 70f - 16f) - spinSliderW - 14f;
+                                float spinSliderY = rowRect.y + (rowRect.height - spinSliderH) * 0.5f;
+                                Rect spinTrack = new Rect(spinSliderX, spinSliderY, spinSliderW, spinSliderH);
+
+                                GUI.color = new Color(0.10f, 0.12f, 0.16f, 1f);
+                                GUI.DrawTexture(spinTrack, pixel);
+
+                                float spinRatio = Mathf.Clamp01((spinSpeed - 180f) / (3600f - 180f));
+                                float spinFill = Mathf.Clamp(spinRatio * spinTrack.width, 2f, spinTrack.width);
+                                GUI.color = new Color(1.0f, 0.75f, 0.10f, 1f);
+                                GUI.DrawTexture(new Rect(spinTrack.x, spinTrack.y, spinFill, spinTrack.height), pixel);
+
+                                GUI.color = new Color(0.35f, 0.30f, 0.15f, 0.8f);
+                                GUI.DrawTexture(new Rect(spinTrack.x, spinTrack.y, spinTrack.width, 1f), pixel);
+                                GUI.DrawTexture(new Rect(spinTrack.x, spinTrack.y + spinTrack.height - 1f, spinTrack.width, 1f), pixel);
+                                GUI.DrawTexture(new Rect(spinTrack.x, spinTrack.y, 1f, spinTrack.height), pixel);
+                                GUI.DrawTexture(new Rect(spinTrack.x + spinTrack.width - 1f, spinTrack.y, 1f, spinTrack.height), pixel);
+
+                                float spinKnobX = spinTrack.x + spinRatio * (spinTrack.width - 10f);
+                                GUI.color = Color.white;
+                                GUI.DrawTexture(new Rect(spinKnobX, spinTrack.y - 3f, 10f, 20f), pixel);
                             }
 
                             if (showToggle)

@@ -346,6 +346,8 @@ enum FreeFirePatchService {
             "super_emote": state.superEmote ? 1 : 0,
             "fast_reload": state.fastReload ? 1 : 0,
             "unlock_fps": state.unlockFps ? 1 : 0,
+            "spin_bot": state.spinBot ? 1 : 0,
+            "spin_speed": Int(state.spinSpeed),
             "line_bottom": 0
         ]
     }

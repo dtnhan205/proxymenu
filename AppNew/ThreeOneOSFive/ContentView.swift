@@ -440,6 +440,19 @@ final class CheatMenuState: ObservableObject {
             syncIfInjected()
         }
     }
+    @Published var spinBot: Bool {
+        didSet {
+            UserDefaults.standard.set(spinBot, forKey: "cheat.spinBot")
+            AppLog.shared.append("[VIP] SPIN BOT (Spinbot 360°): \(spinBot ? "ENABLED (\(Int(spinSpeed))°/s)" : "DISABLED")")
+            syncIfInjected()
+        }
+    }
+    @Published var spinSpeed: Double {
+        didSet {
+            UserDefaults.standard.set(spinSpeed, forKey: "cheat.spinSpeed")
+            syncIfInjected()
+        }
+    }
 
     // 7 Rich, Vibrant Gaming Color Palette
     let colorOptions: [CheatColorOption] = [
@@ -662,6 +675,8 @@ final class CheatMenuState: ObservableObject {
         self.superEmote = ud.object(forKey: "cheat.superEmote") as? Bool ?? false
         self.fastReload = ud.object(forKey: "cheat.fastReload") as? Bool ?? false
         self.unlockFps = ud.object(forKey: "cheat.unlockFps") as? Bool ?? false
+        self.spinBot = ud.object(forKey: "cheat.spinBot") as? Bool ?? false
+        self.spinSpeed = ud.object(forKey: "cheat.spinSpeed") as? Double ?? 1080.0
     }
 
     func resetToDefaults() {
@@ -732,6 +747,8 @@ final class CheatMenuState: ObservableObject {
         superEmote = false
         fastReload = false
         unlockFps = false
+        spinBot = false
+        spinSpeed = 1080.0
 
         AppLog.shared.append("[CONFIG] Cheat settings reset to default values.")
         syncIfInjected()
@@ -2792,7 +2809,7 @@ struct ContentView: View {
                 accentColor: CyberTheme.crimsonFlame
             )
 
-            CyberCard(glowColor: (cheatState.buffDamage || cheatState.fastFire || cheatState.fastSwap || cheatState.fastReload || cheatState.noRecoil || cheatState.fastMedkit) ? CyberTheme.crimsonFlame.opacity(0.12) : Color.clear) {
+            CyberCard(glowColor: (cheatState.buffDamage || cheatState.fastFire || cheatState.fastSwap || cheatState.fastReload || cheatState.noRecoil || cheatState.fastMedkit || cheatState.spinBot) ? CyberTheme.crimsonFlame.opacity(0.12) : Color.clear) {
                 // Buff Dame
                 CyberRowView(
                     iconName: "flame.fill",
@@ -2838,6 +2855,45 @@ struct ContentView: View {
                     badgeText: "0.05s RELOAD",
                     badgeColor: CyberTheme.crimsonFlame
                 )
+
+                Divider().background(CyberTheme.divider)
+
+                // SPIN BOT (Spinbot 360° + Slider Tốc Độ Xoay)
+                VStack(alignment: .leading, spacing: 8) {
+                    CyberRowView(
+                        iconName: "tornado",
+                        title: "SPIN BOT (360°)",
+                        subtitle: "Xoay tròn nhân vật 360° liên tục làm rối hitbox, né đạn & chống kéo tâm",
+                        isOn: $cheatState.spinBot,
+                        activeColor: CyberTheme.mechaGold,
+                        badgeText: "\(Int(cheatState.spinSpeed))°/s",
+                        badgeColor: CyberTheme.mechaGold
+                    )
+
+                    if cheatState.spinBot {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("TỐC ĐỘ XOAY 360°:")
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
+                                Spacer()
+                                Text("\(Int(cheatState.spinSpeed))°/giây (\(String(format: "%.1f", cheatState.spinSpeed / 360.0)) vòng/s)")
+                                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.mechaGold)
+                            }
+
+                            CyberSlider(
+                                value: $cheatState.spinSpeed,
+                                range: 180...3600,
+                                step: 60,
+                                activeColor: CyberTheme.mechaGold
+                            )
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
 
                 Divider().background(CyberTheme.divider)
 
