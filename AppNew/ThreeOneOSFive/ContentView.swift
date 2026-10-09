@@ -1588,6 +1588,11 @@ struct ContentView: View {
     @State private var showSettingsSheet: Bool = false
     @State private var isCleaningAntiban: Bool = false
     @State private var antibanProgress: Double = 0.0
+    @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.vietnamese.rawValue
+
+    private var isEnglish: Bool {
+        languageCode == AppLanguage.english.rawValue
+    }
 
     private var isLicenseValid: Bool {
         guard let key = licenseStore.savedKey, !key.isEmpty,
@@ -1663,10 +1668,10 @@ struct ContentView: View {
                             .foregroundColor(.red)
                             .font(.system(size: 16))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("BẢN QUYỀN CHƯA KÍCH HOẠT")
+                            Text(isEnglish ? "LICENSE NOT ACTIVATED" : "BẢN QUYỀN CHƯA KÍCH HOẠT")
                                 .font(.system(size: 11.5, weight: .black, design: .monospaced))
                                 .foregroundColor(.red)
-                            Text("Mọi tính năng đã bị khóa. Vui lòng nhập License Key hợp lệ.")
+                            Text(isEnglish ? "All features are locked. Please enter a valid License Key." : "Mọi tính năng đã bị khóa. Vui lòng nhập License Key hợp lệ.")
                                 .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                                 .foregroundColor(Color.white.opacity(0.8))
                         }
@@ -1674,7 +1679,7 @@ struct ContentView: View {
                         Button {
                             showSettingsSheet = true
                         } label: {
-                            Text("KÍCH HOẠT")
+                            Text(isEnglish ? "ACTIVATE" : "KÍCH HOẠT")
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 10)
@@ -2030,7 +2035,7 @@ struct ContentView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.8)
 
-                            Text(target == .freeFireTH ? "Bản chính" : "Bản tối ưu")
+                            Text(target == .freeFireTH ? (isEnglish ? "Main Edition" : "Bản chính") : (isEnglish ? "Max Edition" : "Bản tối ưu"))
                                 .font(.system(size: 9.5, weight: .medium))
                                 .foregroundColor(CyberTheme.textMuted)
                                 .lineLimit(1)
@@ -3252,7 +3257,14 @@ struct ContentView: View {
 
     // MARK: - Floating Futuristic Action HUD (Bottom Bar)
     private var bottomActionBar: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 4) {
+            // Quick Language Selector Row (Above inject button, right-aligned over lightning button)
+            HStack {
+                Spacer()
+                languageSelectorButton
+            }
+            .padding(.horizontal, 20)
+
             HStack(spacing: 12) {
                 // Main Inject Button (Chamfered Futuristic Angle)
                 Button {
@@ -3278,7 +3290,7 @@ struct ContentView: View {
                         // Label
                         VStack(alignment: .leading, spacing: 2) {
                             if isInjecting {
-                                Text(isInjected ? "ĐANG GỠ BỎ..." : "ĐANG INJECT...")
+                                Text(isInjected ? (isEnglish ? "UNINJECTING..." : "ĐANG GỠ BỎ...") : (isEnglish ? "INJECTING..." : "ĐANG INJECT..."))
                                     .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
                             } else {
@@ -3289,7 +3301,7 @@ struct ContentView: View {
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
 
-                                Text(isInjected ? "Nhấn để hủy kích hoạt chức năng" : "Bắt đầu kích hoạt chức năng")
+                                Text(isInjected ? (isEnglish ? "Tap to revert all cheat features" : "Nhấn để hủy kích hoạt chức năng") : (isEnglish ? "Tap to activate all cheat features" : "Bắt đầu kích hoạt chức năng"))
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
                                     .lineLimit(1)
@@ -3422,6 +3434,58 @@ struct ContentView: View {
                 endPoint: .bottom
             )
         )
+    }
+
+    // MARK: - Language Selector Quick Action
+    private var languageSelectorButton: some View {
+        Menu {
+            ForEach(AppLanguage.selectableCases) { option in
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .medium)
+                    impact.impactOccurred()
+                    languageCode = option.rawValue
+                } label: {
+                    HStack {
+                        Text("\(option.flag) \(option.displayName)")
+                        if languageCode == option.rawValue {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            VStack(spacing: 2) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(white: 0.20),
+                                    Color(white: 0.10)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 32, height: 32)
+                        .overlay(
+                            Circle().strokeBorder(CyberTheme.cyberCyan.opacity(0.65), lineWidth: 1)
+                        )
+                        .shadow(color: CyberTheme.cyberCyan.opacity(0.35), radius: 4)
+
+                    Image(systemName: "globe")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(CyberTheme.cyberCyan)
+                }
+
+                Text("Language")
+                    .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color.white.opacity(0.85))
+                    .shadow(color: Color.black.opacity(0.8), radius: 2)
+            }
+            .frame(width: 50)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - MISC Tab Content (Combat & Movement Hacks Only)
