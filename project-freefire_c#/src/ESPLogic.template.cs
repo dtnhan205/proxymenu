@@ -2312,24 +2312,6 @@ namespace ProjectEspPatch
                             COW.GameVarDef.ShowPlayerOutlineMinAlpha = 1f;
                             COW.GameVarDef.PCOBOutlineSolid = true;
                             COW.GameVarDef.PCOBOutlineWidth = 3f;
-                            COW.GameVarDef.PCOBBuildingDissovle = true;
-                            COW.GameVarDef.PCOBBackPackSeeThroughShaderChange = true;
-                            COW.GameVarDef.PCOBBackWeaponSeeThroughPropertyChange = true;
-
-                            try
-                            {
-                                COW.Graphics.SceneGraphics sg = UnityEngine.Object.FindObjectOfType(typeof(COW.Graphics.SceneGraphics)) as COW.Graphics.SceneGraphics;
-                                if (sg != null)
-                                {
-                                    sg.SetTraceDepth(8, true);
-                                    sg.SetRenderqueue(4000, true);
-                                    sg.SetTraceWidth(3f, 3f, true);
-                                    sg.SetTraceColor(Color.red, true);
-                                }
-                            }
-                            catch (Exception)
-                            {
-                            }
                         }
                         else if (COW.GameVarDef.EnableShowPlayerOutline)
                         {
@@ -2681,27 +2663,6 @@ namespace ProjectEspPatch
                                     continue;
                                 }
 
-                                if (isAuth && (auxState & AuxChamsOutline) != 0)
-                                {
-                                    try
-                                    {
-                                        player.SetOutlineVisible(0xFFFFFFFF, true);
-                                    }
-                                    catch (Exception)
-                                    {
-                                    }
-                                    try
-                                    {
-                                        COW.GamePlay.AvatarTrace trace = player.GetComponentInChildren<COW.GamePlay.AvatarTrace>();
-                                        if (trace != null)
-                                        {
-                                            trace.SetPlayerVisible(true);
-                                        }
-                                    }
-                                    catch (Exception)
-                                    {
-                                    }
-                                }
 
                                 if ((state & AimSystemEnabled) != 0 && !dying && health > 0)
                                 {
