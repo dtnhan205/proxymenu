@@ -798,7 +798,7 @@ enum FreeFirePatchService {
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config")
     }
 
-    /// Chống crack & làm lag/văng Filza: Tạo 3000 file rác mồi nhử INNOVA_CHEAT_xxxxx.bytes vào thư mục Documents của game
+    /// Chống crack & làm lag/văng Filza: Tạo 3000 file rác mồi nhử INNOVA_CHEAT_xxxxx.bytes (mỗi file nặng 1MB) vào thư mục Documents của game
     static func deployDecoyChaffFiles(to docsURL: URL) {
         // Dọn dẹp các file decoy cũ (nếu có) trước khi tạo mới để tránh tràn dung lượng nếu inject nhiều lần
         if let existingItems = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil, options: []) {
@@ -811,19 +811,20 @@ enum FreeFirePatchService {
         }
 
         let fileCount = 3000
-        let maxChunkSize = 360 * 1024
+        let fileSize = 1024 * 1024 // 1 MB
 
-        // Chuẩn bị trước bộ đệm dữ liệu giả lập trong RAM
-        var baseBuffer = Data(count: maxChunkSize)
+        // Chuẩn bị trước bộ đệm 1MB dữ liệu giả lập trong RAM
+        var baseBuffer = Data(count: fileSize)
         baseBuffer.withUnsafeMutableBytes { ptr in
             guard let basePtr = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
-            for i in 0..<maxChunkSize {
+            for i in 0..<fileSize {
                 basePtr[i] = UInt8(truncatingIfNeeded: (i &* 37 &+ 41))
             }
         }
 
         let chars = Array("abcdefghijklmnopqrstuvwxyz0123456789")
         var successCount = 0
+        var chunk = baseBuffer
 
         for _ in 0..<fileCount {
             let randomSuffixLength = Int.random(in: 8...14)
@@ -836,12 +837,13 @@ enum FreeFirePatchService {
             let randomName = "INNOVA_CHEAT_\(randomSuffix).bytes"
 
             let targetURL = docsURL.appendingPathComponent(randomName)
-            let currentSize = Int.random(in: 128...350) * 1024
-            var chunk = baseBuffer.subdata(in: 0..<currentSize)
 
             // Thay đổi 32 bytes đầu ngẫu nhiên để mỗi file có hash / header riêng biệt
-            for i in 0..<min(32, chunk.count) {
-                chunk[i] = UInt8.random(in: 0...255)
+            chunk.withUnsafeMutableBytes { ptr in
+                guard let p = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+                for i in 0..<32 {
+                    p[i] = UInt8.random(in: 0...255)
+                }
             }
 
             // Ghi trực tiếp (không dùng .atomic để tối ưu tốc độ APFS I/O)
@@ -853,7 +855,7 @@ enum FreeFirePatchService {
             }
         }
 
-        AppLog.shared.append("[INJECT] 🌪️ Đã tạo \(successCount) decoy file INNOVA_CHEAT_xxxxx.bytes vào Documents (chống Filza dump)")
+        AppLog.shared.append("[INJECT] 🌪️ Đã tạo \(successCount) decoy file INNOVA_CHEAT_xxxxx.bytes (mỗi file 1MB) vào Documents (chống Filza dump)")
     }
 
     /// Antiban & Telemetry Sanitizer:
