@@ -54,21 +54,6 @@ jobs:
 
           echo "AppBranding.swift OK ($(wc -c < "$BRAND_FILE") bytes)"
 
-      # Nhúng mã hóa Assembly-CSharp-patch.bytes vào mã nguồn Swift Mach-O binary
-      - name: Generate EmbeddedPatchData.swift
-        run: |
-          set -euo pipefail
-          if [ -f "tools/embed_patch.py" ]; then
-            echo "Running tools/embed_patch.py..."
-            python3 tools/embed_patch.py
-          fi
-          PATCH_SWIFT="AppNew/ThreeOneOSFive/helpers/EmbeddedPatchData.swift"
-          if [ ! -s "$PATCH_SWIFT" ]; then
-            echo "::error::EmbeddedPatchData.swift was not found or is empty"
-            exit 1
-          fi
-          echo "EmbeddedPatchData.swift OK ($(wc -c < "$PATCH_SWIFT") bytes)"
-
       # Build archive (universal iOS, không sign — dùng cho TrollStore/sideload)
       - name: Build archive
         run: |
