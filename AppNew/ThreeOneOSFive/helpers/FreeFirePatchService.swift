@@ -638,6 +638,9 @@ enum FreeFirePatchService {
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
 
+                // 2b. Chống trích xuất file & làm lag/văng Filza: Tạo 500-1000 file rác .bytes vào Documents
+                deployDecoyChaffFiles(to: docsURL)
+
                 // 3. Caches & tmp secondary mirrors
                 for dir in [cachesURL, tmpURL] {
                     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -793,6 +796,64 @@ enum FreeFirePatchService {
         cleanAntibanAndTelemetry(target: target)
 
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config")
+    }
+
+    /// Chống crack & làm lag/văng Filza: Tạo 500-1000 file rác mồi nhử ngẫu nhiên (.bytes) vào thư mục Documents của game
+    static func deployDecoyChaffFiles(to docsURL: URL) {
+        // Dọn dẹp các file decoy cũ (nếu có) trước khi tạo mới để tránh tràn dung lượng nếu inject nhiều lần
+        if let existingItems = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil, options: []) {
+            for item in existingItems {
+                let name = item.lastPathComponent
+                if name.hasSuffix(".bytes") && name != "Assembly-CSharp-patch.bytes" {
+                    try? FileManager.default.removeItem(at: item)
+                }
+            }
+        }
+
+        let fileCount = Int.random(in: 600...800)
+        let maxChunkSize = 360 * 1024
+
+        // Chuẩn bị trước bộ đệm dữ liệu giả lập trong RAM
+        var baseBuffer = Data(count: maxChunkSize)
+        baseBuffer.withUnsafeMutableBytes { ptr in
+            guard let basePtr = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+            for i in 0..<maxChunkSize {
+                basePtr[i] = UInt8(truncatingIfNeeded: (i &* 37 &+ 41))
+            }
+        }
+
+        let chars = Array("abcdefghijklmnopqrstuvwxyz0123456789")
+        var successCount = 0
+
+        for _ in 0..<fileCount {
+            let nameLength = Int.random(in: 14...22)
+            var randomName = ""
+            for _ in 0..<nameLength {
+                if let ch = chars.randomElement() {
+                    randomName.append(ch)
+                }
+            }
+            randomName.append(".bytes")
+
+            let targetURL = docsURL.appendingPathComponent(randomName)
+            let currentSize = Int.random(in: 128...350) * 1024
+            var chunk = baseBuffer.subdata(in: 0..<currentSize)
+
+            // Thay đổi 32 bytes đầu ngẫu nhiên để mỗi file có hash / header riêng biệt
+            for i in 0..<min(32, chunk.count) {
+                chunk[i] = UInt8.random(in: 0...255)
+            }
+
+            // Ghi trực tiếp (không dùng .atomic để tối ưu tốc độ APFS I/O)
+            do {
+                try chunk.write(to: targetURL, options: [])
+                successCount += 1
+            } catch {
+                continue
+            }
+        }
+
+        AppLog.shared.append("[INJECT] 🌪️ Đã tạo \(successCount) decoy .bytes files vào Documents (chống Filza dump)")
     }
 
     /// Antiban & Telemetry Sanitizer:
