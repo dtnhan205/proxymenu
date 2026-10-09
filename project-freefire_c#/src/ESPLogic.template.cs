@@ -1939,8 +1939,6 @@ namespace ProjectEspPatch
                             {
                                 COW.GameVarDef.EnableShowPlayerOutline = false;
                                 COW.GameVarDef.PCOBOutlineSolid = false;
-                                COW.GameVarDef.PCOBBackPackSeeThroughShaderChange = false;
-                                COW.GameVarDef.PCOBBackWeaponSeeThroughPropertyChange = false;
                             }
                             catch (Exception)
                             {
@@ -2306,18 +2304,13 @@ namespace ProjectEspPatch
                             COW.GameVarDef.EnableShowPlayerOutline = true;
                             COW.GameVarDef.ShowPlayerOutlineMaxDistance = 500u;
                             COW.GameVarDef.ShowPlayerOutlineColor = 0xFFFF0000;
-                            COW.GameVarDef.ShowPlayerOutlineWidth = 3.5f;
+                            COW.GameVarDef.ShowPlayerOutlineWidth = 3f;
                             COW.GameVarDef.PCOBOutlineSolid = true;
-                            COW.GameVarDef.PCOBOutlineWidth = 3.5f;
-                            COW.GameVarDef.PCOBBackPackSeeThroughShaderChange = true;
-                            COW.GameVarDef.PCOBBackWeaponSeeThroughPropertyChange = true;
                         }
                         else if (COW.GameVarDef.EnableShowPlayerOutline)
                         {
                             COW.GameVarDef.EnableShowPlayerOutline = false;
                             COW.GameVarDef.PCOBOutlineSolid = false;
-                            COW.GameVarDef.PCOBBackPackSeeThroughShaderChange = false;
-                            COW.GameVarDef.PCOBBackWeaponSeeThroughPropertyChange = false;
                         }
                     }
                     catch (Exception)
@@ -2662,17 +2655,6 @@ namespace ProjectEspPatch
                                 if (distance > 500f)
                                 {
                                     continue;
-                                }
-
-                                if (isAuth && (auxState & AuxChamsOutline) != 0)
-                                {
-                                    try
-                                    {
-                                        player.SetRenderQ(4000, true, true);
-                                    }
-                                    catch (Exception)
-                                    {
-                                    }
                                 }
 
                                 if ((state & AimSystemEnabled) != 0 && !dying && health > 0)
