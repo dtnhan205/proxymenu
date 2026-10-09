@@ -2843,6 +2843,7 @@ struct ContentView: View {
                     badgeColor: CyberTheme.crimsonFlame
                 )
 
+                /*
                 Divider().background(CyberTheme.divider)
 
                 // Nạp Đạn Nhanh (Fast Reload)
@@ -2855,6 +2856,7 @@ struct ContentView: View {
                     badgeText: "0.05s RELOAD",
                     badgeColor: CyberTheme.crimsonFlame
                 )
+                */
 
                 Divider().background(CyberTheme.divider)
 
@@ -3165,6 +3167,7 @@ struct ContentView: View {
                     badgeColor: CyberTheme.mechaGold
                 )
 
+                /*
                 Divider().background(CyberTheme.divider)
 
                 // Khử Cỏ 100% (No Grass)
@@ -3242,6 +3245,7 @@ struct ContentView: View {
                     badgeText: "144 FPS MAX",
                     badgeColor: CyberTheme.mechaGold
                 )
+                */
             }
         }
     }
