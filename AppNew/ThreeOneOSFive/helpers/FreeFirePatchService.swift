@@ -302,7 +302,7 @@ enum FreeFirePatchService {
             "skeleton_esp": state.skeletonESP ? 1 : 0,
             "aim_silent": (state.aimSilent && !state.aimBot) ? 1 : 0,
             "aim_bot": (state.aimBot && !state.aimSilent) ? 1 : 0,
-            "aim_target": state.aimBotTarget == .head ? 1 : 0,
+            "aim_target": state.aimBotTarget.intValue,
             "aim_bot_target": state.aimBotTarget.rawValue,
             "no_recoil": state.noRecoil ? 1 : 0,
             "draw_fov": state.drawFOV ? 1 : 0,

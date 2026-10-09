@@ -24,17 +24,43 @@ enum CheatTab: Int, CaseIterable {
     }
 }
 
-// MARK: - AimBot Target Enum (Head vs Neck)
+// MARK: - AimBot Target Enum (Body, Chest, Neck, Head)
 enum AimBotTarget: String, CaseIterable, Identifiable {
-    case head = "head"
+    case body = "body"
+    case chest = "chest"
     case neck = "neck"
+    case head = "head"
 
     var id: String { rawValue }
 
+    var intValue: Int {
+        switch self {
+        case .head: return 1
+        case .neck: return 0
+        case .chest: return 2
+        case .body: return 3
+        }
+    }
+
+    func shortTitle(isEnglish: Bool) -> String {
+        switch self {
+        case .body: return isEnglish ? "Body" : "Thân"
+        case .chest: return isEnglish ? "Chest" : "Ngực"
+        case .neck: return isEnglish ? "Neck" : "Cổ"
+        case .head: return isEnglish ? "Head" : "Đầu"
+        }
+    }
+
+    var shortTitle: String {
+        shortTitle(isEnglish: false)
+    }
+
     func displayName(isEnglish: Bool) -> String {
         switch self {
-        case .head: return isEnglish ? "Head" : "Đầu (Head)"
+        case .body: return isEnglish ? "Body" : "Thân (Body)"
+        case .chest: return isEnglish ? "Chest" : "Ngực (Chest)"
         case .neck: return isEnglish ? "Neck" : "Cổ (Neck)"
+        case .head: return isEnglish ? "Head" : "Đầu (Head)"
         }
     }
 
@@ -44,8 +70,10 @@ enum AimBotTarget: String, CaseIterable, Identifiable {
 
     func subtitle(isEnglish: Bool) -> String {
         switch self {
-        case .head: return isEnglish ? "Max Headshot Rate" : "Headshot tối đa"
-        case .neck: return isEnglish ? "Natural & Safe" : "Tự nhiên, an toàn"
+        case .body: return isEnglish ? "Center mass lock, 100% natural & legit" : "Khóa trọng tâm thân, tự nhiên & hợp lệ"
+        case .chest: return isEnglish ? "Upper chest lock, high damage hit rate" : "Khóa ngực trên, tối ưu sát thương & ổn định"
+        case .neck: return isEnglish ? "Natural & safe upward headshot drag" : "Khóa cổ, dễ kéo tâm lên đầu tự nhiên"
+        case .head: return isEnglish ? "Direct head tracking lock, maximum headshots" : "Hút trực tiếp vào đầu, tỉ lệ headshot tối đa"
         }
     }
 
@@ -55,8 +83,10 @@ enum AimBotTarget: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .head: return "target"
+        case .body: return "figure.stand"
+        case .chest: return "shield.fill"
         case .neck: return "person.crop.circle"
+        case .head: return "target"
         }
     }
 }
@@ -2272,20 +2302,103 @@ struct ContentView: View {
             }
             .animation(.spring(response: 0.28, dampingFraction: 0.8), value: cheatState.aimSilent)
 
-            // Card 2: Aim Bot (Mặc định: Head)
+            // Card 2: Aim Bot (Body, Chest, Neck, Head)
             CyberCard(glowColor: cheatState.aimBot ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
                 // Aim Bot Row
                 CyberRowView(
                     iconName: "target",
                     title: isEnglish ? "Classic AimBot" : "Aim Bot (Tự Động)",
-                    subtitle: isEnglish ? "Direct head tracking lock (Headshot)" : "Hút tâm trực tiếp vào đầu đối thủ (Headshot)",
+                    subtitle: isEnglish ? "Direct lock: \(cheatState.aimBotTarget.displayName(isEnglish: true))" : "Hút tâm trực tiếp vào \(cheatState.aimBotTarget.displayName(isEnglish: false))",
                     isOn: $cheatState.aimBot,
-                    activeColor: CyberTheme.crimsonNeon
+                    activeColor: CyberTheme.crimsonNeon,
+                    badgeText: cheatState.aimBotTarget.shortTitle(isEnglish: isEnglish).uppercased(),
+                    badgeColor: CyberTheme.crimsonNeon
                 )
 
-                // FOV options (Shown when Aimbot is turned ON)
+                // Sub-controls (Shown when Aimbot is turned ON)
                 if cheatState.aimBot {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Divider().background(CyberTheme.divider)
+
+                        // 1. Aim Target Selector (Body | Chest | Neck | Head)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "scope")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(CyberTheme.crimsonNeon)
+                                Text(isEnglish ? "TARGET LOCK POINT (AIM POINT):" : "VỊ TRÍ KHÓA MỤC TIÊU:")
+                                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.textMuted)
+                                    .tracking(0.5)
+
+                                Spacer()
+
+                                Text(cheatState.aimBotTarget.displayName(isEnglish: isEnglish))
+                                    .font(.system(size: 10.5, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(CyberTheme.crimsonNeon)
+                            }
+
+                            HStack(spacing: 5) {
+                                ForEach(AimBotTarget.allCases) { target in
+                                    let isSelected = (cheatState.aimBotTarget == target)
+                                    Button {
+                                        let impact = UIImpactFeedbackGenerator(style: .light)
+                                        impact.impactOccurred()
+                                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                            cheatState.aimBotTarget = target
+                                        }
+                                    } label: {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: target.icon)
+                                                .font(.system(size: 9.5, weight: .bold))
+
+                                            Text(target.shortTitle(isEnglish: isEnglish))
+                                                .font(.system(size: 10.5, weight: isSelected ? .heavy : .semibold))
+                                                .lineLimit(1)
+                                                .minimumScaleFactor(0.7)
+                                        }
+                                        .foregroundColor(isSelected ? .white : Color(white: 0.70))
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 34)
+                                        .background(
+                                            ZStack {
+                                                if isSelected {
+                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                        .fill(
+                                                            LinearGradient(
+                                                                colors: [CyberTheme.crimsonNeon, CyberTheme.crimsonDark],
+                                                                startPoint: .topLeading,
+                                                                endPoint: .bottomTrailing
+                                                            )
+                                                        )
+                                                        .overlay(
+                                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                                .strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                                                        )
+                                                        .shadow(color: CyberTheme.crimsonNeon.opacity(0.45), radius: 6)
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                        .fill(Color.white.opacity(0.04))
+                                                        .overlay(
+                                                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                                                        )
+                                                }
+                                            }
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+
+                            Text(cheatState.aimBotTarget.subtitle(isEnglish: isEnglish))
+                                .font(.system(size: 9.5, weight: .medium))
+                                .foregroundColor(CyberTheme.textMuted)
+                                .padding(.top, 1)
+                        }
+
+                        Divider().background(CyberTheme.divider)
+
                         // Nút Bật / Tắt Vòng FOV cho Aimbot
                         CyberRowView(
                             iconName: "circle.circle",

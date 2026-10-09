@@ -200,6 +200,22 @@ namespace ProjectEspPatch
             float spinSpeed = (spinDriver.transform.position.x >= 180f && spinDriver.transform.position.x <= 3600f)
                 ? spinDriver.transform.position.x
                 : 1080f;
+            int aimTargetType = 1;
+            GameObject aimTargetDriver = GameObject.Find("__esp_aim_target");
+            if (aimTargetDriver == null)
+            {
+                aimTargetDriver = new GameObject("__esp_aim_target");
+                aimTargetDriver.transform.position = new Vector3(1f, 0f, 0f);
+                UnityEngine.Object.DontDestroyOnLoad(aimTargetDriver);
+            }
+            else
+            {
+                int storedTarget = (int)aimTargetDriver.transform.position.x;
+                if (storedTarget >= 0 && storedTarget <= 3)
+                {
+                    aimTargetType = storedTarget;
+                }
+            }
             Vector3 modalState = driverObject.transform.localScale;
             int activeModal = (int)modalState.x;
             if (activeModal != ModalAimMode && activeModal != ModalHeadRate
@@ -974,7 +990,7 @@ namespace ProjectEspPatch
                             int nFov = (int)fovRadius;
                             int nHead = 2;
                             int nCol = 0;
-                            int nTarget = 1; // 1 = Head, 0 = Neck
+                            int nTarget = aimTargetType; // 1 = Head, 0 = Neck, 2 = Chest, 3 = Body
                             int nBuffDmg = 0;
                             int nFastFire = 0;
                             int nWide = 0;
@@ -1107,8 +1123,20 @@ namespace ProjectEspPatch
                             // Hai chế độ LOẠI TRỪ lẫn nhau
                             if (nBot != 0)
                             {
-                                // Bật aimbot native, tắt hoàn toàn silent aim, luôn mặc định Head
-                                newAim |= AimSystemEnabled | AimSystemHead;
+                                // Bật aimbot native, tắt hoàn toàn silent aim
+                                newAim |= AimSystemEnabled;
+                                if (nTarget >= 0 && nTarget <= 3)
+                                {
+                                    aimTargetType = nTarget;
+                                    if (aimTargetDriver != null)
+                                    {
+                                        aimTargetDriver.transform.position = new Vector3((float)aimTargetType, 0f, 0f);
+                                    }
+                                }
+                                if (aimTargetType == 1)
+                                {
+                                    newAim |= AimSystemHead;
+                                }
                                 // Không set AimEnabled kể cả khi nSilent == 1
                             }
                             else if (nSilent != 0)
@@ -1409,6 +1437,10 @@ namespace ProjectEspPatch
                     {
                         rowCount = 7;
                     }
+                    else if ((state & AimSystemEnabled) != 0)
+                    {
+                        rowCount = 3;
+                    }
                     else
                     {
                         rowCount = 2;
@@ -1684,7 +1716,8 @@ namespace ProjectEspPatch
                     {
                         float popupWidth = Mathf.Clamp(panelWidth - 24f, 340f, 460f);
                         float popupHeight = activeModal == ModalAimMode ? 220f
-                            : (activeModal == ModalHeadRate ? 320f : 166f);
+                            : (activeModal == ModalHeadRate ? 320f
+                            : (activeModal == ModalSystemTarget ? 260f : 166f));
                         float popupX = panelX + (panelWidth - popupWidth) * 0.5f;
                         float popupY = panelY + (panelHeight - popupHeight) * 0.5f;
                         Rect popupRect = new Rect(popupX, popupY, popupWidth, popupHeight);
@@ -1703,7 +1736,8 @@ namespace ProjectEspPatch
                         else
                         {
                             int optCount = activeModal == ModalAimMode ? 3
-                                : (activeModal == ModalHeadRate ? 5 : 2);
+                                : (activeModal == ModalHeadRate ? 5
+                                : (activeModal == ModalSystemTarget ? 4 : 2));
                             for (int i = 0; i < optCount; i++)
                             {
                                 Rect optRect = new Rect(popupX + 14f, optStartY + (float)i * (optRowHeight + optSpacing), popupWidth - 28f, optRowHeight);
@@ -1721,7 +1755,16 @@ namespace ProjectEspPatch
                                     }
                                     else if (activeModal == ModalSystemTarget)
                                     {
-                                        if (i == 1) state |= AimSystemHead;
+                                        if (i == 0) aimTargetType = 3; // Body
+                                        else if (i == 1) aimTargetType = 2; // Chest
+                                        else if (i == 2) aimTargetType = 0; // Neck
+                                        else aimTargetType = 1; // Head
+
+                                        if (aimTargetDriver != null)
+                                        {
+                                            aimTargetDriver.transform.position = new Vector3((float)aimTargetType, 0f, 0f);
+                                        }
+                                        if (aimTargetType == 1) state |= AimSystemHead;
                                         else state &= ~AimSystemHead;
                                     }
                                     else if (activeModal == ModalTracerOrigin)
@@ -1825,7 +1868,7 @@ namespace ProjectEspPatch
                             }
                             else if ((state & AimSystemEnabled) != 0)
                             {
-                                // Không có row con phụ nữa, luôn mặc định Head
+                                if (selectedRow == 2) action = AimActionSystemTarget;
                             }
                             if (action == AimActionSilentToggle)
                             {
@@ -1841,7 +1884,8 @@ namespace ProjectEspPatch
                                 if ((state & AimSystemEnabled) != 0)
                                 {
                                     state &= ~AimEnabled;
-                                    state |= AimSystemHead;
+                                    if (aimTargetType == 1) state |= AimSystemHead;
+                                    else state &= ~AimSystemHead;
                                 }
                             }
                             else if (action == AimActionSilentTarget)
@@ -2744,6 +2788,19 @@ namespace ProjectEspPatch
                                 if ((state & AimSystemEnabled) != 0 && !dying && health > 0)
                                 {
                                     Vector3 aimTargetPoint = head.position;
+                                    if (aimTargetType == 0) // Neck
+                                    {
+                                        aimTargetPoint = head.position + (root.position - head.position) * 0.12f;
+                                    }
+                                    else if (aimTargetType == 2) // Chest
+                                    {
+                                        aimTargetPoint = head.position + (root.position - head.position) * 0.28f;
+                                    }
+                                    else if (aimTargetType == 3) // Body
+                                    {
+                                        aimTargetPoint = (head.position + root.position) * 0.5f;
+                                    }
+
                                     Vector3 screenAim = camera.WorldToScreenPoint(aimTargetPoint);
                                     if (screenAim.z > 0.5f
                                         && !float.IsNaN(screenAim.x) && !float.IsNaN(screenAim.y)
@@ -3112,7 +3169,8 @@ namespace ProjectEspPatch
                                 else if (row == 1)
                                 {
                                     rowBit = AimSystemEnabled;
-                                    rowLabel = "🎯 Tự Động Kéo Tâm (Auto Aim - Đầu)";
+                                    string targetShort = aimTargetType == 0 ? "Cổ" : (aimTargetType == 2 ? "Ngực" : (aimTargetType == 3 ? "Thân" : "Đầu"));
+                                    rowLabel = "🎯 Tự Động Kéo Tâm (Auto Aim - " + targetShort + ")";
                                 }
                                 else if ((state & AimEnabled) != 0)
                                 {
@@ -3147,6 +3205,14 @@ namespace ProjectEspPatch
                                     {
                                         string colorStr = "#" + customR.ToString("X2") + customG.ToString("X2") + customB.ToString("X2") + " [R:" + customR + " G:" + customG + " B:" + customB + "]";
                                         rowLabel = "ðŸŽ¨ Báº£ng MÃ u FOV: " + colorStr + "  [Äá»•i MÃ u]";
+                                    }
+                                }
+                                else if ((state & AimSystemEnabled) != 0)
+                                {
+                                    if (row == 2)
+                                    {
+                                        string targetFull = aimTargetType == 0 ? "CỔ (Neck)" : (aimTargetType == 2 ? "NGỰC (Chest)" : (aimTargetType == 3 ? "THÂN (Body)" : "ĐẦU (Head)"));
+                                        rowLabel = "🎯 Điểm Khóa Mục Tiêu: " + targetFull + "  [Chọn]";
                                     }
                                 }
                             }
@@ -3479,7 +3545,8 @@ namespace ProjectEspPatch
                             float popupHeight = activeModal == ModalAimMode ? 220f
                                 : (activeModal == ModalHeadRate ? 320f
                                 : (activeModal == ModalFovSize ? 264f
-                                : (activeModal == ModalFovColor ? 414f : 166f)));
+                                : (activeModal == ModalFovColor ? 414f
+                                : (activeModal == ModalSystemTarget ? 260f : 166f))));
                             float popupX = panelX + (panelWidth - popupWidth) * 0.5f;
                             float popupY = panelY + (panelHeight - popupHeight) * 0.5f;
                             Rect popupRect = new Rect(popupX, popupY, popupWidth, popupHeight);
@@ -3790,7 +3857,8 @@ namespace ProjectEspPatch
                                 float optRowHeight = 46f;
                                 float optSpacing = 6f;
                                 int optCount = activeModal == ModalAimMode ? 3
-                                    : (activeModal == ModalHeadRate ? 5 : 2);
+                                    : (activeModal == ModalHeadRate ? 5
+                                    : (activeModal == ModalSystemTarget ? 4 : 2));
 
                                 for (int i = 0; i < optCount; i++)
                                 {
@@ -3813,8 +3881,12 @@ namespace ProjectEspPatch
                                     }
                                     else if (activeModal == ModalSystemTarget)
                                     {
-                                        isSelected = (i == 1 ? (state & AimSystemHead) != 0 : (state & AimSystemHead) == 0);
-                                        optText = i == 0 ? "ðŸŽ¯ KÃ©o TÃ¢m VÃ o Cá»• (Tá»± NhiÃªn)" : "ðŸŽ¯ KÃ©o TÃ¢m VÃ o Äáº§u (Headshot)";
+                                        int optionTargetType = (i == 0 ? 3 : (i == 1 ? 2 : (i == 2 ? 0 : 1)));
+                                        isSelected = (aimTargetType == optionTargetType);
+                                        optText = i == 0 ? "🎯 Thân - Body (Trọng Tâm, 100% Legit)"
+                                            : (i == 1 ? "🎯 Ngực - Chest (Ổn Định, Sát Thương)"
+                                            : (i == 2 ? "🎯 Cổ - Neck (Tự Nhiên, Kéo Lên Đầu)"
+                                            : "🎯 Đầu - Head (Headshot Full Đỏ)"));
                                     }
                                     else if (activeModal == ModalTracerOrigin)
                                     {
@@ -4323,13 +4395,35 @@ namespace ProjectEspPatch
                     }
                 }
 
+                int targetType = 1;
+                GameObject aimTargetDriver = GameObject.Find("__esp_aim_target");
+                if (aimTargetDriver != null)
+                {
+                    int storedTarget = (int)aimTargetDriver.transform.position.x;
+                    if (storedTarget >= 0 && storedTarget <= 3)
+                    {
+                        targetType = storedTarget;
+                    }
+                }
+
                 if (camera != null)
                 {
-                    Transform targetTf = self.GetHeadTF();
-                    if (targetTf == null) targetTf = self.RootTransform;
-                    if (targetTf != null)
+                    Transform rootTf = self.RootTransform;
+                    Transform headTf = self.GetHeadTF();
+                    Vector3 targetPos = headTf != null ? headTf.position : (rootTf != null ? rootTf.position + new Vector3(0f, 1.65f, 0f) : Vector3.zero);
+                    if (headTf != null && rootTf != null)
                     {
-                        Vector3 screen = camera.WorldToScreenPoint(targetTf.position);
+                        if (targetType == 0) // Neck
+                            targetPos = headTf.position + (rootTf.position - headTf.position) * 0.12f;
+                        else if (targetType == 2) // Chest
+                            targetPos = headTf.position + (rootTf.position - headTf.position) * 0.28f;
+                        else if (targetType == 3) // Body
+                            targetPos = (headTf.position + rootTf.position) * 0.5f;
+                    }
+
+                    if (targetPos != Vector3.zero)
+                    {
+                        Vector3 screen = camera.WorldToScreenPoint(targetPos);
                         if (screen.z <= 0f || float.IsNaN(screen.x) || float.IsNaN(screen.y))
                         {
                             return original;
@@ -4352,13 +4446,29 @@ namespace ProjectEspPatch
                     }
                 }
 
-                Collider targetCollider = self.HeadCollider;
-                if (targetCollider == null)
+                Collider targetCollider = null;
+                if (targetType == 2 || targetType == 3) // Chest or Body
                 {
                     Transform root = self.RootTransform;
-                    targetCollider = root == null
-                        ? null
-                        : (Collider)root.GetComponent("CapsuleCollider");
+                    if (root != null)
+                    {
+                        targetCollider = (Collider)root.GetComponent("CapsuleCollider");
+                    }
+                    if (targetCollider == null)
+                    {
+                        targetCollider = self.HeadCollider;
+                    }
+                }
+                else // Head (1) or Neck (0)
+                {
+                    targetCollider = self.HeadCollider;
+                    if (targetCollider == null)
+                    {
+                        Transform root = self.RootTransform;
+                        targetCollider = root == null
+                            ? null
+                            : (Collider)root.GetComponent("CapsuleCollider");
+                    }
                 }
 
                 if (targetCollider == null)
