@@ -29,7 +29,7 @@ enum IntegrityChecker {
     ///   `python tools/obfuscate_build_token.py --release`
     /// Script sẽ tự động mã hóa chuỗi này vào `buildTokenBytes` & `buildTokenKey` và xóa `sourceBuildToken = ""`
     /// để binary khi xuất ra IPA hoàn toàn không chứa plaintext token trong strings/rodata.
-    static var sourceBuildToken: String = "INNOVA-CFHB9NCKUJEPVCUP"
+    static var sourceBuildToken: String = "INNOVA-J4QN3SYC3WGC7QU3"
 
     // Byte arrays mã hóa XOR (được cập nhật tự động bởi tools/obfuscate_build_token.py)
     private static let buildTokenBytes: [UInt8] = [
