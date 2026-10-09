@@ -1938,7 +1938,14 @@ namespace ProjectEspPatch
                             try
                             {
                                 COW.GameVarDef.EnableShowPlayerOutline = false;
+                                COW.GameVarDef.EnableShowTeamOutline = false;
+                                COW.GameVarDef.EnableThroughTeamOutline = false;
+                                COW.GameVarDef.OutlineVisibleJudgeInUpDate = true;
+                                COW.GameVarDef.EnableOutlineFuncInScript = false;
                                 COW.GameVarDef.PCOBOutlineSolid = false;
+                                COW.GameVarDef.PCOBBackPackSeeThroughShaderChange = false;
+                                COW.GameVarDef.PCOBBackWeaponSeeThroughPropertyChange = false;
+                                COW.GameVarDef.EnableBackPackOcclusion = true;
                             }
                             catch (Exception)
                             {
@@ -2302,15 +2309,43 @@ namespace ProjectEspPatch
                         if (isChams)
                         {
                             COW.GameVarDef.EnableShowPlayerOutline = true;
+                            COW.GameVarDef.EnableShowTeamOutline = true;
+                            COW.GameVarDef.EnableThroughTeamOutline = true;
+                            COW.GameVarDef.OutlineVisibleJudgeInUpDate = false;
+                            COW.GameVarDef.EnableOutlineFuncInScript = true;
                             COW.GameVarDef.ShowPlayerOutlineMaxDistance = 500u;
+                            COW.GameVarDef.ShowPlayerOutlineMinDistance = 0u;
+                            COW.GameVarDef.ShowPlayerOutlineMaxAlpha = 1f;
+                            COW.GameVarDef.ShowPlayerOutlineMinAlpha = 1f;
                             COW.GameVarDef.ShowPlayerOutlineColor = 0xFFFF0000;
-                            COW.GameVarDef.ShowPlayerOutlineWidth = 3f;
+                            COW.GameVarDef.ShowPlayerOutlineWidth = 3.5f;
+
+                            COW.GameVarDef.ShowTeamOutlineColor = 0xFFFF0000;
+                            COW.GameVarDef.ShowTeamOutlineWidth = 3.5f;
+                            COW.GameVarDef.ShowTeamOutlineMaxDistance = 500u;
+                            COW.GameVarDef.ShowTeamOutlineMinDistance = 0u;
+                            COW.GameVarDef.ShowTeamOutlineMaxAlpha = 1f;
+                            COW.GameVarDef.ShowTeamOutlineMinAlpha = 1f;
+
                             COW.GameVarDef.PCOBOutlineSolid = true;
+                            COW.GameVarDef.PCOBOutlineWidth = 3.5f;
+                            COW.GameVarDef.PCOBBackPackSeeThroughShaderChange = true;
+                            COW.GameVarDef.PCOBBackWeaponSeeThroughPropertyChange = true;
+                            COW.GameVarDef.PCOBVehicleSeeThroughPropertyDisabled = false;
+                            COW.GameVarDef.PCOBDeadBoxSeeThroughPropertyDisabled = false;
+                            COW.GameVarDef.EnableBackPackOcclusion = false;
                         }
-                        else if (COW.GameVarDef.EnableShowPlayerOutline)
+                        else if (COW.GameVarDef.EnableShowPlayerOutline || COW.GameVarDef.EnableShowTeamOutline)
                         {
                             COW.GameVarDef.EnableShowPlayerOutline = false;
+                            COW.GameVarDef.EnableShowTeamOutline = false;
+                            COW.GameVarDef.EnableThroughTeamOutline = false;
+                            COW.GameVarDef.OutlineVisibleJudgeInUpDate = true;
+                            COW.GameVarDef.EnableOutlineFuncInScript = false;
                             COW.GameVarDef.PCOBOutlineSolid = false;
+                            COW.GameVarDef.PCOBBackPackSeeThroughShaderChange = false;
+                            COW.GameVarDef.PCOBBackWeaponSeeThroughPropertyChange = false;
+                            COW.GameVarDef.EnableBackPackOcclusion = true;
                         }
                     }
                     catch (Exception)
