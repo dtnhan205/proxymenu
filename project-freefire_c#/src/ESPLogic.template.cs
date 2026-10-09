@@ -210,7 +210,7 @@ namespace ProjectEspPatch
             }
             else
             {
-                int storedTarget = (int)aimTargetDriver.transform.position.x;
+                int storedTarget = (int)(aimTargetDriver.transform.position.x + 0.1f);
                 if (storedTarget >= 0 && storedTarget <= 3)
                 {
                     aimTargetType = storedTarget;
@@ -263,6 +263,10 @@ namespace ProjectEspPatch
                 vipMask = 0;
                 modalState = new Vector3(0f, (float)(1 | (1 << 19) | (0 << 3) | (245 << 11)), (float)(255 << 4));
                 driverObject.transform.localScale = modalState;
+            }
+            if (aimTargetType != 1)
+            {
+                state &= ~AimSystemHead;
             }
 
             int curFrame = Time.frameCount;
@@ -1118,6 +1122,15 @@ namespace ProjectEspPatch
                             }
                             if (newEsp != 0) newEsp |= EspMaster;
 
+                            if (nTarget >= 0 && nTarget <= 3)
+                            {
+                                aimTargetType = nTarget;
+                                if (aimTargetDriver != null)
+                                {
+                                    aimTargetDriver.transform.position = new Vector3((float)aimTargetType, 0f, 0f);
+                                }
+                            }
+
                             int newAim = 0;
                             // Aimbot (AimSystemEnabled) có priority cao hơn silent aim
                             // Hai chế độ LOẠI TRỪ lẫn nhau
@@ -1125,14 +1138,6 @@ namespace ProjectEspPatch
                             {
                                 // Bật aimbot native, tắt hoàn toàn silent aim
                                 newAim |= AimSystemEnabled;
-                                if (nTarget >= 0 && nTarget <= 3)
-                                {
-                                    aimTargetType = nTarget;
-                                    if (aimTargetDriver != null)
-                                    {
-                                        aimTargetDriver.transform.position = new Vector3((float)aimTargetType, 0f, 0f);
-                                    }
-                                }
                                 if (aimTargetType == 1)
                                 {
                                     newAim |= AimSystemHead;
@@ -2790,7 +2795,15 @@ namespace ProjectEspPatch
                                     Vector3 aimTargetPoint = head.position;
                                     if (aimTargetType == 0) // Neck
                                     {
-                                        aimTargetPoint = head.position + (root.position - head.position) * 0.12f;
+                                        Transform neckBone = player.NeckBone;
+                                        if (neckBone != null)
+                                        {
+                                            aimTargetPoint = neckBone.position;
+                                        }
+                                        else
+                                        {
+                                            aimTargetPoint = head.position + (root.position - head.position) * 0.12f;
+                                        }
                                     }
                                     else if (aimTargetType == 2) // Chest
                                     {
@@ -2798,7 +2811,14 @@ namespace ProjectEspPatch
                                     }
                                     else if (aimTargetType == 3) // Body
                                     {
-                                        aimTargetPoint = (head.position + root.position) * 0.5f;
+                                        if (player.CharacterController != null)
+                                        {
+                                            aimTargetPoint = player.CharacterController.bounds.center;
+                                        }
+                                        else
+                                        {
+                                            aimTargetPoint = (head.position + root.position) * 0.5f;
+                                        }
                                     }
 
                                     Vector3 screenAim = camera.WorldToScreenPoint(aimTargetPoint);
@@ -4175,14 +4195,22 @@ namespace ProjectEspPatch
                     {
                         hitPosition = root.position + new Vector3(0f, 1.25f, 0f);
                     }
-                    hitCollider = (Collider)root.GetComponent("CapsuleCollider");
+                    hitCollider = (Collider)candidate.CharacterController;
                     if (hitCollider == null)
                     {
-                        hitCollider = headCollider;
-                        if (hitCollider == null)
+                        try
+                        {
+                            hitCollider = (Collider)candidateObject.GetComponent(typeof(CharacterController));
+                        }
+                        catch (Exception) {}
+                    }
+                    if (hitCollider == null)
+                    {
+                        try
                         {
                             hitCollider = (Collider)candidateObject.GetComponent(typeof(Collider));
                         }
+                        catch (Exception) {}
                     }
                 }
 
@@ -4399,26 +4427,64 @@ namespace ProjectEspPatch
                 GameObject aimTargetDriver = GameObject.Find("__esp_aim_target");
                 if (aimTargetDriver != null)
                 {
-                    int storedTarget = (int)aimTargetDriver.transform.position.x;
+                    int storedTarget = (int)(aimTargetDriver.transform.position.x + 0.1f);
                     if (storedTarget >= 0 && storedTarget <= 3)
                     {
                         targetType = storedTarget;
                     }
                 }
 
+                Vector3 targetPos = Vector3.zero;
                 if (camera != null)
                 {
                     Transform rootTf = self.RootTransform;
                     Transform headTf = self.GetHeadTF();
-                    Vector3 targetPos = headTf != null ? headTf.position : (rootTf != null ? rootTf.position + new Vector3(0f, 1.65f, 0f) : Vector3.zero);
-                    if (headTf != null && rootTf != null)
+
+                    if (targetType == 1) // Head
                     {
-                        if (targetType == 0) // Neck
+                        targetPos = headTf != null ? headTf.position : (rootTf != null ? rootTf.position + new Vector3(0f, 1.70f, 0f) : Vector3.zero);
+                    }
+                    else if (targetType == 0) // Neck
+                    {
+                        Transform neckTf = self.NeckBone;
+                        if (neckTf != null)
+                        {
+                            targetPos = neckTf.position;
+                        }
+                        else if (headTf != null && rootTf != null)
+                        {
                             targetPos = headTf.position + (rootTf.position - headTf.position) * 0.12f;
-                        else if (targetType == 2) // Chest
+                        }
+                        else if (rootTf != null)
+                        {
+                            targetPos = rootTf.position + new Vector3(0f, 1.48f, 0f);
+                        }
+                    }
+                    else if (targetType == 2) // Chest
+                    {
+                        if (headTf != null && rootTf != null)
+                        {
                             targetPos = headTf.position + (rootTf.position - headTf.position) * 0.28f;
-                        else if (targetType == 3) // Body
+                        }
+                        else if (rootTf != null)
+                        {
+                            targetPos = rootTf.position + new Vector3(0f, 1.25f, 0f);
+                        }
+                    }
+                    else if (targetType == 3) // Body
+                    {
+                        if (self.CharacterController != null)
+                        {
+                            targetPos = self.CharacterController.bounds.center;
+                        }
+                        else if (headTf != null && rootTf != null)
+                        {
                             targetPos = (headTf.position + rootTf.position) * 0.5f;
+                        }
+                        else if (rootTf != null)
+                        {
+                            targetPos = rootTf.position + new Vector3(0f, 0.95f, 0f);
+                        }
                     }
 
                     if (targetPos != Vector3.zero)
@@ -4447,27 +4513,28 @@ namespace ProjectEspPatch
                 }
 
                 Collider targetCollider = null;
-                if (targetType == 2 || targetType == 3) // Chest or Body
-                {
-                    Transform root = self.RootTransform;
-                    if (root != null)
-                    {
-                        targetCollider = (Collider)root.GetComponent("CapsuleCollider");
-                    }
-                    if (targetCollider == null)
-                    {
-                        targetCollider = self.HeadCollider;
-                    }
-                }
-                else // Head (1) or Neck (0)
+                if (targetType == 1) // Head
                 {
                     targetCollider = self.HeadCollider;
+                }
+                else // Neck (0), Chest (2), Body (3)
+                {
+                    targetCollider = (Collider)self.CharacterController;
                     if (targetCollider == null)
                     {
-                        Transform root = self.RootTransform;
-                        targetCollider = root == null
-                            ? null
-                            : (Collider)root.GetComponent("CapsuleCollider");
+                        try
+                        {
+                            targetCollider = (Collider)self.GetComponent(typeof(CharacterController));
+                        }
+                        catch (Exception) {}
+                    }
+                    if (targetCollider == null)
+                    {
+                        try
+                        {
+                            targetCollider = (Collider)self.GetComponent(typeof(Collider));
+                        }
+                        catch (Exception) {}
                     }
                 }
 
