@@ -31,18 +31,26 @@ enum AimBotTarget: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var displayName: String {
+    func displayName(isEnglish: Bool) -> String {
         switch self {
-        case .head: return "Đầu (Head)"
-        case .neck: return "Cổ (Neck)"
+        case .head: return isEnglish ? "Head" : "Đầu (Head)"
+        case .neck: return isEnglish ? "Neck" : "Cổ (Neck)"
+        }
+    }
+
+    var displayName: String {
+        displayName(isEnglish: false)
+    }
+
+    func subtitle(isEnglish: Bool) -> String {
+        switch self {
+        case .head: return isEnglish ? "Max Headshot Rate" : "Headshot tối đa"
+        case .neck: return isEnglish ? "Natural & Safe" : "Tự nhiên, an toàn"
         }
     }
 
     var subtitle: String {
-        switch self {
-        case .head: return "Headshot tối đa"
-        case .neck: return "Tự nhiên, an toàn"
-        }
+        subtitle(isEnglish: false)
     }
 
     var icon: String {
@@ -63,24 +71,32 @@ enum ESPColorTarget: Int, CaseIterable, Identifiable {
 
     var id: Int { rawValue }
 
-    var title: String {
+    func title(isEnglish: Bool) -> String {
         switch self {
-        case .all: return "Tất Cả"
-        case .box: return "Khung Box"
-        case .line: return "Tia Line"
-        case .health: return "Thanh Máu"
-        case .tag: return "Tên & Cự Ly"
+        case .all: return isEnglish ? "All ESP" : "Tất Cả"
+        case .box: return isEnglish ? "2D Box" : "Khung Box"
+        case .line: return isEnglish ? "Tracers Line" : "Tia Line"
+        case .health: return isEnglish ? "Health Bar" : "Thanh Máu"
+        case .tag: return isEnglish ? "Name & Distance" : "Tên & Cự Ly"
+        }
+    }
+
+    var title: String {
+        title(isEnglish: false)
+    }
+
+    func shortTitle(isEnglish: Bool) -> String {
+        switch self {
+        case .all: return isEnglish ? "All" : "Tất Cả"
+        case .box: return isEnglish ? "Box" : "Box"
+        case .line: return isEnglish ? "Line" : "Line"
+        case .health: return isEnglish ? "HP" : "Máu"
+        case .tag: return isEnglish ? "Tag/Dist" : "Tên/Cự Ly"
         }
     }
 
     var shortTitle: String {
-        switch self {
-        case .all: return "Tất Cả"
-        case .box: return "Box"
-        case .line: return "Line"
-        case .health: return "Máu"
-        case .tag: return "Tên/Cự Ly"
-        }
+        shortTitle(isEnglish: false)
     }
 
     var icon: String {
@@ -100,6 +116,19 @@ struct CheatColorOption: Identifiable, Hashable {
     let name: String
     let color: Color
     let hex: String
+
+    func displayName(isEnglish: Bool) -> String {
+        switch id {
+        case 0: return isEnglish ? "Crimson Red" : "Đỏ Neon (Crimson Red)"
+        case 1: return isEnglish ? "Electric Blue" : "Xanh Cyan (Electric Blue)"
+        case 2: return isEnglish ? "Matrix Green" : "Xanh Lá (Matrix Green)"
+        case 3: return isEnglish ? "Cyber Gold" : "Vàng Kim (Cyber Gold)"
+        case 4: return isEnglish ? "Flame Orange" : "Cam Lửa (Flame Orange)"
+        case 5: return isEnglish ? "Neon Purple" : "Tím Neon (Neon Purple)"
+        case 6: return isEnglish ? "Cyber Pink" : "Hồng Neon (Cyber Pink)"
+        default: return name
+        }
+    }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -1273,6 +1302,11 @@ struct ESPColorPickerPopup: View {
     @ObservedObject var cheatState: CheatMenuState
     let target: ESPColorTarget
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.vietnamese.rawValue
+
+    private var isEnglish: Bool {
+        languageCode == AppLanguage.english.rawValue
+    }
 
     @State private var curR: Double = 0
     @State private var curG: Double = 229
@@ -1320,7 +1354,7 @@ struct ESPColorPickerPopup: View {
                             }
 
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("MỤC ÁP DỤNG: \(target.title.uppercased())")
+                                Text(isEnglish ? "TARGET: \(target.title(isEnglish: true).uppercased())" : "MỤC ÁP DỤNG: \(target.title(isEnglish: false).uppercased())")
                                     .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.cyberCyan)
                                     .tracking(1.0)
@@ -1329,7 +1363,7 @@ struct ESPColorPickerPopup: View {
                                     .font(.system(size: 18, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
 
-                                Text("RGB(\(Int(curR)), \(Int(curG)), \(Int(curB))) • Dày \(String(format: "%.1f", curThickness)) px")
+                                Text("RGB(\(Int(curR)), \(Int(curG)), \(Int(curB))) • \(isEnglish ? "Thickness" : "Dày") \(String(format: "%.1f", curThickness)) px")
                                     .font(.system(size: 11.5, weight: .medium, design: .monospaced))
                                     .foregroundColor(CyberTheme.textMuted)
                             }
@@ -1350,7 +1384,7 @@ struct ESPColorPickerPopup: View {
                                 Image(systemName: "hand.draw.fill")
                                     .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(CyberTheme.cyberCyan)
-                                Text("CHẠM HOẶC KÉO TỚI MÀU THÍCH")
+                                Text(isEnglish ? "TAP OR DRAG TO PICK COLOR" : "CHẠM HOẶC KÉO TỚI MÀU THÍCH")
                                     .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.textMuted)
                                     .tracking(0.5)
@@ -1366,7 +1400,7 @@ struct ESPColorPickerPopup: View {
                                 Image(systemName: "slider.horizontal.3")
                                     .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(CyberTheme.mechaGold)
-                                Text("TÙY CHỈNH THÔNG SỐ RGB (0 - 255)")
+                                Text(isEnglish ? "CUSTOM RGB VALUES (0 - 255)" : "TÙY CHỈNH THÔNG SỐ RGB (0 - 255)")
                                     .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.textMuted)
                                     .tracking(0.5)
@@ -1376,7 +1410,7 @@ struct ESPColorPickerPopup: View {
                             // R Slider
                             VStack(spacing: 3) {
                                 HStack {
-                                    Text("R (Đỏ)")
+                                    Text(isEnglish ? "R (Red)" : "R (Đỏ)")
                                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                                         .foregroundColor(Color(red: 1.0, green: 0.25, blue: 0.3))
                                     Spacer()
@@ -1390,7 +1424,7 @@ struct ESPColorPickerPopup: View {
                             // G Slider
                             VStack(spacing: 3) {
                                 HStack {
-                                    Text("G (Xanh Lá)")
+                                    Text(isEnglish ? "G (Green)" : "G (Xanh Lá)")
                                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                                         .foregroundColor(Color(red: 0.1, green: 0.9, blue: 0.4))
                                     Spacer()
@@ -1404,7 +1438,7 @@ struct ESPColorPickerPopup: View {
                             // B Slider
                             VStack(spacing: 3) {
                                 HStack {
-                                    Text("B (Xanh Dương)")
+                                    Text(isEnglish ? "B (Blue)" : "B (Xanh Dương)")
                                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                                         .foregroundColor(Color(red: 0.0, green: 0.8, blue: 1.0))
                                     Spacer()
@@ -1421,7 +1455,7 @@ struct ESPColorPickerPopup: View {
 
                         // 4. Quick Preset Colors
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("BẢNG MÀU CHỌN NHANH (PRESETS)")
+                            Text(isEnglish ? "QUICK COLOR PRESETS" : "BẢNG MÀU CHỌN NHANH (PRESETS)")
                                 .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                 .foregroundColor(CyberTheme.textMuted)
 
@@ -1459,7 +1493,7 @@ struct ESPColorPickerPopup: View {
                                 Image(systemName: "line.horizontal.3")
                                     .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(CyberTheme.cyberCyan)
-                                Text("ĐỘ DÀY NÉT VẼ CHO \(target.title.uppercased())")
+                                Text(isEnglish ? "LINE THICKNESS FOR \(target.title(isEnglish: true).uppercased())" : "ĐỘ DÀY NÉT VẼ CHO \(target.title(isEnglish: false).uppercased())")
                                     .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.textMuted)
                                     .tracking(0.5)
@@ -1511,7 +1545,7 @@ struct ESPColorPickerPopup: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 15, weight: .bold))
-                                Text("LƯU & ÁP DỤNG CHO \(target.title.uppercased())")
+                                Text(isEnglish ? "SAVE & APPLY FOR \(target.title(isEnglish: true).uppercased())" : "LƯU & ÁP DỤNG CHO \(target.title(isEnglish: false).uppercased())")
                                     .font(.system(size: 13, weight: .heavy, design: .monospaced))
                                     .tracking(0.5)
                             }
@@ -1542,11 +1576,11 @@ struct ESPColorPickerPopup: View {
                     .padding(.top, 12)
                 }
             }
-            .navigationTitle("Tùy Biến: \(target.title)")
+            .navigationTitle(isEnglish ? "Customize: \(target.title(isEnglish: true))" : "Tùy Biến: \(target.title(isEnglish: false))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Xong") {
+                    Button(isEnglish ? "Done" : "Xong") {
                         cheatState.setRGB(r: curR, g: curG, b: curB, for: target)
                         cheatState.setThickness(curThickness, for: target)
                         AppLog.shared.append("[ESP] Đã lưu màu \(target.title): \(hexString)")
@@ -1754,7 +1788,7 @@ struct ContentView: View {
             isInjected = FreeFirePatchService.isInjected(target: selectedTarget)
         }
         .alert("INNOVA CHEAT Engine", isPresented: $showInjectionAlert) {
-            Button("Đóng", role: .cancel) {}
+            Button(isEnglish ? "Close" : "Đóng", role: .cancel) {}
         } message: {
             Text(injectionAlertText)
         }
@@ -1846,11 +1880,11 @@ struct ContentView: View {
                 impact.impactOccurred()
                 if appState.kernelExploitApplicable && !appState.kernelExploitRunning && !appState.exploitStatus.isSuccess {
                     appState.runKernelExploitIfNeeded(force: true)
-                    showToast("Đang kích hoạt Kernel Exploit...")
+                    showToast(isEnglish ? "Activating Kernel Exploit..." : "Đang kích hoạt Kernel Exploit...")
                 } else if appState.exploitStatus.isSuccess {
                     showToast("Kernel Exploit: R/W Active")
                 } else {
-                    showToast("Chế độ: MHA-C2 Active")
+                    showToast(isEnglish ? "Mode: MHA-C2 Active" : "Chế độ: MHA-C2 Active")
                 }
             } label: {
                 HStack(spacing: 3.5) {
@@ -2124,7 +2158,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
                 title: "AIM PROTOCOL",
-                subtitle: "Tự động khóa mục tiêu & giảm giật",
+                subtitle: isEnglish ? "Automatic target locking & recoil compensation" : "Tự động khóa mục tiêu & giảm giật",
                 icon: "scope",
                 accentColor: CyberTheme.crimsonNeon
             )
@@ -2134,8 +2168,8 @@ struct ContentView: View {
                 // Aim Silent Row
                 CyberRowView(
                     iconName: "wind",
-                    title: "Aim Silent (Tàng Hình)",
-                    subtitle: "Khóa tâm ẩn, giảm giật màn hình",
+                    title: isEnglish ? "Aim Silent" : "Aim Silent (Tàng Hình)",
+                    subtitle: isEnglish ? "Invisible crosshair lock, smooth aiming" : "Khóa tâm ẩn, giảm giật màn hình",
                     isOn: $cheatState.aimSilent,
                     activeColor: CyberTheme.crimsonNeon
                 )
@@ -2148,8 +2182,8 @@ struct ContentView: View {
                         // Nút Bật / Tắt Vòng FOV
                         CyberRowView(
                             iconName: "circle.circle",
-                            title: "Vòng Tròn FOV (Hiện Vòng Quét)",
-                            subtitle: "Bật / tắt vòng tròn ngắm trên màn hình",
+                            title: isEnglish ? "FOV Circle (Visual Scanning)" : "Vòng Tròn FOV (Hiện Vòng Quét)",
+                            subtitle: isEnglish ? "Toggle on-screen target detection circle" : "Bật / tắt vòng tròn ngắm trên màn hình",
                             isOn: $cheatState.drawFOV,
                             activeColor: CyberTheme.crimsonNeon
                         )
@@ -2166,7 +2200,7 @@ struct ContentView: View {
                                         .foregroundColor(CyberTheme.crimsonNeon)
                                 }
 
-                                Text("Vòng Quét (Silent FOV)")
+                                Text(isEnglish ? "Scan Radius (Silent FOV)" : "Vòng Quét (Silent FOV)")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(CyberTheme.textSecondary)
 
@@ -2218,7 +2252,7 @@ struct ContentView: View {
                                         .foregroundColor(CyberTheme.mechaGold)
                                 }
 
-                                Text("Tỉ Lệ Trúng Đầu (Headshot)")
+                                Text(isEnglish ? "Headshot Hit Rate" : "Tỉ Lệ Trúng Đầu (Headshot)")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(CyberTheme.textSecondary)
 
@@ -2243,8 +2277,8 @@ struct ContentView: View {
                 // Aim Bot Row
                 CyberRowView(
                     iconName: "target",
-                    title: "Aim Bot (Tự Động)",
-                    subtitle: "Hút tâm trực tiếp vào đầu đối thủ (Headshot)",
+                    title: isEnglish ? "Classic AimBot" : "Aim Bot (Tự Động)",
+                    subtitle: isEnglish ? "Direct head tracking lock (Headshot)" : "Hút tâm trực tiếp vào đầu đối thủ (Headshot)",
                     isOn: $cheatState.aimBot,
                     activeColor: CyberTheme.crimsonNeon
                 )
@@ -2255,8 +2289,8 @@ struct ContentView: View {
                         // Nút Bật / Tắt Vòng FOV cho Aimbot
                         CyberRowView(
                             iconName: "circle.circle",
-                            title: "Vòng Tròn FOV (Hiện Vòng Quét)",
-                            subtitle: "Bật / tắt vòng tròn ngắm trên màn hình",
+                            title: isEnglish ? "FOV Circle (Visual Scanning)" : "Vòng Tròn FOV (Hiện Vòng Quét)",
+                            subtitle: isEnglish ? "Toggle on-screen target detection circle" : "Bật / tắt vòng tròn ngắm trên màn hình",
                             isOn: $cheatState.drawFOV,
                             activeColor: CyberTheme.crimsonNeon
                         )
@@ -2273,7 +2307,7 @@ struct ContentView: View {
                                         .foregroundColor(CyberTheme.crimsonNeon)
                                 }
 
-                                Text("Vòng Quét (Aimbot FOV)")
+                                Text(isEnglish ? "Scan Radius (Aimbot FOV)" : "Vòng Quét (Aimbot FOV)")
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundColor(CyberTheme.textSecondary)
 
@@ -2325,8 +2359,8 @@ struct ContentView: View {
                 CyberCard(glowColor: cheatState.drawFOV ? CyberTheme.crimsonNeon.opacity(0.12) : Color.clear) {
                     CyberRowView(
                         iconName: "circle.circle",
-                        title: "Vòng Tròn FOV (Hiện Vòng Quét)",
-                        subtitle: "Bật / tắt vòng tròn ngắm trên màn hình",
+                        title: isEnglish ? "FOV Circle (Visual Scanning)" : "Vòng Tròn FOV (Hiện Vòng Quét)",
+                        subtitle: isEnglish ? "Toggle on-screen target detection circle" : "Bật / tắt vòng tròn ngắm trên màn hình",
                         isOn: $cheatState.drawFOV,
                         activeColor: CyberTheme.crimsonNeon
                     )
@@ -2346,7 +2380,7 @@ struct ContentView: View {
                                 .foregroundColor(CyberTheme.matrixGreen)
                         }
 
-                        Text("HỆ THỐNG ANTIBAN")
+                        Text(isEnglish ? "ANTIBAN SYSTEM" : "HỆ THỐNG ANTIBAN")
                             .font(.system(size: 12, weight: .heavy, design: .monospaced))
                             .foregroundColor(.white)
 
@@ -2361,7 +2395,7 @@ struct ContentView: View {
                             .clipShape(Capsule())
                     }
 
-                    Text("Kích hoạt antiban trước sau đó mới inject cheat.")
+                    Text(isEnglish ? "Activate antiban before injecting the cheat." : "Kích hoạt antiban trước sau đó mới inject cheat.")
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundColor(CyberTheme.textMuted)
                         .lineSpacing(2)
@@ -2375,12 +2409,12 @@ struct ContentView: View {
                                 .rotationEffect(.degrees(isCleaningAntiban ? 360 : 0))
 
                             VStack(alignment: .leading, spacing: 1.5) {
-                                Text(isCleaningAntiban ? "ĐANG KÍCH HOẠT ANTIBAN... \(Int(antibanProgress * 100))%" : "BẬT ANTIBAN ( V1 )")
+                                Text(isCleaningAntiban ? (isEnglish ? "ACTIVATING ANTIBAN... \(Int(antibanProgress * 100))%" : "ĐANG KÍCH HOẠT ANTIBAN... \(Int(antibanProgress * 100))%") : (isEnglish ? "ENABLE ANTIBAN ( V1 )" : "BẬT ANTIBAN ( V1 )"))
                                     .font(.system(size: 12, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
                                     .tracking(0.5)
 
-                                Text(isCleaningAntiban ? "Đang kích hoạt" : "Nhấn để kích hoạt antiban v1")
+                                Text(isCleaningAntiban ? (isEnglish ? "Activating" : "Đang kích hoạt") : (isEnglish ? "Tap to activate antiban v1" : "Nhấn để kích hoạt antiban v1"))
                                     .font(.system(size: 9.5, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
                             }
@@ -2427,7 +2461,7 @@ struct ContentView: View {
                                     Circle()
                                         .fill(CyberTheme.matrixGreen)
                                         .frame(width: 5, height: 5)
-                                    Text("TIẾN TRÌNH ANTIBAN:")
+                                    Text(isEnglish ? "ANTIBAN PROGRESS:" : "TIẾN TRÌNH ANTIBAN:")
                                         .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
                                         .foregroundColor(CyberTheme.matrixGreen)
                                 }
@@ -2470,7 +2504,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
                 title: "ESP MATRIX SYSTEM",
-                subtitle: "Nhìn xuyên tường, định vị vị trí đối thủ",
+                subtitle: isEnglish ? "Wallhack, player tracking & distance radar" : "Nhìn xuyên tường, định vị vị trí đối thủ",
                 icon: "eye.fill",
                 accentColor: CyberTheme.cyberCyan
             )
@@ -2480,8 +2514,8 @@ struct ContentView: View {
                 // Box ESP (With active color badge & direct popup trigger)
                 CyberRowView(
                     iconName: "shippingbox.fill",
-                    title: "Khung 2D (Box ESP)",
-                    subtitle: "Hộp nhận diện bao quanh đối thủ",
+                    title: isEnglish ? "2D Box (Box ESP)" : "Khung 2D (Box ESP)",
+                    subtitle: isEnglish ? "Bounding box around enemies" : "Hộp nhận diện bao quanh đối thủ",
                     isOn: $cheatState.boxESP,
                     activeColor: cheatState.getColor(for: .box),
                     tagColor: cheatState.getColor(for: .box),
@@ -2496,8 +2530,8 @@ struct ContentView: View {
                 // Line ESP (With active color badge & direct popup trigger)
                 CyberRowView(
                     iconName: "line.diagonal",
-                    title: "Tia Chỉ Hướng (Line ESP)",
-                    subtitle: "Tia định vị từ đỉnh màn hình xuống địch",
+                    title: isEnglish ? "Tracers (Line ESP)" : "Tia Chỉ Hướng (Line ESP)",
+                    subtitle: isEnglish ? "Snapline from top of screen to target" : "Tia định vị từ đỉnh màn hình xuống địch",
                     isOn: $cheatState.lineESP,
                     activeColor: cheatState.getColor(for: .line),
                     tagColor: cheatState.getColor(for: .line),
@@ -2512,8 +2546,8 @@ struct ContentView: View {
                 // Health Bar
                 CyberRowView(
                     iconName: "cross.case.fill",
-                    title: "Thanh Máu (Health Bar)",
-                    subtitle: "Hiển thị lượng máu đối thủ",
+                    title: isEnglish ? "Health Bar" : "Thanh Máu (Health Bar)",
+                    subtitle: isEnglish ? "Display target health points" : "Hiển thị lượng máu đối thủ",
                     isOn: $cheatState.healthBar,
                     activeColor: cheatState.getColor(for: .health),
                     tagColor: cheatState.getColor(for: .health),
@@ -2528,8 +2562,8 @@ struct ContentView: View {
                 // Name Tag
                 CyberRowView(
                     iconName: "tag.fill",
-                    title: "Tên Kẻ Địch (Name Tag)",
-                    subtitle: "Nhận diện nickname của mục tiêu",
+                    title: isEnglish ? "Enemy Nickname (Name Tag)" : "Tên Kẻ Địch (Name Tag)",
+                    subtitle: isEnglish ? "Display player nickname" : "Nhận diện nickname của mục tiêu",
                     isOn: $cheatState.nameTag,
                     activeColor: cheatState.getColor(for: .tag),
                     tagColor: cheatState.getColor(for: .tag),
@@ -2544,8 +2578,8 @@ struct ContentView: View {
                 // Distance Tag
                 CyberRowView(
                     iconName: "ruler.fill",
-                    title: "Khoảng Cách (Distance Tag)",
-                    subtitle: "Đo cự ly chính xác theo mét",
+                    title: isEnglish ? "Distance Tag" : "Khoảng Cách (Distance Tag)",
+                    subtitle: isEnglish ? "Measure distance in meters" : "Đo cự ly chính xác theo mét",
                     isOn: $cheatState.distanceTag,
                     activeColor: cheatState.getColor(for: .tag),
                     tagColor: cheatState.getColor(for: .tag),
@@ -2560,8 +2594,8 @@ struct ContentView: View {
                 // Viền Đỏ Nhân Vật (Chams Outline)
                 CyberRowView(
                     iconName: "person.crop.rectangle.stack.fill",
-                    title: "VIỀN ĐỎ NHÂN VẬT (Chams)",
-                    subtitle: "Shader viền đỏ phát sáng xuyên tường 500m mượt mà trên GPU",
+                    title: isEnglish ? "GLOW CHAMS OUTLINE" : "VIỀN ĐỎ NHÂN VẬT (Chams)",
+                    subtitle: isEnglish ? "500m glowing outline shader visible through walls on GPU" : "Shader viền đỏ phát sáng xuyên tường 500m mượt mà trên GPU",
                     isOn: $cheatState.chamsOutline,
                     activeColor: CyberTheme.crimsonNeon,
                     badgeText: "CHAMS",
@@ -2580,14 +2614,14 @@ struct ContentView: View {
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(CyberTheme.cyberCyan)
 
-                        Text("BẢNG MÀU RGB & ĐỘ DÀY ESP")
+                        Text(isEnglish ? "RGB COLOR & ESP THICKNESS" : "BẢNG MÀU RGB & ĐỘ DÀY ESP")
                             .font(.system(size: 12, weight: .heavy, design: .monospaced))
                             .foregroundColor(.white)
                             .tracking(1.0)
 
                         Spacer()
 
-                        Text("TÙY CHỈNH TỪNG MỤC")
+                        Text(isEnglish ? "PER-ITEM CUSTOM" : "TÙY CHỈNH TỪNG MỤC")
                             .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                             .foregroundColor(CyberTheme.cyberCyan)
                             .padding(.horizontal, 6)
@@ -2598,7 +2632,7 @@ struct ContentView: View {
 
                     // 1. Selector Option: Chọn loại ESP để chỉnh màu
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("CHỌN LOẠI ESP ĐỂ THIẾT LẬP:")
+                        Text(isEnglish ? "SELECT ESP ELEMENT TO CONFIGURE:" : "CHỌN LOẠI ESP ĐỂ THIẾT LẬP:")
                             .font(.system(size: 10, weight: .heavy, design: .monospaced))
                             .foregroundColor(CyberTheme.textMuted)
                             .tracking(0.5)
@@ -2621,7 +2655,7 @@ struct ContentView: View {
                                             .frame(width: 7, height: 7)
                                             .shadow(color: targetColor.opacity(0.9), radius: 2)
 
-                                        Text(target.shortTitle)
+                                        Text(target.shortTitle(isEnglish: isEnglish))
                                             .font(.system(size: 10.5, weight: isSelected ? .bold : .medium))
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.7)
@@ -2676,7 +2710,7 @@ struct ContentView: View {
                             // Middle: Target Title & Hex / RGB
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack(spacing: 6) {
-                                    Text(selectedColorTarget.title)
+                                    Text(selectedColorTarget.title(isEnglish: isEnglish))
                                         .font(.system(size: 13, weight: .bold))
                                         .foregroundColor(.white)
 
@@ -2686,7 +2720,7 @@ struct ContentView: View {
                                 }
 
                                 let rgb = cheatState.getRGB(for: selectedColorTarget)
-                                Text("RGB(\(Int(rgb.r)), \(Int(rgb.g)), \(Int(rgb.b))) • Dày \(String(format: "%.1f", currentTargetThickness)) px")
+                                Text("RGB(\(Int(rgb.r)), \(Int(rgb.g)), \(Int(rgb.b))) • \(isEnglish ? "Thickness" : "Dày") \(String(format: "%.1f", currentTargetThickness)) px")
                                     .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                                     .foregroundColor(CyberTheme.textMuted)
                             }
@@ -2706,7 +2740,7 @@ struct ContentView: View {
 
                                 VStack(alignment: .trailing, spacing: 1) {
                                     HStack(spacing: 3) {
-                                        Text("BẢNG MÀU")
+                                        Text(isEnglish ? "PALETTE" : "BẢNG MÀU")
                                             .font(.system(size: 10, weight: .heavy, design: .monospaced))
                                         Image(systemName: "chevron.right")
                                             .font(.system(size: 9, weight: .bold))
@@ -2746,7 +2780,7 @@ struct ContentView: View {
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(CyberTheme.cyberCyan)
 
-                            Text("ĐỘ DÀY NÉT VẼ CHO \(selectedColorTarget.title.uppercased())")
+                            Text(isEnglish ? "LINE THICKNESS FOR \(selectedColorTarget.title(isEnglish: true).uppercased())" : "ĐỘ DÀY NÉT VẼ CHO \(selectedColorTarget.title(isEnglish: false).uppercased())")
                                 .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                 .foregroundColor(CyberTheme.textSecondary)
 
@@ -2809,7 +2843,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
                 title: "COMBAT & WEAPON MODS",
-                subtitle: "Tối ưu hóa vũ khí & gia tăng sát thương",
+                subtitle: isEnglish ? "Weapon optimization & damage boost" : "Tối ưu hóa vũ khí & gia tăng sát thương",
                 icon: "shield.righthalf.filled",
                 accentColor: CyberTheme.crimsonFlame
             )
@@ -2818,8 +2852,8 @@ struct ContentView: View {
                 // Buff Dame
                 CyberRowView(
                     iconName: "flame.fill",
-                    title: "Tăng Sát Thương (Buff Dame)",
-                    subtitle: "Cường hóa chỉ số dame khi bắn trúng",
+                    title: isEnglish ? "Buff Damage" : "Tăng Sát Thương (Buff Dame)",
+                    subtitle: isEnglish ? "Boost damage multipliers on hit" : "Cường hóa chỉ số dame khi bắn trúng",
                     isOn: $cheatState.buffDamage,
                     activeColor: CyberTheme.crimsonNeon
                 )
@@ -2829,8 +2863,8 @@ struct ContentView: View {
                 // Fast Fire
                 CyberRowView(
                     iconName: "bolt.fill",
-                    title: "Bắn Siêu Tốc (Fast Fire)",
-                    subtitle: "Tăng tốc độ nhả đạn của súng liên thanh",
+                    title: isEnglish ? "Rapid Fire" : "Bắn Siêu Tốc (Fast Fire)",
+                    subtitle: isEnglish ? "Increase weapon firing rate" : "Tăng tốc độ nhả đạn của súng liên thanh",
                     isOn: $cheatState.fastFire,
                     activeColor: CyberTheme.mechaGold
                 )
@@ -2840,8 +2874,8 @@ struct ContentView: View {
                 // Đổi Súng Nhanh (Fast Weapon Swap)
                 CyberRowView(
                     iconName: "arrow.triangle.swap",
-                    title: "ĐỔI SÚNG NHANH",
-                    subtitle: "Triệt tiêu 0s delay đổi súng, bắn liên tục không khựng (Shotgun & Sniper)",
+                    title: isEnglish ? "FAST WEAPON SWAP" : "ĐỔI SÚNG NHANH",
+                    subtitle: isEnglish ? "Zero delay quick swap, continuous shooting (Shotgun & Sniper)" : "Triệt tiêu 0s delay đổi súng, bắn liên tục không khựng (Shotgun & Sniper)",
                     isOn: $cheatState.fastSwap,
                     activeColor: CyberTheme.crimsonFlame,
                     badgeText: "0s DELAY",
@@ -2854,8 +2888,8 @@ struct ContentView: View {
                 // Nạp Đạn Nhanh (Fast Reload)
                 CyberRowView(
                     iconName: "bolt.badge.clock.fill",
-                    title: "NẠP ĐẠN NHANH",
-                    subtitle: "Rút ngắn thời gian nạp đạn xuống 0.05s, vừa nạp vừa bắn không bị khóa cò",
+                    title: isEnglish ? "FAST RELOAD" : "NẠP ĐẠN NHANH",
+                    subtitle: isEnglish ? "Shorten reload time to 0.05s, shoot while reloading without lock" : "Rút ngắn thời gian nạp đạn xuống 0.05s, vừa nạp vừa bắn không bị khóa cò",
                     isOn: $cheatState.fastReload,
                     activeColor: CyberTheme.crimsonFlame,
                     badgeText: "0.05s RELOAD",
@@ -2870,7 +2904,7 @@ struct ContentView: View {
                     CyberRowView(
                         iconName: "tornado",
                         title: "SPIN BOT (360°)",
-                        subtitle: "Xoay tròn nhân vật 360° liên tục làm rối hitbox, né đạn & chống kéo tâm",
+                        subtitle: isEnglish ? "Continuously spin character 360° to disrupt hitboxes and evade bullets" : "Xoay tròn nhân vật 360° liên tục làm rối hitbox, né đạn & chống kéo tâm",
                         isOn: $cheatState.spinBot,
                         activeColor: CyberTheme.mechaGold,
                         badgeText: "\(Int(cheatState.spinSpeed))°/s",
@@ -2880,11 +2914,11 @@ struct ContentView: View {
                     if cheatState.spinBot {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Text("TỐC ĐỘ XOAY 360°:")
+                                Text(isEnglish ? "SPIN SPEED 360°:" : "TỐC ĐỘ XOAY 360°:")
                                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                                     .foregroundColor(CyberTheme.textMuted)
                                 Spacer()
-                                Text("\(Int(cheatState.spinSpeed))°/giây (\(String(format: "%.1f", cheatState.spinSpeed / 360.0)) vòng/s)")
+                                Text(isEnglish ? "\(Int(cheatState.spinSpeed))°/sec (\(String(format: "%.1f", cheatState.spinSpeed / 360.0)) rev/s)" : "\(Int(cheatState.spinSpeed))°/giây (\(String(format: "%.1f", cheatState.spinSpeed / 360.0)) vòng/s)")
                                     .font(.system(size: 10, weight: .heavy, design: .monospaced))
                                     .foregroundColor(CyberTheme.mechaGold)
                             }
@@ -2908,11 +2942,11 @@ struct ContentView: View {
                 VStack(spacing: 6) {
                     CyberRowView(
                         iconName: "scope",
-                        title: "Đạn Thẳng (No Recoil 0%)",
-                        subtitle: "Khử rung lắc nòng súng, đạn bay thẳng tắp",
+                        title: isEnglish ? "Zero Recoil (0%)" : "Đạn Thẳng (No Recoil 0%)",
+                        subtitle: isEnglish ? "Eliminate weapon sway, bullets fly straight" : "Khử rung lắc nòng súng, đạn bay thẳng tắp",
                         isOn: $cheatState.noRecoil,
                         activeColor: CyberTheme.crimsonNeon,
-                        badgeText: "DỄ LỖI DAME",
+                        badgeText: isEnglish ? "DESYNC RISK" : "DỄ LỖI DAME",
                         badgeColor: CyberTheme.crimsonNeon
                     )
 
@@ -2926,10 +2960,10 @@ struct ContentView: View {
 
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 5) {
-                                Text("CẢNH BÁO NGUY HIỂM:")
+                                Text(isEnglish ? "HAZARD WARNING:" : "CẢNH BÁO NGUY HIỂM:")
                                     .font(.system(size: 10.5, weight: .black, design: .monospaced))
                                     .foregroundColor(CyberTheme.crimsonNeon)
-                                Text("NGUY CƠ LỖI DAME")
+                                Text(isEnglish ? "DESYNC / GHOST HIT" : "NGUY CƠ LỖI DAME")
                                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 4)
@@ -2940,7 +2974,7 @@ struct ContentView: View {
                                 Spacer(minLength: 0)
 
                                 if cheatState.noRecoil {
-                                    Text("ĐANG BẬT")
+                                    Text(isEnglish ? "ACTIVE" : "ĐANG BẬT")
                                         .font(.system(size: 8.5, weight: .black, design: .monospaced))
                                         .foregroundColor(.white)
                                         .padding(.horizontal, 4)
@@ -2950,7 +2984,7 @@ struct ContentView: View {
                                 }
                             }
 
-                            Text("Bật Đạn Thẳng can thiệp triệt tiêu độ tỏa đạn. Máy chủ có thể từ chối tính sát thương khi xả đạn liên tục dẫn tới SÁT THƯƠNG ẢO / LỖI DAME (bắn trúng địch nhưng không mất máu). Khuyên dùng cẩn trọng!")
+                            Text(isEnglish ? "Zero Recoil completely removes bullet spread. Server may reject rapid hits resulting in ghost damage (hits register visually but deal no damage). Use with caution!" : "Bật Đạn Thẳng can thiệp triệt tiêu độ tỏa đạn. Máy chủ có thể từ chối tính sát thương khi xả đạn liên tục dẫn tới SÁT THƯƠNG ẢO / LỖI DAME (bắn trúng địch nhưng không mất máu). Khuyên dùng cẩn trọng!")
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundColor(Color(white: 0.86))
                                 .lineSpacing(2)
@@ -2983,8 +3017,8 @@ struct ContentView: View {
                 // Fast Medkit
                 CyberRowView(
                     iconName: "cross.case.fill",
-                    title: "Bơm Máu Siêu Tốc (Fast Medkit)",
-                    subtitle: "Tăng tốc độ hồi phục sinh lực tức thì",
+                    title: isEnglish ? "Fast Medkit" : "Bơm Máu Siêu Tốc (Fast Medkit)",
+                    subtitle: isEnglish ? "Instant health recovery speed" : "Tăng tốc độ hồi phục sinh lực tức thì",
                     isOn: $cheatState.fastMedkit,
                     activeColor: CyberTheme.matrixGreen
                 )
@@ -2997,7 +3031,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             CyberSectionHeader(
                 title: "SURVIVAL & MOVEMENT",
-                subtitle: "Góc nhìn bao quát & di chuyển thần tốc",
+                subtitle: isEnglish ? "Panoramic view & ultra agility" : "Góc nhìn bao quát & di chuyển thần tốc",
                 icon: "figure.run",
                 accentColor: CyberTheme.cyberCyan
             )
@@ -3006,8 +3040,8 @@ struct ContentView: View {
                 // Cam Xa (Wide View) Row
                 CyberRowView(
                     iconName: "camera.viewfinder",
-                    title: "Góc Nhìn Rộng (Cam Xa)",
-                    subtitle: "Mở rộng góc quan sát toàn cảnh chiến trường",
+                    title: isEnglish ? "Wide FOV (Drone Cam)" : "Góc Nhìn Rộng (Cam Xa)",
+                    subtitle: isEnglish ? "Expand battlefield field of view" : "Mở rộng góc quan sát toàn cảnh chiến trường",
                     isOn: $cheatState.wideView,
                     activeColor: CyberTheme.cyberCyan
                 )
@@ -3025,7 +3059,7 @@ struct ContentView: View {
                                     .foregroundColor(CyberTheme.cyberCyan)
                             }
 
-                            Text("Khoảng Cách Cam (FOV)")
+                            Text(isEnglish ? "Camera FOV" : "Khoảng Cách Cam (FOV)")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(CyberTheme.textSecondary)
 
@@ -3054,11 +3088,11 @@ struct ContentView: View {
                 VStack(spacing: 6) {
                     CyberRowView(
                         iconName: "figure.run",
-                        title: "Chạy Nhanh (Speed Run)",
-                        subtitle: "Di chuyển thần tốc, né đạn & lướt nhanh",
+                        title: isEnglish ? "Speed Run" : "Chạy Nhanh (Speed Run)",
+                        subtitle: isEnglish ? "Lightning movement speed, dodge & slide" : "Di chuyển thần tốc, né đạn & lướt nhanh",
                         isOn: $cheatState.speedRun,
                         activeColor: CyberTheme.matrixGreen,
-                        badgeText: "DỄ LỖI DAME",
+                        badgeText: isEnglish ? "DESYNC RISK" : "DỄ LỖI DAME",
                         badgeColor: CyberTheme.mechaGold
                     )
 
@@ -3072,10 +3106,10 @@ struct ContentView: View {
 
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 5) {
-                                Text("CẢNH BÁO NGUY HIỂM:")
+                                Text(isEnglish ? "HAZARD WARNING:" : "CẢNH BÁO NGUY HIỂM:")
                                     .font(.system(size: 10.5, weight: .black, design: .monospaced))
                                     .foregroundColor(CyberTheme.mechaGold)
-                                Text("LỖI DAME / LỆCH SERVER")
+                                Text(isEnglish ? "SERVER DESYNC" : "LỖI DAME / LỆCH SERVER")
                                     .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 4)
@@ -3086,7 +3120,7 @@ struct ContentView: View {
                                 Spacer(minLength: 0)
 
                                 if cheatState.speedRun {
-                                    Text("ĐANG BẬT")
+                                    Text(isEnglish ? "ACTIVE" : "ĐANG BẬT")
                                         .font(.system(size: 8.5, weight: .black, design: .monospaced))
                                         .foregroundColor(.black)
                                         .padding(.horizontal, 4)
@@ -3096,7 +3130,7 @@ struct ContentView: View {
                                 }
                             }
 
-                            Text("Tốc độ di chuyển quá cao gây lệch tọa độ giữa máy bạn và server game (Desync). Khi vừa chạy vừa xả đạn, server có thể TỪ CHỐI TÍNH SÁT THƯƠNG khiến đạn bắn trúng địch nhưng không mất máu. Khuyên dùng cẩn trọng!")
+                            Text(isEnglish ? "Excessive movement speed causes coordinate desynchronization with the server. Firing while running may cause server hit rejection (ghost hits). Use with caution!" : "Tốc độ di chuyển quá cao gây lệch tọa độ giữa máy bạn và server game (Desync). Khi vừa chạy vừa xả đạn, server có thể TỪ CHỐI TÍNH SÁT THƯƠNG khiến đạn bắn trúng địch nhưng không mất máu. Khuyên dùng cẩn trọng!")
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundColor(Color(white: 0.86))
                                 .lineSpacing(2)
@@ -3129,8 +3163,8 @@ struct ContentView: View {
                 // Fast Parachute
                 CyberRowView(
                     iconName: "wind",
-                    title: "Nhảy Dù Siêu Tốc (Fast Parachute)",
-                    subtitle: "Rơi tự do và tiếp đất cực nhanh",
+                    title: isEnglish ? "Fast Parachute" : "Nhảy Dù Siêu Tốc (Fast Parachute)",
+                    subtitle: isEnglish ? "Free fall & fast touchdown" : "Rơi tự do và tiếp đất cực nhanh",
                     isOn: $cheatState.fastParachute,
                     activeColor: CyberTheme.mechaGold
                 )
@@ -3141,7 +3175,7 @@ struct ContentView: View {
                 CyberRowView(
                     iconName: "arrow.uturn.backward.circle.fill",
                     title: "BACKJUMP",
-                    subtitle: "Khử gia tốc rơi, nhảy giật lùi né đạn & đổi súng trên không",
+                    subtitle: isEnglish ? "Cancel fall momentum, backwards leap to dodge & switch weapons in air" : "Khử gia tốc rơi, nhảy giật lùi né đạn & đổi súng trên không",
                     isOn: $cheatState.backJump,
                     activeColor: CyberTheme.cyberCyan
                 )
@@ -3151,8 +3185,8 @@ struct ContentView: View {
                 // Nhảy Cao (High Jump)
                 CyberRowView(
                     iconName: "arrow.up.circle.fill",
-                    title: "NHẢY CAO (High Jump)",
-                    subtitle: "Bật nhảy 1.2x vượt tường keo, leo nóc nhà & vượt chướng ngại vật",
+                    title: isEnglish ? "HIGH JUMP (1.2x)" : "NHẢY CAO (High Jump)",
+                    subtitle: isEnglish ? "1.2x jump boost to leap over gloo walls, rooftops & obstacles" : "Bật nhảy 1.2x vượt tường keo, leo nóc nhà & vượt chướng ngại vật",
                     isOn: $cheatState.highJump,
                     activeColor: CyberTheme.matrixGreen,
                     badgeText: "1.2X",
@@ -3164,8 +3198,8 @@ struct ContentView: View {
                 // Đảo Như PC (Fast Rotation 360°)
                 CyberRowView(
                     iconName: "arrow.triangle.2.circlepath",
-                    title: "ĐẢO NHƯ PC (360°)",
-                    subtitle: "Quay đầu tức thì 9999°/s không quán tính, xoay mượt như chuột PC",
+                    title: isEnglish ? "PC ROTATION (360°)" : "ĐẢO NHƯ PC (360°)",
+                    subtitle: isEnglish ? "Instant 9999°/s zero-inertia turns, fluid mouse-like motion" : "Quay đầu tức thì 9999°/s không quán tính, xoay mượt như chuột PC",
                     isOn: $cheatState.fastRotation,
                     activeColor: CyberTheme.mechaGold,
                     badgeText: "9999°",
@@ -3178,8 +3212,8 @@ struct ContentView: View {
                 // Khử Cỏ 100% (No Grass)
                 CyberRowView(
                     iconName: "leaf.fill",
-                    title: "KHỬ CỎ 100% (No Grass)",
-                    subtitle: "Làm phẳng 0m mọi bụi cỏ cao & vừa trên toàn bản đồ, khắc chế nằm bo",
+                    title: isEnglish ? "NO GRASS 100%" : "KHỬ CỎ 100% (No Grass)",
+                    subtitle: isEnglish ? "Flatten all medium & tall grass across entire map to 0m" : "Làm phẳng 0m mọi bụi cỏ cao & vừa trên toàn bản đồ, khắc chế nằm bo",
                     isOn: $cheatState.noGrass,
                     activeColor: CyberTheme.matrixGreen,
                     badgeText: "NO GRASS",
@@ -3191,8 +3225,8 @@ struct ContentView: View {
                 // Khử Sương Mù (No Fog)
                 CyberRowView(
                     iconName: "sun.haze.fill",
-                    title: "KHỬ SƯƠNG MÙ (No Fog)",
-                    subtitle: "Xóa sạch sương mù che chắn, mở rộng tầm nhìn xa 1000m cực đại",
+                    title: isEnglish ? "NO FOG" : "KHỬ SƯƠNG MÙ (No Fog)",
+                    subtitle: isEnglish ? "Remove all obstructing fog, expand visibility up to 1000m max" : "Xóa sạch sương mù che chắn, mở rộng tầm nhìn xa 1000m cực đại",
                     isOn: $cheatState.noFog,
                     activeColor: CyberTheme.cyberCyan,
                     badgeText: "1000M",
@@ -3204,8 +3238,8 @@ struct ContentView: View {
                 // Loot Đồ Nhanh (Fast Loot / Auto Pickup)
                 CyberRowView(
                     iconName: "hand.grab.fill",
-                    title: "LOOT ĐỒ NHANH",
-                    subtitle: "Tối ưu hóa bộ nhớ đệm nhặt đồ, chạy lướt qua hút sạch trang bị",
+                    title: isEnglish ? "FAST LOOT" : "LOOT ĐỒ NHANH",
+                    subtitle: isEnglish ? "Optimize pickup cache, instant auto-loot while moving" : "Tối ưu hóa bộ nhớ đệm nhặt đồ, chạy lướt qua hút sạch trang bị",
                     isOn: $cheatState.fastLoot,
                     activeColor: CyberTheme.mechaGold,
                     badgeText: "AUTO LOOT",
@@ -3217,8 +3251,8 @@ struct ContentView: View {
                 // Ngồi Di Chuyển Nhanh (Fast Crouch Run)
                 CyberRowView(
                     iconName: "figure.walk",
-                    title: "NGỒI DI CHUYỂN NHANH",
-                    subtitle: "Di chuyển tốc độ tối đa ở tư thế ngồi, thu nhỏ hitbox né đạn",
+                    title: isEnglish ? "FAST CROUCH RUN" : "NGỒI DI CHUYỂN NHANH",
+                    subtitle: isEnglish ? "Move at full speed while crouching, reduce hitbox" : "Di chuyển tốc độ tối đa ở tư thế ngồi, thu nhỏ hitbox né đạn",
                     isOn: $cheatState.fastCrouch,
                     activeColor: CyberTheme.cyberCyan,
                     badgeText: "FAST CROUCH",
@@ -3230,8 +3264,8 @@ struct ContentView: View {
                 // Điệu Nhảy Booyah (Super Emote)
                 CyberRowView(
                     iconName: "figure.dance",
-                    title: "ĐIỆU NHẢY BOOYAH",
-                    subtitle: "Kích hoạt nhảy Booyah & Carnival Dance liên tục trong trận đấu",
+                    title: isEnglish ? "SUPER EMOTE (BOOYAH DANCE)" : "ĐIỆU NHẢY BOOYAH",
+                    subtitle: isEnglish ? "Trigger Booyah & Carnival dance continuously in match" : "Kích hoạt nhảy Booyah & Carnival Dance liên tục trong trận đấu",
                     isOn: $cheatState.superEmote,
                     activeColor: CyberTheme.crimsonNeon,
                     badgeText: "BOOYAH DANCE",
@@ -3243,8 +3277,8 @@ struct ContentView: View {
                 // Mở Khóa 120 / 144 FPS (Ultra Smooth)
                 CyberRowView(
                     iconName: "speedometer",
-                    title: "MỞ KHÓA 120 / 144 FPS",
-                    subtitle: "Mở khóa tần số quét cực hạn, hình ảnh siêu mượt và giảm giật lag cảm ứng",
+                    title: isEnglish ? "UNLOCK 120 / 144 FPS" : "MỞ KHÓA 120 / 144 FPS",
+                    subtitle: isEnglish ? "Unlock maximum refresh rate, ultra smooth visuals & reduced touch lag" : "Mở khóa tần số quét cực hạn, hình ảnh siêu mượt và giảm giật lag cảm ứng",
                     isOn: $cheatState.unlockFps,
                     activeColor: CyberTheme.mechaGold,
                     badgeText: "144 FPS MAX",
@@ -3558,11 +3592,11 @@ struct ContentView: View {
                     .zIndex(100)
                 }
             }
-            .navigationTitle("Cài Đặt Hệ Thống")
+            .navigationTitle(isEnglish ? "System Settings" : "Cài Đặt Hệ Thống")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Đóng") {
+                    Button(isEnglish ? "Close" : "Đóng") {
                         showSettingsSheet = false
                     }
                     .font(.system(size: 14, weight: .bold))
@@ -3580,22 +3614,22 @@ struct ContentView: View {
     private var appCoreCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             CyberSectionHeader(
-                title: "THÔNG TIN ỨNG DỤNG",
-                subtitle: "Phiên bản & Lõi hệ thống",
+                title: isEnglish ? "APPLICATION DETAILS" : "THÔNG TIN ỨNG DỤNG",
+                subtitle: isEnglish ? "Core version & engine architecture" : "Phiên bản & Lõi hệ thống",
                 icon: "shield.lefthalf.filled",
                 accentColor: CyberTheme.crimsonNeon
             )
 
             CyberCard(glowColor: CyberTheme.crimsonNeon.opacity(0.10)) {
-                SettingsInfoRow(icon: "app.badge.fill", label: "Tên Ứng Dụng", value: "INNOVA CHEAT", valueColor: CyberTheme.crimsonNeon)
+                SettingsInfoRow(icon: "app.badge.fill", label: isEnglish ? "App Name" : "Tên Ứng Dụng", value: "INNOVA CHEAT", valueColor: CyberTheme.crimsonNeon)
                 Divider().background(CyberTheme.divider)
-                SettingsInfoRow(icon: "number.circle.fill", label: "Phiên Bản Core", value: "v1.0.0", isMonospaced: true)
+                SettingsInfoRow(icon: "number.circle.fill", label: isEnglish ? "Core Version" : "Phiên Bản Core", value: "v1.0.0", isMonospaced: true)
                 Divider().background(CyberTheme.divider)
-                SettingsInfoRow(icon: "cpu.fill", label: "Kiến Trúc Binary", value: "ARM64e • iOS Metal", isMonospaced: true)
+                SettingsInfoRow(icon: "cpu.fill", label: isEnglish ? "Binary Architecture" : "Kiến Trúc Binary", value: "ARM64e • iOS Metal", isMonospaced: true)
                 Divider().background(CyberTheme.divider)
-                SettingsInfoRow(icon: "gamecontroller.fill", label: "Đối Tượng Hỗ Trợ", value: "FF & FF MAX")
+                SettingsInfoRow(icon: "gamecontroller.fill", label: isEnglish ? "Supported Games" : "Đối Tượng Hỗ Trợ", value: "FF & FF MAX")
                 Divider().background(CyberTheme.divider)
-                SettingsInfoRow(icon: "bolt.horizontal.fill", label: "Patch Engine", value: "IFix Dynamic Bytecode", valueColor: CyberTheme.matrixGreen)
+                SettingsInfoRow(icon: "bolt.horizontal.fill", label: isEnglish ? "Patch Engine" : "Patch Engine", value: "IFix Dynamic Bytecode", valueColor: CyberTheme.matrixGreen)
             }
         }
     }
@@ -3604,8 +3638,8 @@ struct ContentView: View {
     private var licenseSettingsCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             CyberSectionHeader(
-                title: "GIẤY PHÉP & BẢN QUYỀN",
-                subtitle: "Trạng thái key & Thời hạn sử dụng",
+                title: isEnglish ? "LICENSE & AUTHORIZATION" : "GIẤY PHÉP & BẢN QUYỀN",
+                subtitle: isEnglish ? "Key status & remaining duration" : "Trạng thái key & Thời hạn sử dụng",
                 icon: "key.fill",
                 accentColor: CyberTheme.mechaGold
             )
@@ -3614,11 +3648,11 @@ struct ContentView: View {
                 // Key Display & Copy Action
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("KEY ĐANG SỬ DỤNG")
+                        Text(isEnglish ? "ACTIVE LICENSE KEY" : "KEY ĐANG SỬ DỤNG")
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                             .foregroundColor(CyberTheme.textMuted)
 
-                        Text(showFullKey ? (licenseStore.savedKey ?? "Chưa có key") : maskedKeyText(licenseStore.savedKey))
+                        Text(showFullKey ? (licenseStore.savedKey ?? (isEnglish ? "No key" : "Chưa có key")) : maskedKeyText(licenseStore.savedKey))
                             .font(.system(size: 13.5, weight: .bold, design: .monospaced))
                             .foregroundColor(.white)
                             .lineLimit(1)
@@ -3643,7 +3677,7 @@ struct ContentView: View {
                     Button {
                         if let key = licenseStore.savedKey, !key.isEmpty {
                             UIPasteboard.general.string = key
-                            showToast("Đã sao chép License Key!")
+                            showToast(isEnglish ? "License Key copied to clipboard!" : "Đã sao chép License Key!")
                         }
                     } label: {
                         Image(systemName: "doc.on.doc.fill")
@@ -3661,7 +3695,7 @@ struct ContentView: View {
                 // Remaining Time Big Highlight
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("THỜI GIAN CÒN LẠI")
+                        Text(isEnglish ? "REMAINING DURATION" : "THỜI GIAN CÒN LẠI")
                             .font(.system(size: 10, weight: .bold, design: .monospaced))
                             .foregroundColor(CyberTheme.textMuted)
 
@@ -3692,7 +3726,7 @@ struct ContentView: View {
                             Image(systemName: "xmark.octagon.fill")
                                 .font(.system(size: 12))
                                 .foregroundColor(Color.red)
-                            Text("CHƯA KÍCH HOẠT")
+                            Text(isEnglish ? "NOT ACTIVATED" : "CHƯA KÍCH HOẠT")
                                 .font(.system(size: 11, weight: .heavy, design: .monospaced))
                                 .foregroundColor(Color.red)
                         }
@@ -3708,7 +3742,7 @@ struct ContentView: View {
 
                 SettingsInfoRow(
                     icon: "calendar.badge.clock",
-                    label: "Ngày Hết Hạn",
+                    label: isEnglish ? "Expiration Date" : "Ngày Hết Hạn",
                     value: formattedDate(licenseStore.expiresAt),
                     isMonospaced: true
                 )
@@ -3724,7 +3758,7 @@ struct ContentView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 13, weight: .bold))
-                        Text("Đổi Mã Key Khác")
+                        Text(isEnglish ? "Change License Key" : "Đổi Mã Key Khác")
                             .font(.system(size: 13, weight: .bold))
                     }
                     .foregroundColor(Color.red.opacity(0.9))
@@ -3747,8 +3781,8 @@ struct ContentView: View {
     private var deviceHardwareCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             CyberSectionHeader(
-                title: "THÔNG TIN THIẾT BỊ",
-                subtitle: "Phần cứng & Định danh máy",
+                title: isEnglish ? "DEVICE HARDWARE" : "THÔNG TIN THIẾT BỊ",
+                subtitle: isEnglish ? "Hardware specifications & identity" : "Phần cứng & Định danh máy",
                 icon: "iphone.gen3",
                 accentColor: CyberTheme.cyberCyan
             )
@@ -3756,27 +3790,27 @@ struct ContentView: View {
             CyberCard(glowColor: CyberTheme.cyberCyan.opacity(0.10)) {
                 SettingsInfoRow(
                     icon: "tag.fill",
-                    label: "Tên Thiết Bị",
+                    label: isEnglish ? "Device Name" : "Tên Thiết Bị",
                     value: UIDevice.current.name
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "iphone",
-                    label: "Dòng Máy",
+                    label: isEnglish ? "Device Model" : "Dòng Máy",
                     value: AppInfo.hardwareDisplayName,
                     valueColor: CyberTheme.cyberCyan
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "cube.fill",
-                    label: "Mã Model",
+                    label: isEnglish ? "Model Identifier" : "Mã Model",
                     value: AppInfo.displayMachineName,
                     isMonospaced: true
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "gearshape.fill",
-                    label: "Hệ Điều Hành",
+                    label: isEnglish ? "Operating System" : "Hệ Điều Hành",
                     value: "iOS \(AppInfo.osVersion) (\(AppInfo.osBuild))",
                     isMonospaced: true
                 )
@@ -3788,14 +3822,14 @@ struct ContentView: View {
                     isMonospaced: true,
                     copyAction: {
                         UIPasteboard.general.string = DeviceIdentity.serial()
-                        showToast("Đã sao chép Serial thiết bị!")
+                        showToast(isEnglish ? "Device Serial copied to clipboard!" : "Đã sao chép Serial thiết bị!")
                     }
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "hand.tap.fill",
-                    label: "Cử Chỉ Điều Hướng",
-                    value: AppInfo.isHomeButton ? "Phím Home Cổ Điển" : "Face ID / Vuốt Màn Hình"
+                    label: isEnglish ? "Navigation Gesture" : "Cử Chỉ Điều Hướng",
+                    value: AppInfo.isHomeButton ? (isEnglish ? "Classic Home Button" : "Phím Home Cổ Điển") : (isEnglish ? "Face ID / Swipe Gesture" : "Face ID / Vuốt Màn Hình")
                 )
             }
         }
@@ -3805,8 +3839,8 @@ struct ContentView: View {
     private var systemCompatibilityCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             CyberSectionHeader(
-                title: "KHẢ NĂNG HỖ TRỢ & HỆ THỐNG",
-                subtitle: "Tương thích Kernel Exploit & Game",
+                title: isEnglish ? "SYSTEM COMPATIBILITY" : "KHẢ NĂNG HỖ TRỢ & HỆ THỐNG",
+                subtitle: isEnglish ? "Kernel Exploit & game compatibility" : "Tương thích Kernel Exploit & Game",
                 icon: "checkmark.shield.fill",
                 accentColor: CyberTheme.matrixGreen
             )
@@ -3819,10 +3853,10 @@ struct ContentView: View {
                         .foregroundColor(isDeviceSupported ? CyberTheme.matrixGreen : CyberTheme.mechaGold)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(isDeviceSupported ? "ĐƯỢC HỖ TRỢ HOÀN TOÀN" : "HỖ TRỢ GIỚI HẠN")
+                        Text(isDeviceSupported ? (isEnglish ? "FULLY SUPPORTED" : "ĐƯỢC HỖ TRỢ HOÀN TOÀN") : (isEnglish ? "LIMITED SUPPORT" : "HỖ TRỢ GIỚI HẠN"))
                             .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
                             .foregroundColor(.white)
-                        Text(isDeviceSupported ? "Thiết bị tương thích 100% injection & bypass" : "Phiên bản iOS có thể cần thêm offset")
+                        Text(isDeviceSupported ? (isEnglish ? "Device is 100% compatible with injection & bypass" : "Thiết bị tương thích 100% injection & bypass") : (isEnglish ? "iOS version may require additional offsets" : "Phiên bản iOS có thể cần thêm offset"))
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(CyberTheme.textMuted)
                     }
@@ -3841,7 +3875,7 @@ struct ContentView: View {
                     valueColor: kernelExploitStatusColor,
                     copyAction: (appState.kernelExploitApplicable && !appState.kernelExploitRunning && !appState.exploitStatus.isSuccess) ? {
                         appState.runKernelExploitIfNeeded(force: true)
-                        showToast("Bắt đầu chạy Kernel Exploit...")
+                        showToast(isEnglish ? "Starting Kernel Exploit..." : "Bắt đầu chạy Kernel Exploit...")
                     } : nil
                 )
                 Divider().background(CyberTheme.divider)
@@ -3854,22 +3888,22 @@ struct ContentView: View {
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "folder.badge.gearshape",
-                    label: "Cơ Chế Can Thiệp",
+                    label: isEnglish ? "Intervention Mechanism" : "Cơ Chế Can Thiệp",
                     value: appState.exploitStatus.isSuccess ? "Bundle + Data Sandbox Escape" : "MHA-C2 Documents Injection",
                     valueColor: CyberTheme.cyberCyan
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "cross.case.fill",
-                    label: "Free Fire Thường",
-                    value: isGameInstalled(.freeFireTH) ? "Đã Cài Đặt (Sẵn sàng)" : "Chưa Tìm Thấy",
+                    label: isEnglish ? "Free Fire Standard" : "Free Fire Thường",
+                    value: isGameInstalled(.freeFireTH) ? (isEnglish ? "Installed (Ready)" : "Đã Cài Đặt (Sẵn sàng)") : (isEnglish ? "Not Found" : "Chưa Tìm Thấy"),
                     valueColor: isGameInstalled(.freeFireTH) ? CyberTheme.matrixGreen : CyberTheme.textMuted
                 )
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(
                     icon: "flame.fill",
                     label: "Free Fire MAX",
-                    value: isGameInstalled(.freeFireMAX) ? "Đã Cài Đặt (Sẵn sàng)" : "Chưa Tìm Thấy",
+                    value: isGameInstalled(.freeFireMAX) ? (isEnglish ? "Installed (Ready)" : "Đã Cài Đặt (Sẵn sàng)") : (isEnglish ? "Not Found" : "Chưa Tìm Thấy"),
                     valueColor: isGameInstalled(.freeFireMAX) ? CyberTheme.matrixGreen : CyberTheme.textMuted
                 )
             }
@@ -3880,8 +3914,8 @@ struct ContentView: View {
     private var utilitiesCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             CyberSectionHeader(
-                title: "TIỆN ÍCH & NHẬT KÝ",
-                subtitle: "Bảo trì & Xem console logs",
+                title: isEnglish ? "UTILITIES & LOGS" : "TIỆN ÍCH & NHẬT KÝ",
+                subtitle: isEnglish ? "Maintenance & console logs" : "Bảo trì & Xem console logs",
                 icon: "terminal.fill",
                 accentColor: CyberTheme.electricPurple
             )
@@ -3900,10 +3934,10 @@ struct ContentView: View {
                             .foregroundColor(CyberTheme.mechaGold)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Khôi Phục Cài Đặt Menu Mặc Định")
+                            Text(isEnglish ? "Reset Menu to Defaults" : "Khôi Phục Cài Đặt Menu Mặc Định")
                                 .font(.system(size: 13.5, weight: .semibold))
                                 .foregroundColor(.white)
-                            Text("Đưa toàn bộ thông số Aim & ESP về ban đầu")
+                            Text(isEnglish ? "Restore all Aim & ESP configurations to initial values" : "Đưa toàn bộ thông số Aim & ESP về ban đầu")
                                 .font(.system(size: 11, weight: .regular))
                                 .foregroundColor(CyberTheme.textMuted)
                         }
@@ -3913,6 +3947,58 @@ struct ContentView: View {
                     .padding(.vertical, 4)
                 }
                 .buttonStyle(.plain)
+
+                Divider().background(CyberTheme.divider)
+
+                // Language Selector Row inside Settings
+                HStack(spacing: 10) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(CyberTheme.cyberCyan)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(isEnglish ? "App Language" : "Ngôn Ngữ Ứng Dụng")
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundColor(.white)
+                        Text(isEnglish ? "English & Vietnamese" : "Tiếng Việt & English")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(CyberTheme.textMuted)
+                    }
+
+                    Spacer()
+
+                    Menu {
+                        ForEach(AppLanguage.selectableCases) { option in
+                            Button {
+                                let impact = UIImpactFeedbackGenerator(style: .medium)
+                                impact.impactOccurred()
+                                languageCode = option.rawValue
+                            } label: {
+                                HStack {
+                                    Text("\(option.flag) \(option.displayName)")
+                                    if languageCode == option.rawValue {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(isEnglish ? "🇺🇸 English" : "🇻🇳 Tiếng Việt")
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundColor(CyberTheme.cyberCyan)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundColor(CyberTheme.textMuted)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.08))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().strokeBorder(CyberTheme.cyberCyan.opacity(0.4), lineWidth: 0.8))
+                    }
+                }
+                .padding(.vertical, 4)
             }
         }
     }
@@ -3923,7 +4009,7 @@ struct ContentView: View {
 
         // Block if Kernel Exploit is actively executing to avoid race condition/crash
         if appState.kernelExploitRunning {
-            injectionAlertText = "⏳ Hệ thống đang chạy Kernel Exploit ngầm, vui lòng đợi giây lát rồi thử lại..."
+            injectionAlertText = isEnglish ? "⏳ Kernel Exploit is running in background, please wait a moment and try again..." : "⏳ Hệ thống đang chạy Kernel Exploit ngầm, vui lòng đợi giây lát rồi thử lại..."
             showInjectionAlert = true
             return
         }
@@ -3931,7 +4017,7 @@ struct ContentView: View {
         // Auto trigger Kernel Exploit if applicable and not yet tried
         if appState.kernelExploitApplicable && !appState.exploitStatus.isSuccess && !appState.exploitStatus.isFailed {
             appState.runKernelExploitIfNeeded()
-            injectionAlertText = "⚡ Đang kích hoạt quyền hệ thống (Kernel Exploit). Vui lòng thử lại sau vài giây..."
+            injectionAlertText = isEnglish ? "⚡ Activating system privileges (Kernel Exploit). Please retry in a few seconds..." : "⚡ Đang kích hoạt quyền hệ thống (Kernel Exploit). Vui lòng thử lại sau vài giây..."
             showInjectionAlert = true
             return
         }
@@ -3940,7 +4026,7 @@ struct ContentView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
 
-        AppLog.shared.append("[CHEAT] Bắt đầu nạp module cheat vào \(selectedTarget.displayName)...")
+        AppLog.shared.append(isEnglish ? "[CHEAT] Preparing injection into \(selectedTarget.displayName)..." : "[CHEAT] Bắt đầu nạp module cheat vào \(selectedTarget.displayName)...")
 
         Task {
             do {
@@ -3950,7 +4036,7 @@ struct ContentView: View {
                     self.isInjected = true
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.success)
-                    self.showToast("⚡ Đã Inject thành công! Đang mở \(self.selectedTarget.displayName)...")
+                    self.showToast(isEnglish ? "⚡ Successfully injected! Launching \(self.selectedTarget.displayName)..." : "⚡ Đã Inject thành công! Đang mở \(self.selectedTarget.displayName)...")
                     FreeFirePatchService.launchGame(target: self.selectedTarget)
                 }
             } catch {
@@ -3958,7 +4044,7 @@ struct ContentView: View {
                     self.isInjecting = false
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.error)
-                    self.injectionAlertText = "❌ Lỗi Inject:\n\(error.localizedDescription)"
+                    self.injectionAlertText = isEnglish ? "❌ Injection Error:\n\(error.localizedDescription)" : "❌ Lỗi Inject:\n\(error.localizedDescription)"
                     self.showInjectionAlert = true
                 }
             }
@@ -3971,7 +4057,7 @@ struct ContentView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
 
-        AppLog.shared.append("[CHEAT] Bắt đầu gỡ bỏ module cheat khỏi \(selectedTarget.displayName)...")
+        AppLog.shared.append(isEnglish ? "[CHEAT] Uninjecting module from \(selectedTarget.displayName)..." : "[CHEAT] Bắt đầu gỡ bỏ module cheat khỏi \(selectedTarget.displayName)...")
 
         FreeFirePatchService.uninject(target: selectedTarget)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -3979,7 +4065,7 @@ struct ContentView: View {
             self.isInjected = false
             let notif = UINotificationFeedbackGenerator()
             notif.notificationOccurred(.success)
-            self.injectionAlertText = "🗑️ Đã Uninject thành công."
+            self.injectionAlertText = isEnglish ? "🗑️ Successfully uninjected." : "🗑️ Đã Uninject thành công."
             self.showInjectionAlert = true
         }
     }
@@ -4012,7 +4098,7 @@ struct ContentView: View {
                 timer.invalidate()
                 let notif = UINotificationFeedbackGenerator()
                 notif.notificationOccurred(.success)
-                self.showToast("🛡️ Antiban: Đã bật thành công")
+                self.showToast(isEnglish ? "🛡️ Antiban: Successfully enabled" : "🛡️ Antiban: Đã bật thành công")
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     withAnimation {
@@ -4028,7 +4114,7 @@ struct ContentView: View {
         let impact = UIImpactFeedbackGenerator(style: .rigid)
         impact.impactOccurred()
         cheatState.resetToDefaults()
-        showToast("Đã khôi phục cài đặt mặc định!")
+        showToast(isEnglish ? "Settings reset to defaults!" : "Đã khôi phục cài đặt mặc định!")
     }
 
     private func showToast(_ message: String) {
@@ -4054,15 +4140,15 @@ struct ContentView: View {
 
     private var kernelExploitStatusTitle: String {
         if appState.kernelExploitRunning {
-            return "Đang chạy ngầm..."
+            return isEnglish ? "Running in background..." : "Đang chạy ngầm..."
         } else if appState.exploitStatus.isSuccess {
-            return "⚡ Hoạt Động (Kernel R/W)"
+            return isEnglish ? "⚡ Active (Kernel R/W)" : "⚡ Hoạt Động (Kernel R/W)"
         } else if case .failed = appState.exploitStatus {
-            return "Thất bại (-1) → Đã chuyển MHA-C2"
+            return isEnglish ? "Failed (-1) → Fallback to MHA-C2" : "Thất bại (-1) → Đã chuyển MHA-C2"
         } else if appState.kernelExploitApplicable {
-            return "Chưa kích hoạt (Nhấn để chạy)"
+            return isEnglish ? "Inactive (Tap to run)" : "Chưa kích hoạt (Nhấn để chạy)"
         } else {
-            return "Không áp dụng (Dùng MHA-C2)"
+            return isEnglish ? "N/A (Using MHA-C2)" : "Không áp dụng (Dùng MHA-C2)"
         }
     }
 
@@ -4096,7 +4182,7 @@ struct ContentView: View {
     }
 
     private func maskedKeyText(_ raw: String?) -> String {
-        guard let key = raw, !key.isEmpty else { return "Chưa có key" }
+        guard let key = raw, !key.isEmpty else { return isEnglish ? "No key" : "Chưa có key" }
         if key.count <= 8 { return key }
         let start = key.prefix(4)
         let end = key.suffix(4)
@@ -4105,29 +4191,29 @@ struct ContentView: View {
 
     private func remainingTimeText(_ date: Date?) -> String {
         guard let key = licenseStore.savedKey, !key.isEmpty, let date = date else {
-            return "Chưa có key (Chưa kích hoạt)"
+            return isEnglish ? "No key (Not activated)" : "Chưa có key (Chưa kích hoạt)"
         }
         let diff = date.timeIntervalSince(Date())
-        if diff <= 0 { return "Đã Hết Hạn" }
+        if diff <= 0 { return isEnglish ? "Expired" : "Đã Hết Hạn" }
         let days = Int(diff) / 86400
         let hours = (Int(diff) % 86400) / 3600
         let minutes = (Int(diff) % 3600) / 60
         if days > 0 {
-            return "\(days) ngày \(hours) giờ"
+            return isEnglish ? "\(days)d \(hours)h" : "\(days) ngày \(hours) giờ"
         } else if hours > 0 {
-            return "\(hours) giờ \(minutes) phút"
+            return isEnglish ? "\(hours)h \(minutes)m" : "\(hours) giờ \(minutes) phút"
         } else {
             let seconds = Int(diff) % 60
-            return "\(minutes) phút \(seconds)s"
+            return isEnglish ? "\(minutes)m \(seconds)s" : "\(minutes) phút \(seconds)s"
         }
     }
 
     private func formattedDate(_ date: Date?) -> String {
         guard let key = licenseStore.savedKey, !key.isEmpty, let date = date else {
-            return "Chưa có bản quyền"
+            return isEnglish ? "No license" : "Chưa có bản quyền"
         }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.locale = Locale(identifier: isEnglish ? "en_US" : "vi_VN")
         formatter.dateFormat = "dd/MM/yyyy • HH:mm"
         return formatter.string(from: date)
     }
@@ -4137,6 +4223,11 @@ struct ContentView: View {
 struct ConsoleLogSummaryRow: View {
     @ObservedObject private var appLog = AppLog.shared
     @Binding var showLogModal: Bool
+    @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.vietnamese.rawValue
+
+    private var isEnglish: Bool {
+        languageCode == AppLanguage.english.rawValue
+    }
 
     var body: some View {
         Button {
@@ -4148,10 +4239,10 @@ struct ConsoleLogSummaryRow: View {
                     .foregroundColor(CyberTheme.electricPurple)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Xem Nhật Ký Hoạt Động (Console Logs)")
+                    Text(isEnglish ? "View Activity Log (Console Logs)" : "Xem Nhật Ký Hoạt Động (Console Logs)")
                         .font(.system(size: 13.5, weight: .semibold))
                         .foregroundColor(.white)
-                    Text("\(appLog.entries.count) dòng log hệ thống")
+                    Text(isEnglish ? "\(appLog.entries.count) system log lines" : "\(appLog.entries.count) dòng log hệ thống")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(CyberTheme.textMuted)
                 }
@@ -4173,6 +4264,11 @@ struct LogTerminalModalView: View {
     @Binding var isPresented: Bool
     @ObservedObject private var appLog = AppLog.shared
     @State private var toastMessage: String? = nil
+    @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.vietnamese.rawValue
+
+    private var isEnglish: Bool {
+        languageCode == AppLanguage.english.rawValue
+    }
 
     private func logColor(for text: String) -> Color {
         if text.contains("❌") || text.contains("Lỗi") || text.contains("failed") || text.contains("error") {
@@ -4213,7 +4309,7 @@ struct LogTerminalModalView: View {
                         Button {
                             let text = appLog.entries.joined(separator: "\n")
                             UIPasteboard.general.string = text
-                            toastMessage = "Đã sao chép toàn bộ logs!"
+                            toastMessage = isEnglish ? "All logs copied to clipboard!" : "Đã sao chép toàn bộ logs!"
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
                                 toastMessage = nil
                             }
@@ -4260,7 +4356,7 @@ struct LogTerminalModalView: View {
                                         Image(systemName: "terminal")
                                             .font(.system(size: 32))
                                             .foregroundColor(Color.white.opacity(0.2))
-                                        Text("Chưa có log hệ thống")
+                                        Text(isEnglish ? "No system logs recorded" : "Chưa có log hệ thống")
                                             .font(.system(size: 13, design: .monospaced))
                                             .foregroundColor(CyberTheme.textMuted)
                                     }
@@ -4311,7 +4407,7 @@ struct LogTerminalModalView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Đóng") {
+                    Button(isEnglish ? "Close" : "Đóng") {
                         isPresented = false
                     }
                     .foregroundColor(CyberTheme.crimsonNeon)
