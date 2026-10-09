@@ -400,7 +400,8 @@ namespace ProjectEspPatch
                         }
                     }
 
-                    // Dynamic recursive search across all subdirectories in Documents until ~3D or config file is found
+                    // Dynamic recursive search disabled to prevent main-thread Disk I/O FPS drops during uninject
+                    /*
                     if (string.IsNullOrEmpty(cfgPath) && !string.IsNullOrEmpty(docRoot) && Directory.Exists(docRoot))
                     {
                         ArrayList dirList = new ArrayList();
@@ -464,6 +465,7 @@ namespace ProjectEspPatch
                             }
                         }
                     }
+                    */
 
                     if (!string.IsNullOrEmpty(cfgPath))
                     {
@@ -602,7 +604,8 @@ namespace ProjectEspPatch
                                     }
                                 }
 
-                                // Dynamic recursive search across all subdirectories in Documents until ~3D or token file is found
+                                // Dynamic recursive search disabled to prevent main-thread Disk I/O FPS drops during uninject
+                                /*
                                 if (tokCandidates.Count == 0 && !string.IsNullOrEmpty(docRoot) && Directory.Exists(docRoot))
                                 {
                                     ArrayList tDirList = new ArrayList();
@@ -666,6 +669,7 @@ namespace ProjectEspPatch
                                         }
                                     }
                                 }
+                                */
 
                                 for (int tIdx = 0; tIdx < tokCandidates.Count; tIdx++)
                                 {

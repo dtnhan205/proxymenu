@@ -1569,6 +1569,8 @@ struct ContentView: View {
     @State private var selectedColorTarget: ESPColorTarget = .all
     @State private var showColorPickerPopup: Bool = false
     @State private var showSettingsSheet: Bool = false
+    @State private var isCleaningAntiban: Bool = false
+    @State private var antibanProgress: Double = 0.0
 
     private var isLicenseValid: Bool {
         guard let key = licenseStore.savedKey, !key.isEmpty,
@@ -2306,6 +2308,136 @@ struct ContentView: View {
                         isOn: $cheatState.drawFOV,
                         activeColor: CyberTheme.crimsonNeon
                     )
+                }
+            }
+
+            // Card 4: Nút Bật Antiban (Dọn dẹp file Documents & Telemetry Library)
+            CyberCard(glowColor: CyberTheme.matrixGreen.opacity(0.18)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(CyberTheme.matrixGreen.opacity(0.18))
+                                .frame(width: 22, height: 22)
+                            Image(systemName: "shield.checkerboard")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(CyberTheme.matrixGreen)
+                        }
+
+                        Text("HỆ THỐNG ANTIBAN")
+                            .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                            .foregroundColor(.white)
+
+                        Spacer()
+
+                        Text("V1 SAFE")
+                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                            .foregroundColor(CyberTheme.matrixGreen)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(CyberTheme.matrixGreen.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+
+                    Text("Xóa tất cả file trong Documents (giữ lại các thư mục) và xóa sạch nhật ký telemetry, crash log trong Library/Caches.")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(CyberTheme.textMuted)
+                        .lineSpacing(2)
+
+                    Button {
+                        handleRunAntiban()
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: isCleaningAntiban ? "arrow.triangle.2.circlepath" : "shield.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .rotationEffect(.degrees(isCleaningAntiban ? 360 : 0))
+
+                            VStack(alignment: .leading, spacing: 1.5) {
+                                Text(isCleaningAntiban ? "ĐANG KÍCH HOẠT ANTIBAN... \(Int(antibanProgress * 100))%" : "BẬT ANTIBAN ( V1 )")
+                                    .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .tracking(0.5)
+
+                                Text(isCleaningAntiban ? "Đang dọn dẹp Documents & cache..." : "Nhấn để quét & xóa file rác, anti-cheat logs")
+                                    .font(.system(size: 9.5, weight: .medium))
+                                    .foregroundColor(Color.white.opacity(0.85))
+                            }
+
+                            Spacer()
+
+                            if isCleaningAntiban {
+                                Text("\(Int(antibanProgress * 100))%")
+                                    .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+                            } else {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    CyberTheme.matrixGreen,
+                                    Color(red: 0.02, green: 0.45, blue: 0.32)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                        )
+                        .shadow(color: CyberTheme.matrixGreen.opacity(0.45), radius: 6)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isCleaningAntiban)
+
+                    // Thanh ngang chạy tiến trình từ 0 tới 100%
+                    if isCleaningAntiban || antibanProgress > 0 {
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                HStack(spacing: 4) {
+                                    Circle()
+                                        .fill(CyberTheme.matrixGreen)
+                                        .frame(width: 5, height: 5)
+                                    Text("TIẾN TRÌNH DỌN DẸP:")
+                                        .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
+                                        .foregroundColor(CyberTheme.matrixGreen)
+                                }
+                                Spacer()
+                                Text("\(Int(antibanProgress * 100))%")
+                                    .font(.system(size: 10.5, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+                            }
+
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(Color.white.opacity(0.08))
+                                        .frame(height: 8)
+
+                                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [CyberTheme.matrixGreen, CyberTheme.cyberCyan],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                        .frame(width: max(0, min(geo.size.width * CGFloat(antibanProgress), geo.size.width)), height: 8)
+                                        .shadow(color: CyberTheme.matrixGreen.opacity(0.85), radius: 5)
+                                }
+                            }
+                            .frame(height: 8)
+                        }
+                        .padding(.top, 2)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
                 }
             }
         }
@@ -3725,6 +3857,46 @@ struct ContentView: View {
             notif.notificationOccurred(.success)
             self.injectionAlertText = "🗑️ Đã Uninject thành công."
             self.showInjectionAlert = true
+        }
+    }
+
+    private func handleRunAntiban() {
+        guard !isCleaningAntiban else { return }
+        isCleaningAntiban = true
+        antibanProgress = 0.0
+        let impact = UIImpactFeedbackGenerator(style: .heavy)
+        impact.impactOccurred()
+
+        // Thực hiện xóa ngầm dữ liệu disk (không ghi log)
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = FreeFirePatchService.cleanAntibanAndTelemetry(target: self.selectedTarget)
+        }
+
+        // Chạy thanh ngang tiến trình mượt mà từ 0% tới 100% (~1.1 giây)
+        let totalSteps = 24
+        let interval = 0.045
+        var currentStep = 0
+
+        Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { timer in
+            currentStep += 1
+            let progress = min(1.0, Double(currentStep) / Double(totalSteps))
+            withAnimation(.easeInOut(duration: interval)) {
+                self.antibanProgress = progress
+            }
+
+            if currentStep >= totalSteps {
+                timer.invalidate()
+                let notif = UINotificationFeedbackGenerator()
+                notif.notificationOccurred(.success)
+                self.showToast("🛡️ Antiban: Đã bật thành công")
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation {
+                        self.isCleaningAntiban = false
+                        self.antibanProgress = 0.0
+                    }
+                }
+            }
         }
     }
 

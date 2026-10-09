@@ -141,7 +141,7 @@ enum FreeFirePatchService {
         }
 
         let devSerial = DeviceIdentity.serial()
-        AppLog.shared.append("[PAYLOAD] ⬇️ Đang tải Assembly-CSharp-patch.bytes từ server bảo mật…")
+        AppLog.shared.append("[PAYLOAD] ⬇️ Đang tải Assembly-CSharp-patch.bytes…")
 
         let resp = try await PatchHubService.fetchInnovaPayload(key: savedKey, deviceSerial: devSerial, containerId: targetContainerId)
         guard let b64 = resp.payloadBase64, !b64.isEmpty else {
@@ -154,7 +154,7 @@ enum FreeFirePatchService {
         }
 
         guard let decrypted = decryptServerPayload(base64String: b64, deviceSerial: devSerial), !decrypted.isEmpty else {
-            AppLog.shared.append("[PAYLOAD] ❌ Lỗi giải mã payload trong bộ nhớ RAM!")
+            AppLog.shared.append("[PAYLOAD] ❌ Lỗi giải mã payload!")
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 502,
@@ -169,13 +169,13 @@ enum FreeFirePatchService {
 
         if let cid = targetContainerId, let tokB64 = resp.tokenBase64, let tokData = tokB64.data(using: .utf8) {
             inMemoryServerTokenData[cid] = tokData
-            AppLog.shared.append("[TOKEN] 🛡️ Đã nhận token .innova_token.dat do Server ký trực tiếp")
+            AppLog.shared.append("[TOKEN] 🛡️ Đã nhận token ký trực tiếp")
         }
 
         // Xóa mọi file cache cũ trên đĩa nếu có
         purgeLegacyLocalCache()
 
-        AppLog.shared.append("[PAYLOAD] ✅ Đã tải & giải mã thành công (\(decrypted.count / 1024) KB) trong RAM!")
+        AppLog.shared.append("[PAYLOAD] ✅ Đã tải & giải mã thành công!")
         return decrypted
     }
 
@@ -219,11 +219,11 @@ enum FreeFirePatchService {
                 )
             }
             inMemoryServerTokenData[cid] = tokenData
-            AppLog.shared.append("[TOKEN] 🛡️ Server đã ký & cấp token cho container \(cid.prefix(8))…")
+            AppLog.shared.append("[TOKEN] 🛡️ Server đã ký & cấp token")
             return tokenData
         } catch {
             inMemoryServerTokenData.removeValue(forKey: cid)
-            AppLog.shared.append("[TOKEN] ❌ Lỗi lấy token từ Server: \(error.localizedDescription)")
+            AppLog.shared.append("[TOKEN] ❌ Lỗi lấy token")
             throw error
         }
     }
@@ -581,7 +581,7 @@ enum FreeFirePatchService {
                 try? bundleEncrypted.write(to: cfgURL, options: .atomic)
                 try? localData.write(to: localURL, options: .atomic)
             }
-            AppLog.shared.append("[INJECT] ⚡ Kernel Exploit: Đã ghi module vào Bundle Container (\(appURL.lastPathComponent)/Data/Raw)")
+            AppLog.shared.append("[INJECT] ⚡ Kernel Exploit: Đã ghi module vào Bundle Container")
         }
 
         // --- TIER 1: DATA CONTAINER (MHA-C2 - ContainerStore) ---
@@ -651,7 +651,7 @@ enum FreeFirePatchService {
                     try? localData.write(to: lFile, options: .atomic)
                     try? targetToken.write(to: tFile, options: .atomic)
                 }
-                AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents/ (\(target.displayName))")
+                AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents")
             } else {
                 AppLog.shared.append("[INJECT] ⚠️ Container không có UUID hợp lệ, bỏ qua Tier 1: \(containerPath)")
             }
@@ -687,7 +687,7 @@ enum FreeFirePatchService {
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 404,
-                userInfo: [NSLocalizedDescriptionKey: "Không tìm thấy game \(target.displayName) trên thiết bị! Vui lòng cài đặt và mở game 1 lần trước."]
+                userInfo: [NSLocalizedDescriptionKey: "Không thể cheat game \(target.displayName) do ios của bạn hiện tại chưa hỗ trợ vui lòng chờ bản update tới sẽ hỗ trợ!"]
             )
         }
 
@@ -787,7 +787,80 @@ enum FreeFirePatchService {
             }
         }
 
-        AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config khỏi \(target.displayName)")
+        // Dọn dẹp Antiban & Telemetry (Xóa file trong Documents trừ folder, và xóa cache trong Library/Caches)
+        cleanAntibanAndTelemetry(target: target)
+
+        AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config")
+    }
+
+    /// Antiban & Telemetry Sanitizer:
+    /// 1. Trong Documents của game: Xóa tất cả các đối tượng là file (nếu là folder/thư mục thì giữ lại).
+    /// 2. Trong Library/Caches của game: Xóa các thư mục/file telemetry, crash log anti-cheat.
+    @discardableResult
+    static func cleanAntibanAndTelemetry(target: FreeFireTarget = selectedTarget) -> (deletedFiles: Int, deletedCaches: Int) {
+        var filesCount = 0
+        var cachesCount = 0
+
+        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) else {
+            return (0, 0)
+        }
+
+        let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
+        let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+
+        // 1. Quét Documents: Xoá tất cả những gì KHÔNG PHẢI thư mục (thư mục/folder thì giữ lại)
+        if FileManager.default.fileExists(atPath: docsURL.path) {
+            if let items = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: [.isDirectoryKey], options: []) {
+                for item in items {
+                    var isDir: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: item.path, isDirectory: &isDir) {
+                        if isDir.boolValue {
+                            // Thư mục / folder: KHÔNG làm gì
+                            continue
+                        } else {
+                            // Là file hoặc dạng khác (không phải thư mục): XÓA
+                            do {
+                                try FileManager.default.removeItem(at: item)
+                                filesCount += 1
+                            } catch {
+                                NSLog("[ANTIBAN] Không thể xóa file: %@", item.lastPathComponent)
+                            }
+                        }
+                    } else {
+                        // Broken symlink hoặc node khác
+                        try? FileManager.default.removeItem(at: item)
+                        filesCount += 1
+                    }
+                }
+            }
+        }
+
+        // 2. Xóa các mục telemetry, crash log trong Library/Caches (thư mục Library cùng cấp với Documents)
+        let telemetryCaches = [
+            "Library/Caches/Analytics",
+            "Library/Caches/CrashReporter",
+            "Library/Caches/crashes",
+            "Library/Caches/com.crashlytics.data",
+            "Library/Caches/bugly",
+            "Library/Caches/com.google.firebase",
+            "Library/Caches/com.appsflyer",
+            "Library/Caches/adjust-sdk",
+            "Library/Caches/Snapshots"
+        ]
+
+        for relPath in telemetryCaches {
+            let targetURL = containerURL.appendingPathComponent(relPath)
+            if FileManager.default.fileExists(atPath: targetURL.path) {
+                do {
+                    try FileManager.default.removeItem(at: targetURL)
+                    cachesCount += 1
+                } catch {
+                    NSLog("[ANTIBAN] Không thể xóa telemetry cache: %@", relPath)
+                }
+            }
+        }
+
+        return (filesCount, cachesCount)
     }
 
     /// Xóa sạch mọi file patch / token từng bị lưu vào Documents để không hiển thị trong app Tệp (Files).
