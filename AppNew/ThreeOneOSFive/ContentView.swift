@@ -2339,7 +2339,7 @@ struct ContentView: View {
                             .clipShape(Capsule())
                     }
 
-                    Text("Xóa tất cả file trong Documents (giữ lại các thư mục) và xóa sạch nhật ký telemetry, crash log trong Library/Caches.")
+                    Text("Kích hoạt antiban trước sau đó mới inject cheat.")
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundColor(CyberTheme.textMuted)
                         .lineSpacing(2)
@@ -2358,7 +2358,7 @@ struct ContentView: View {
                                     .foregroundColor(.white)
                                     .tracking(0.5)
 
-                                Text(isCleaningAntiban ? "Đang dọn dẹp Documents & cache..." : "Nhấn để quét & xóa file rác, anti-cheat logs")
+                                Text(isCleaningAntiban ? "Đang kích hoạt" : "Nhấn để kích hoạt antiban v1")
                                     .font(.system(size: 9.5, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
                             }
@@ -2405,7 +2405,7 @@ struct ContentView: View {
                                     Circle()
                                         .fill(CyberTheme.matrixGreen)
                                         .frame(width: 5, height: 5)
-                                    Text("TIẾN TRÌNH DỌN DẸP:")
+                                    Text("TIẾN TRÌNH ANTIBAN:")
                                         .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
                                         .foregroundColor(CyberTheme.matrixGreen)
                                 }
