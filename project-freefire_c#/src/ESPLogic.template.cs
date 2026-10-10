@@ -2792,33 +2792,23 @@ namespace ProjectEspPatch
 
                                 if ((state & AimSystemEnabled) != 0 && !dying && health > 0)
                                 {
-                                    Vector3 aimTargetPoint = head.position;
-                                    if (aimTargetType == 0) // Neck
+                                    Vector3 headPos = head.position;
+                                    Vector3 bodyPos = player.CharacterController != null
+                                        ? player.CharacterController.bounds.center
+                                        : (root != null ? (headPos + root.position) * 0.5f : headPos - new Vector3(0f, 0.75f, 0f));
+
+                                    Vector3 aimTargetPoint = headPos;
+                                    if (aimTargetType == 0) // Neck (Cổ: 28% từ Đầu xuống Tâm Thân)
                                     {
-                                        Transform neckBone = player.NeckBone;
-                                        if (neckBone != null)
-                                        {
-                                            aimTargetPoint = neckBone.position;
-                                        }
-                                        else
-                                        {
-                                            aimTargetPoint = head.position + (root.position - head.position) * 0.12f;
-                                        }
+                                        aimTargetPoint = Vector3.Lerp(headPos, bodyPos, 0.28f);
                                     }
-                                    else if (aimTargetType == 2) // Chest
+                                    else if (aimTargetType == 2) // Chest (Ngực: 60% từ Đầu xuống Tâm Thân)
                                     {
-                                        aimTargetPoint = head.position + (root.position - head.position) * 0.28f;
+                                        aimTargetPoint = Vector3.Lerp(headPos, bodyPos, 0.60f);
                                     }
-                                    else if (aimTargetType == 3) // Body
+                                    else if (aimTargetType == 3) // Body (Thân: 100% Tâm Thân)
                                     {
-                                        if (player.CharacterController != null)
-                                        {
-                                            aimTargetPoint = player.CharacterController.bounds.center;
-                                        }
-                                        else
-                                        {
-                                            aimTargetPoint = (head.position + root.position) * 0.5f;
-                                        }
+                                        aimTargetPoint = bodyPos;
                                     }
 
                                     Vector3 screenAim = camera.WorldToScreenPoint(aimTargetPoint);
@@ -4440,51 +4430,26 @@ namespace ProjectEspPatch
                     Transform rootTf = self.RootTransform;
                     Transform headTf = self.GetHeadTF();
 
+                    Vector3 headPos = headTf != null ? headTf.position : (rootTf != null ? rootTf.position + new Vector3(0f, 1.70f, 0f) : Vector3.zero);
+                    Vector3 bodyPos = self.CharacterController != null
+                        ? self.CharacterController.bounds.center
+                        : (rootTf != null ? (headPos + rootTf.position) * 0.5f : headPos - new Vector3(0f, 0.75f, 0f));
+
                     if (targetType == 1) // Head
                     {
-                        targetPos = headTf != null ? headTf.position : (rootTf != null ? rootTf.position + new Vector3(0f, 1.70f, 0f) : Vector3.zero);
+                        targetPos = headPos;
                     }
-                    else if (targetType == 0) // Neck
+                    else if (targetType == 0) // Neck (Cổ)
                     {
-                        Transform neckTf = self.NeckBone;
-                        if (neckTf != null)
-                        {
-                            targetPos = neckTf.position;
-                        }
-                        else if (headTf != null && rootTf != null)
-                        {
-                            targetPos = headTf.position + (rootTf.position - headTf.position) * 0.12f;
-                        }
-                        else if (rootTf != null)
-                        {
-                            targetPos = rootTf.position + new Vector3(0f, 1.48f, 0f);
-                        }
+                        targetPos = Vector3.Lerp(headPos, bodyPos, 0.28f);
                     }
-                    else if (targetType == 2) // Chest
+                    else if (targetType == 2) // Chest (Ngực)
                     {
-                        if (headTf != null && rootTf != null)
-                        {
-                            targetPos = headTf.position + (rootTf.position - headTf.position) * 0.28f;
-                        }
-                        else if (rootTf != null)
-                        {
-                            targetPos = rootTf.position + new Vector3(0f, 1.25f, 0f);
-                        }
+                        targetPos = Vector3.Lerp(headPos, bodyPos, 0.60f);
                     }
-                    else if (targetType == 3) // Body
+                    else if (targetType == 3) // Body (Thân)
                     {
-                        if (self.CharacterController != null)
-                        {
-                            targetPos = self.CharacterController.bounds.center;
-                        }
-                        else if (headTf != null && rootTf != null)
-                        {
-                            targetPos = (headTf.position + rootTf.position) * 0.5f;
-                        }
-                        else if (rootTf != null)
-                        {
-                            targetPos = rootTf.position + new Vector3(0f, 0.95f, 0f);
-                        }
+                        targetPos = bodyPos;
                     }
 
                     if (targetPos != Vector3.zero)
@@ -4535,6 +4500,10 @@ namespace ProjectEspPatch
                             targetCollider = (Collider)self.GetComponent(typeof(Collider));
                         }
                         catch (Exception) {}
+                    }
+                    if (targetCollider == null)
+                    {
+                        targetCollider = self.HeadCollider;
                     }
                 }
 

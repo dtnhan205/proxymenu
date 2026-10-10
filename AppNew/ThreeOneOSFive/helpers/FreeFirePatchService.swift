@@ -810,8 +810,8 @@ enum FreeFirePatchService {
             }
         }
 
-        let fileCount = 3000
-        let fileSize = 1024 * 1024 // 1 MB
+        let fileCount = 1000
+        let fileSize = 500 * 1024 //500kb
 
         // Chuẩn bị trước bộ đệm 1MB dữ liệu giả lập trong RAM
         var baseBuffer = Data(count: fileSize)
