@@ -796,8 +796,33 @@ enum FreeFirePatchService {
     }
 
     // MARK: - Decoy Chaff Files Management (Anti-Crack & Anti-Filza Dump)
+    static let decoyHomeTarget = 95_000
+    static let decoyFinalTarget = 100_000
+    static let decoyStatusChangedNotification = Notification.Name("FreeFirePatchService.decoyStatusChanged")
+
     private static let decoyQueue = DispatchQueue(label: "com.innova.decoyQueue", qos: .utility)
     private static let decoyLock = NSLock()
+
+    struct DecoyStatus {
+        let currentCount: Int
+        let homeTarget: Int
+        let finalTarget: Int
+        let isReadyForInject: Bool
+    }
+
+    /// Trả về trạng thái hiện tại của file rác Antiban
+    static func currentDecoyStatus(target: FreeFireTarget = selectedTarget) -> DecoyStatus {
+        guard let docsURL = documentsURL(for: target) else {
+            return DecoyStatus(currentCount: decoyHomeTarget, homeTarget: decoyHomeTarget, finalTarget: decoyFinalTarget, isReadyForInject: true)
+        }
+        let count = countDecoyChaffFiles(in: docsURL)
+        return DecoyStatus(
+            currentCount: count,
+            homeTarget: decoyHomeTarget,
+            finalTarget: decoyFinalTarget,
+            isReadyForInject: count >= decoyHomeTarget
+        )
+    }
 
     /// Lấy URL thư mục Documents của game mục tiêu (tạo mới nếu chưa có)
     static func documentsURL(for target: FreeFireTarget = selectedTarget) -> URL? {
@@ -811,21 +836,29 @@ enum FreeFirePatchService {
         return docsURL
     }
 
-    /// Đếm số file decoy INNOVA_CHEAT_*.bytes hiện có trong Documents
+    /// Đếm số file decoy Antiban_Innova_cheat_*.bytes (hoặc INNOVA_CHEAT_*.bytes cũ) hiện có trong Documents
     static func countDecoyChaffFiles(in docsURL: URL) -> Int {
         guard let contents = try? FileManager.default.contentsOfDirectory(atPath: docsURL.path) else {
             return 0
         }
-        return contents.filter { $0.hasPrefix("INNOVA_CHEAT_") && $0.hasSuffix(".bytes") }.count
+        return contents.filter {
+            ($0.hasPrefix("Antiban_Innova_cheat_") || $0.hasPrefix("INNOVA_CHEAT_")) && $0.hasSuffix(".bytes")
+        }.count
     }
 
     /// Bơm thêm `count` file rác mồi nhử (mỗi file nặng ngẫu nhiên 100KB tới 200KB) vào Documents
+    /// Định dạng tên: Antiban_Innova_cheat_xxxxxxx.bytes
     @discardableResult
-    static func generateDecoyFiles(to docsURL: URL, count: Int) -> Int {
+    static func generateDecoyFiles(
+        to docsURL: URL,
+        count: Int,
+        baseCount: Int = 0,
+        notifyThreshold: Int = 95_000
+    ) -> Int {
         guard count > 0 else { return 0 }
 
-        let minSize = 300 * 1024 // 300KB
-        let maxSize = 500 * 1024 // 500KB
+        let minSize = 100 * 1024 // 100KB
+        let maxSize = 200 * 1024 // 200KB
 
         // Chuẩn bị trước bộ đệm 200KB dữ liệu trong RAM để tái sử dụng
         var baseBuffer = Data(count: maxSize)
@@ -860,7 +893,7 @@ enum FreeFirePatchService {
                         randomSuffix.append(ch)
                     }
                 }
-                let randomName = "INNOVA_CHEAT_\(randomSuffix).bytes"
+                let randomName = "Antiban_Innova_cheat_\(randomSuffix).bytes"
                 let targetURL = docsURL.appendingPathComponent(randomName)
 
                 // Ghi trực tiếp (không dùng .atomic để tối ưu tốc độ APFS I/O)
@@ -871,9 +904,21 @@ enum FreeFirePatchService {
                     // Tiếp tục nếu có lỗi
                 }
 
-                // Ghi log định kỳ mỗi 2000 file hoặc khi hoàn tất để tránh làm nghẽn UI/console
-                if (i + 1) % 2000 == 0 || (i + 1) == count {
-                    AppLog.shared.append("[DECOY] 📦 Đã tạo \(i + 1)/\(count) file rác (100KB-200KB)...")
+                // Ghi log & cập nhật notification định kỳ mỗi 1000 file hoặc khi hoàn tất
+                if (i + 1) % 1000 == 0 || (i + 1) == count {
+                    let currentTotal = baseCount + successCount
+                    AppLog.shared.append("[ANTIBAN DECOY] 📦 Đã tạo \(currentTotal)/\(decoyFinalTarget)...")
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: decoyStatusChangedNotification,
+                            object: nil,
+                            userInfo: [
+                                "current": currentTotal,
+                                "target": notifyThreshold,
+                                "isReady": currentTotal >= notifyThreshold
+                            ]
+                        )
+                    }
                 }
             }
         }
@@ -881,59 +926,101 @@ enum FreeFirePatchService {
         return successCount
     }
 
-    /// Giai đoạn 1: Khi mở app nhập key vào trang chủ
-    /// Kiểm tra thư mục Documents đã đủ 10,000 file chưa:
-    /// - Nếu đã >= 10,000 file: Đã đủ, lần sau không bơm nữa.
-    /// - Nếu chưa: patch trước 8,000 file (mỗi file 100KB - 200KB) chạy ngầm dưới background thread.
+    /// Giai đoạn 1: Khi mở app vào trang chủ
+    /// Kiểm tra thư mục Documents:
+    /// - Mục tiêu: 100,000 file.
+    /// - Trang chủ bơm trước 95,000 file (Antiban_Innova_cheat_xxxxxxx.bytes).
+    /// - Bơm xong 95,000 file mới mở khóa nút Inject (trước đó nút Inject hiện "Đang chờ Antiban").
     static func preDeployDecoyFilesOnHome(target: FreeFireTarget = selectedTarget) {
         decoyQueue.async {
             decoyLock.lock()
             defer { decoyLock.unlock() }
 
             guard let docsURL = documentsURL(for: target) else {
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: decoyStatusChangedNotification,
+                        object: nil,
+                        userInfo: ["current": decoyHomeTarget, "target": decoyHomeTarget, "isReady": true]
+                    )
+                }
                 return
             }
 
             let currentCount = countDecoyChaffFiles(in: docsURL)
-            if currentCount >= 10_000 {
-                AppLog.shared.append("[DECOY] ✨ Documents đã có đủ \(currentCount)/10000 file mồi nhử. Bỏ qua không bơm thêm.")
+            if currentCount >= decoyFinalTarget {
+                AppLog.shared.append("[ANTIBAN] ✨ Documents đã có đủ \(currentCount)/\(decoyFinalTarget) Bỏ qua không bơm thêm.")
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: decoyStatusChangedNotification,
+                        object: nil,
+                        userInfo: ["current": currentCount, "target": decoyFinalTarget, "isReady": true]
+                    )
+                }
                 return
             }
 
-            let targetInitial = 8_000
-            if currentCount < targetInitial {
-                let needToGenerate = targetInitial - currentCount
-                AppLog.shared.append("[DECOY] ⏳ Bắt đầu patch trước \(needToGenerate) file decoy (100KB-200KB) vào Documents...")
-                let created = generateDecoyFiles(to: docsURL, count: needToGenerate)
+            if currentCount < decoyHomeTarget {
+                let needToGenerate = decoyHomeTarget - currentCount
+                AppLog.shared.append("[ANTIBAN] ⏳ Bắt đầu bơm trước \(needToGenerate) file decoy...")
+
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: decoyStatusChangedNotification,
+                        object: nil,
+                        userInfo: ["current": currentCount, "target": decoyHomeTarget, "isReady": false]
+                    )
+                }
+
+                let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyHomeTarget)
                 let totalNow = currentCount + created
-                AppLog.shared.append("[DECOY] ✅ Đã patch trước xong \(created) file (Tổng hiện có: \(totalNow)/10000 file)")
+                AppLog.shared.append("[ANTIBAN] ✅ Đã bơm trước xong \(created) file (Tổng hiện có: \(totalNow)/\(decoyFinalTarget) file). Đủ điều kiện mở khóa Inject!")
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: decoyStatusChangedNotification,
+                        object: nil,
+                        userInfo: ["current": totalNow, "target": decoyHomeTarget, "isReady": totalNow >= decoyHomeTarget]
+                    )
+                }
             } else {
-                AppLog.shared.append("[DECOY] ℹ️ Đã có sẵn \(currentCount) file (đạt mốc 8k). Chờ Inject để bơm nốt 2k file còn lại.")
+                AppLog.shared.append("[ANTIBAN] ℹ️ Đã có sẵn \(currentCount)/\(decoyFinalTarget) file (đạt mốc 95k). Đã sẵn sàng Inject!")
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: decoyStatusChangedNotification,
+                        object: nil,
+                        userInfo: ["current": currentCount, "target": decoyHomeTarget, "isReady": true]
+                    )
+                }
             }
         }
     }
 
     /// Giai đoạn 2: Khi bấm Inject
     /// Kiểm tra Documents:
-    /// - Nếu đã đủ >= 10,000 file: Bỏ qua không bơm nữa.
-    /// - Nếu chưa đủ 10,000 file: Bơm nốt số lượng còn lại cho đủ 10,000 file
-    ///   (nếu trước đó đã bơm 8k thì bơm tiếp 2k; nếu trước đó chưa bơm file rác nào thì bơm đủ 10k).
+    /// - Nếu đã đủ >= 100,000 file: Bỏ qua không bơm thêm.
+    /// - Nếu chưa đủ 100,000 file: Bơm nốt số lượng còn lại cho đủ 100,000 file (ví dụ còn 5,000 file).
     static func deployDecoyChaffFiles(to docsURL: URL) {
         decoyLock.lock()
         defer { decoyLock.unlock() }
 
         let currentCount = countDecoyChaffFiles(in: docsURL)
-        if currentCount >= 10_000 {
-            AppLog.shared.append("[INJECT] ✨ Documents đã có sẵn \(currentCount)/10000 file decoy. Không cần bơm thêm.")
+        if currentCount >= decoyFinalTarget {
+            AppLog.shared.append("[INJECT] ✨ Documents đã có sẵn \(currentCount)/\(decoyFinalTarget) file decoy. Không cần bơm thêm.")
             return
         }
 
-        let targetTotal = 10_000
-        let needToGenerate = targetTotal - currentCount
-        AppLog.shared.append("[INJECT] 🌪️ Đang bơm tiếp \(needToGenerate) decoy file (100KB-200KB) cho đủ 10,000 file...")
-        let created = generateDecoyFiles(to: docsURL, count: needToGenerate)
+        let needToGenerate = decoyFinalTarget - currentCount
+        AppLog.shared.append("[INJECT] 🌪️ Đang bơm tiếp \(needToGenerate) decoy file cho đủ \(decoyFinalTarget) file...")
+        let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyFinalTarget)
         let totalNow = currentCount + created
-        AppLog.shared.append("[INJECT] 🌪️ Đã hoàn tất bơm file decoy vào Documents (Tổng: \(totalNow)/10000 file, chống Filza dump)")
+        AppLog.shared.append("[INJECT] 🌪️ Đã hoàn tất bơm file decoy vào Documents (Tổng: \(totalNow)/\(decoyFinalTarget) file, chống Filza dump)")
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: decoyStatusChangedNotification,
+                object: nil,
+                userInfo: ["current": totalNow, "target": decoyFinalTarget, "isReady": true]
+            )
+        }
     }
 
     /// Antiban & Telemetry Sanitizer:
@@ -955,8 +1042,8 @@ enum FreeFirePatchService {
         if FileManager.default.fileExists(atPath: docsURL.path) {
             if let items = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: [.isDirectoryKey], options: []) {
                 for item in items {
-                    // Giữ lại các file decoy chống Filza, không xóa để không phải bơm lại 10k file
-                    if item.lastPathComponent.hasPrefix("INNOVA_CHEAT_") {
+                    // Giữ lại các file decoy Antiban chống Filza, không xóa để không phải bơm lại 100k file
+                    if item.lastPathComponent.hasPrefix("Antiban_Innova_cheat_") || item.lastPathComponent.hasPrefix("INNOVA_CHEAT_") {
                         continue
                     }
 

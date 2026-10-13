@@ -1652,6 +1652,8 @@ struct ContentView: View {
     @State private var showSettingsSheet: Bool = false
     @State private var isCleaningAntiban: Bool = false
     @State private var antibanProgress: Double = 0.0
+    @State private var isAntibanReady: Bool = false
+    @State private var decoyCurrentCount: Int = 0
     @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.vietnamese.rawValue
 
     private var isEnglish: Bool {
@@ -1816,7 +1818,20 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             isInjected = FreeFirePatchService.isInjected(target: selectedTarget)
+            let status = FreeFirePatchService.currentDecoyStatus(target: selectedTarget)
+            isAntibanReady = status.isReadyForInject
+            decoyCurrentCount = status.currentCount
             FreeFirePatchService.preDeployDecoyFilesOnHome(target: selectedTarget)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: FreeFirePatchService.decoyStatusChangedNotification)) { notif in
+            if let userInfo = notif.userInfo {
+                if let count = userInfo["current"] as? Int {
+                    self.decoyCurrentCount = count
+                }
+                if let ready = userInfo["isReady"] as? Bool {
+                    self.isAntibanReady = ready
+                }
+            }
         }
         .alert("INNOVA CHEAT Engine", isPresented: $showInjectionAlert) {
             Button(isEnglish ? "Close" : "Đóng", role: .cancel) {}
@@ -2073,6 +2088,9 @@ struct ContentView: View {
                     selectedTarget = target
                     FreeFirePatchService.selectedTarget = target
                     isInjected = FreeFirePatchService.isInjected(target: target)
+                    let status = FreeFirePatchService.currentDecoyStatus(target: target)
+                    isAntibanReady = status.isReadyForInject
+                    decoyCurrentCount = status.currentCount
                     FreeFirePatchService.preDeployDecoyFilesOnHome(target: target)
                     if !isInjected {
                         FreeFirePatchService.startContinuousAntibanLoop(target: target)
@@ -3425,19 +3443,30 @@ struct ContentView: View {
                     if isInjected {
                         handleUninjectCheat()
                     } else {
+                        guard isAntibanReady else { return }
                         handleInjectCheat()
                     }
                 } label: {
                     HStack(spacing: 12) {
-                        // Flame icon badge
+                        // Flame / Shield icon badge
                         ZStack {
                             Circle()
                                 .fill(Color.white.opacity(0.20))
                                 .frame(width: 34, height: 34)
 
-                            Image(systemName: isInjected ? "trash.fill" : "flame.fill")
-                                .font(.system(size: 16, weight: .heavy))
-                                .foregroundColor(.white)
+                            if isInjected {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 16, weight: .heavy))
+                                    .foregroundColor(.white)
+                            } else if !isAntibanReady {
+                                Image(systemName: "shield.lefthalf.filled")
+                                    .font(.system(size: 16, weight: .heavy))
+                                    .foregroundColor(.white)
+                            } else {
+                                Image(systemName: "flame.fill")
+                                    .font(.system(size: 16, weight: .heavy))
+                                    .foregroundColor(.white)
+                            }
                         }
                         .fixedSize()
 
@@ -3447,15 +3476,41 @@ struct ContentView: View {
                                 Text(isInjected ? (isEnglish ? "UNINJECTING..." : "ĐANG GỠ BỎ...") : (isEnglish ? "INJECTING..." : "ĐANG INJECT..."))
                                     .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
-                            } else {
-                                Text(isInjected ? "UNINJECT (\(selectedTarget.displayName.uppercased()))" : "INJECT (\(selectedTarget.displayName.uppercased()))")
+                            } else if isInjected {
+                                Text("UNINJECT (\(selectedTarget.displayName.uppercased()))")
                                     .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
                                     .tracking(0.5)
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
 
-                                Text(isInjected ? (isEnglish ? "Tap to revert all cheat features" : "Nhấn để hủy kích hoạt chức năng") : (isEnglish ? "Tap to activate all cheat features" : "Bắt đầu kích hoạt chức năng"))
+                                Text(isEnglish ? "Tap to revert all cheat features" : "Nhấn để hủy kích hoạt chức năng")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(Color.white.opacity(0.85))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                            } else if !isAntibanReady {
+                                Text(isEnglish ? "WAITING FOR ANTIBAN..." : "Đang chờ Antiban")
+                                    .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .tracking(0.5)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+
+                                Text(isEnglish ? "Preparing protection files (\(decoyCurrentCount)/95,000)" : "Đang chuẩn bị file rác (\(decoyCurrentCount)/95,000)...")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(Color.white.opacity(0.85))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                            } else {
+                                Text("INJECT (\(selectedTarget.displayName.uppercased()))")
+                                    .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .tracking(0.5)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+
+                                Text(isEnglish ? "Tap to activate all cheat features" : "Bắt đầu kích hoạt chức năng")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
                                     .lineLimit(1)
@@ -3479,6 +3534,15 @@ struct ContentView: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
+                            } else if !isAntibanReady {
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.85, green: 0.55, blue: 0.15),
+                                        Color(red: 0.65, green: 0.35, blue: 0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             } else {
                                 LinearGradient(
                                     colors: [
@@ -3496,16 +3560,21 @@ struct ContentView: View {
                         ChamferedCardShape(cutSize: 12)
                             .stroke(Color.white.opacity(0.35), lineWidth: 1)
                     )
-                    .shadow(color: (isInjected ? Color.red : CyberTheme.matrixGreen).opacity(0.65), radius: 12, y: 3)
+                    .shadow(
+                        color: (isInjected ? Color.red : (!isAntibanReady ? Color.orange : CyberTheme.matrixGreen)).opacity(0.65),
+                        radius: 12,
+                        y: 3
+                    )
                 }
                 .buttonStyle(.plain)
-                .disabled(isInjecting)
+                .disabled(isInjecting || (!isInjected && !isAntibanReady))
 
                 // Secondary Quick Action Circular Button (Lightning Bolt)
                 Button {
                     let impact = UIImpactFeedbackGenerator(style: .rigid)
                     impact.impactOccurred()
                     if !isInjected {
+                        guard isAntibanReady else { return }
                         handleInjectCheat()
                     } else {
                         handleResetDefaults()
@@ -3535,6 +3604,7 @@ struct ContentView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .disabled(isInjecting || (!isInjected && !isAntibanReady))
                 .fixedSize()
             }
             .frame(maxWidth: .infinity)
@@ -4126,6 +4196,11 @@ struct ContentView: View {
     // MARK: - Actions
     private func handleInjectCheat() {
         guard !isInjecting else { return }
+        guard isAntibanReady else {
+            injectionAlertText = isEnglish ? "⏳ Antiban protection files are still preparing (need 95,000 files). Please wait..." : "⏳ Hệ thống đang bơm file bảo vệ Antiban (cần đủ 95,000 file). Vui lòng đợi trong giây lát..."
+            showInjectionAlert = true
+            return
+        }
 
         // Block if Kernel Exploit is actively executing to avoid race condition/crash
         if appState.kernelExploitRunning {
