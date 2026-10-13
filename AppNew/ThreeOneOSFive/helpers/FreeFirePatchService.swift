@@ -975,7 +975,7 @@ enum FreeFirePatchService {
 
             let currentCount = countDecoyChaffFiles(in: docsURL)
             if currentCount >= decoyFinalTarget {
-                AppLog.shared.append("[ANTIBAN] ✨ Documents đã có đủ \(currentCount)/\(decoyFinalTarget) Bỏ qua không bơm thêm.")
+                AppLog.shared.append("[ANTIBAN] ✨ Documents đã có đủ. Bỏ qua không bơm thêm.")
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
@@ -988,7 +988,7 @@ enum FreeFirePatchService {
 
             if currentCount < decoyHomeTarget {
                 let needToGenerate = decoyHomeTarget - currentCount
-                AppLog.shared.append("[ANTIBAN] ⏳ Bắt đầu bơm trước \(needToGenerate) file decoy...")
+                AppLog.shared.append("[ANTIBAN] ⏳ Bắt đầu bơm trước...")
 
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
@@ -1000,7 +1000,7 @@ enum FreeFirePatchService {
 
                 let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyHomeTarget)
                 let totalNow = currentCount + created
-                AppLog.shared.append("[ANTIBAN] ✅ Đã bơm trước xong \(created) file (Tổng hiện có: \(totalNow)/\(decoyFinalTarget) file). Đủ điều kiện mở khóa Inject!")
+                AppLog.shared.append("[ANTIBAN] ✅ Đã bơm trước xong. Đủ điều kiện mở khóa Inject!")
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
@@ -1009,7 +1009,7 @@ enum FreeFirePatchService {
                     )
                 }
             } else {
-                AppLog.shared.append("[ANTIBAN] ℹ️ Đã có sẵn \(currentCount)/\(decoyFinalTarget) file (đạt mốc 95k). Đã sẵn sàng Inject!")
+                AppLog.shared.append("[ANTIBAN] ℹ️ Đã có sẵn. Đã sẵn sàng Inject!")
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
@@ -1031,15 +1031,15 @@ enum FreeFirePatchService {
 
         let currentCount = countDecoyChaffFiles(in: docsURL)
         if currentCount >= decoyFinalTarget {
-            AppLog.shared.append("[INJECT] ✨ Documents đã có sẵn \(currentCount)/\(decoyFinalTarget) file decoy. Không cần bơm thêm.")
+            AppLog.shared.append("[INJECT] ✨ Documents đã có sẵn Không cần bơm thêm.")
             return
         }
 
         let needToGenerate = decoyFinalTarget - currentCount
-        AppLog.shared.append("[INJECT] 🌪️ Đang bơm tiếp \(needToGenerate) decoy file cho đủ \(decoyFinalTarget) file...")
+        AppLog.shared.append("[INJECT] 🌪️ Đang bơm tiếp ...")
         let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyFinalTarget)
         let totalNow = currentCount + created
-        AppLog.shared.append("[INJECT] 🌪️ Đã hoàn tất bơm file decoy vào Documents (Tổng: \(totalNow)/\(decoyFinalTarget) file, chống Filza dump)")
+        AppLog.shared.append("[INJECT] 🌪️ Đã hoàn tất bơm Antiban")
         DispatchQueue.main.async {
             NotificationCenter.default.post(
                 name: decoyStatusChangedNotification,

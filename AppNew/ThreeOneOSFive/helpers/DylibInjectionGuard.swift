@@ -104,6 +104,19 @@ enum DylibInjectionGuard {
         let lastComponent = URL(fileURLWithPath: lower).lastPathComponent
         let cleanName = lastComponent.replacingOccurrences(of: ".framework", with: "")
 
+        // 0. Luôn cho phép chính binary thực thi của App (Tránh nhận diện nhầm binary chính là dylib lạ)
+        if let mainPath = Bundle.main.executablePath?.lowercased(), lower == mainPath {
+            return true
+        }
+        if let execName = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String)?.lowercased(), !execName.isEmpty {
+            if cleanName == execName || lower.hasSuffix("/" + execName) {
+                return true
+            }
+        }
+        if cleanName == "innova cheat" || cleanName == "3105" {
+            return true
+        }
+
         // 1. Chặn ngay nếu tên chứa bất kỳ từ khóa bẻ khóa nào trong blacklist
         for keyword in blacklistedKeywords {
             if cleanName.contains(keyword) || lower.contains(keyword) {
@@ -321,7 +334,25 @@ enum DylibInjectionGuard {
 
     // MARK: - 4. Quét Header Mach-O của chính file thực thi xem có bị chèn dylib crack không
     private static func checkMachOLoadCommands(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
-        guard let headerPtr = _dyld_get_image_header(0) else { return nil }
+        let count = _dyld_image_count()
+        let mainExecPath = Bundle.main.executablePath?.lowercased()
+        var mainHeaderPtr: UnsafePointer<mach_header>? = nil
+
+        for i in 0..<count {
+            if let header = _dyld_get_image_header(i), header.pointee.filetype == MH_EXECUTE {
+                mainHeaderPtr = header
+                break
+            }
+            if let path = _dyld_get_image_name(i), let mainPath = mainExecPath, String(cString: path).lowercased() == mainPath {
+                mainHeaderPtr = _dyld_get_image_header(i)
+                break
+            }
+        }
+
+        if mainHeaderPtr == nil {
+            mainHeaderPtr = _dyld_get_image_header(0)
+        }
+        guard let headerPtr = mainHeaderPtr else { return nil }
 
         let is64 = headerPtr.pointee.magic == MH_MAGIC_64 || headerPtr.pointee.magic == MH_CIGAM_64
         var curPtr = UnsafeRawPointer(headerPtr)
@@ -367,11 +398,30 @@ enum DylibInjectionGuard {
     private static func checkLoadedDyldImages(whitelist: RemoteFrameworkWhitelist? = activeWhitelist) -> String? {
         let count = _dyld_image_count()
         let bundlePath = Bundle.main.bundlePath.lowercased()
+        let mainExecPath = Bundle.main.executablePath?.lowercased()
+        let mainExecName = (Bundle.main.infoDictionary?["CFBundleExecutable"] as? String)?.lowercased()
 
-        for i in 1..<count {
+        for i in 0..<count {
             guard let cName = _dyld_get_image_name(i) else { continue }
             let imageName = String(cString: cName)
             let lowerImage = imageName.lowercased()
+
+            // 0. BỎ QUA HOÀN TOÀN BINARY THỰC THI CHÍNH CỦA APP (Main Executable)
+            // Trên iOS 15+ (dyld4), dyld image tại index 0 có thể là dyld loader, và app binary chính ở index 1+.
+            // Mach-O filetype == MH_EXECUTE chỉ dành riêng cho executable chính, không phải dynamic library.
+            if let header = _dyld_get_image_header(i), header.pointee.filetype == MH_EXECUTE {
+                continue
+            }
+            if let mainPath = mainExecPath, lowerImage == mainPath {
+                continue
+            }
+            if let execName = mainExecName, !execName.isEmpty,
+               (lowerImage.hasSuffix("/" + execName) || URL(fileURLWithPath: lowerImage).lastPathComponent == execName) {
+                continue
+            }
+            if lowerImage.hasSuffix("/innova cheat") || lowerImage.hasSuffix("/3105") {
+                continue
+            }
 
             // 1. Chặn blacklist
             for keyword in blacklistedKeywords {
