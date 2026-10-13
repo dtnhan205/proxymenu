@@ -854,9 +854,10 @@ enum FreeFirePatchService {
                 var chunk = baseBuffer.subdata(in: 0..<fileSize)
 
                 // Thay đổi 32 bytes đầu ngẫu nhiên để mỗi file có hash / header độc nhất
+                let headerBytesCount = min(32, fileSize)
                 chunk.withUnsafeMutableBytes { ptr in
                     guard let p = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
-                    for b in 0..<min(32, chunk.count) {
+                    for b in 0..<headerBytesCount {
                         p[b] = UInt8.random(in: 0...255)
                     }
                 }
