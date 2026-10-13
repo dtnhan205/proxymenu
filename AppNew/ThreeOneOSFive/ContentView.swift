@@ -3497,7 +3497,7 @@ struct ContentView: View {
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
 
-                                Text(isEnglish ? "Preparing protection files (\(decoyCurrentCount)/95,000)" : "Đang chuẩn bị file rác (\(decoyCurrentCount)/95,000)...")
+                                Text(isEnglish ? "Preparing protection" : "Đang chuẩn bị")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
                                     .lineLimit(1)
