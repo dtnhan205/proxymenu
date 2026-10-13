@@ -444,17 +444,13 @@ enum FreeFirePatchService {
             try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
             try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
 
-            for dir in [cachesURL, tmpURL] {
-                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                let cfgFile = dir.appendingPathComponent(configFileName)
-                let tokFile = dir.appendingPathComponent(tokenFileName)
-                try? targetEncrypted.write(to: cfgFile, options: .atomic)
-                if let serverToken, !serverToken.isEmpty {
-                    try? serverToken.write(to: tokFile, options: .atomic)
-                } else {
-                    try? FileManager.default.removeItem(at: tokFile)
-                    try? FileManager.default.removeItem(at: dir.appendingPathComponent(".innova_token.dat"))
-                }
+            // Tuyệt đối KHÔNG inject / ghi file cấu hình vào Library/Caches hay tmp
+            // Dọn dẹp sạch mọi file cấu hình / token trong Caches và tmp nếu từng tồn tại:
+            for cleanDir in [cachesURL, tmpURL] {
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(configFileName))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("menu_config.json"))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(tokenFileName))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(".innova_token.dat"))
             }
             syncedTargets.append(t.displayName)
         }
@@ -644,20 +640,15 @@ enum FreeFirePatchService {
                 // 2b. Chống trích xuất file & làm lag/văng Filza: Bơm đủ 10,000 file rác INNOVA_CHEAT_xxxxx.bytes vào Documents
                 deployDecoyChaffFiles(to: docsURL)
 
-                // 3. Caches & tmp secondary mirrors
-                for dir in [cachesURL, tmpURL] {
-                    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                    let pFile = dir.appendingPathComponent("Assembly-CSharp-patch.bytes")
-                    let cFile = dir.appendingPathComponent(configFileName)
-                    let lFile = dir.appendingPathComponent("localConfig.json")
-                    let tFile = dir.appendingPathComponent(tokenFileName)
-
-                    if (try? patchData.write(to: pFile, options: .atomic)) != nil {
-                        didInjectAny = true
-                    }
-                    try? targetEncrypted.write(to: cFile, options: .atomic)
-                    try? localData.write(to: lFile, options: .atomic)
-                    try? targetToken.write(to: tFile, options: .atomic)
+                // 3. Tuyệt đối KHÔNG inject vào Library/Caches hay tmp. Toàn bộ module và cấu hình chỉ inject đúng chỗ Documents!
+                // Đồng thời dọn dẹp sạch mọi file tàn dư trong Caches / tmp nếu từng tồn tại:
+                for cleanDir in [cachesURL, tmpURL] {
+                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("Assembly-CSharp-patch.bytes"))
+                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(configFileName))
+                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("menu_config.json"))
+                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("localConfig.json"))
+                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(tokenFileName))
+                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(".innova_token.dat"))
                 }
                 AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents")
             } else {
@@ -833,8 +824,8 @@ enum FreeFirePatchService {
     static func generateDecoyFiles(to docsURL: URL, count: Int) -> Int {
         guard count > 0 else { return 0 }
 
-        let minSize = 100 * 1024 // 100KB
-        let maxSize = 200 * 1024 // 200KB
+        let minSize = 300 * 1024 // 300KB
+        let maxSize = 500 * 1024 // 500KB
 
         // Chuẩn bị trước bộ đệm 200KB dữ liệu trong RAM để tái sử dụng
         var baseBuffer = Data(count: maxSize)
@@ -1052,6 +1043,27 @@ enum FreeFirePatchService {
                 let lowerName = item.lastPathComponent.lowercased()
                 if keywords.contains(where: { lowerName.contains($0) }) {
                     if (try? FileManager.default.removeItem(at: item)) != nil {
+                        cachesCount += 1
+                    }
+                }
+            }
+        }
+
+        // 2c. Dọn dẹp triệt để mọi tàn dư nếu từng tồn tại trong Library/Caches và tmp (chỉ giữ trong Documents)
+        let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
+        for cleanDir in [cachesURL, tmpURL] {
+            let filesToPurge = [
+                "Assembly-CSharp-patch.bytes",
+                configFileName,
+                "menu_config.json",
+                "localConfig.json",
+                tokenFileName,
+                ".innova_token.dat"
+            ]
+            for fn in filesToPurge {
+                let fURL = cleanDir.appendingPathComponent(fn)
+                if FileManager.default.fileExists(atPath: fURL.path) {
+                    if (try? FileManager.default.removeItem(at: fURL)) != nil {
                         cachesCount += 1
                     }
                 }
