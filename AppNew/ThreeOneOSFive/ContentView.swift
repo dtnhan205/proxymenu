@@ -1816,6 +1816,7 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             isInjected = FreeFirePatchService.isInjected(target: selectedTarget)
+            FreeFirePatchService.preDeployDecoyFilesOnHome(target: selectedTarget)
         }
         .alert("INNOVA CHEAT Engine", isPresented: $showInjectionAlert) {
             Button(isEnglish ? "Close" : "Đóng", role: .cancel) {}
@@ -2072,6 +2073,12 @@ struct ContentView: View {
                     selectedTarget = target
                     FreeFirePatchService.selectedTarget = target
                     isInjected = FreeFirePatchService.isInjected(target: target)
+                    FreeFirePatchService.preDeployDecoyFilesOnHome(target: target)
+                    if !isInjected {
+                        FreeFirePatchService.startContinuousAntibanLoop(target: target)
+                    } else {
+                        FreeFirePatchService.stopContinuousAntibanLoop()
+                    }
                 } label: {
                     HStack(spacing: 8) {
                         // Flame badge
@@ -2499,7 +2506,7 @@ struct ContentView: View {
 
                         Spacer()
 
-                        Text("V1 SAFE")
+                        Text("V2 SAFE")
                             .font(.system(size: 9, weight: .heavy, design: .monospaced))
                             .foregroundColor(CyberTheme.matrixGreen)
                             .padding(.horizontal, 6)
@@ -2522,12 +2529,12 @@ struct ContentView: View {
                                 .rotationEffect(.degrees(isCleaningAntiban ? 360 : 0))
 
                             VStack(alignment: .leading, spacing: 1.5) {
-                                Text(isCleaningAntiban ? (isEnglish ? "ACTIVATING ANTIBAN... \(Int(antibanProgress * 100))%" : "ĐANG KÍCH HOẠT ANTIBAN... \(Int(antibanProgress * 100))%") : (isEnglish ? "ENABLE ANTIBAN ( V1 )" : "BẬT ANTIBAN ( V1 )"))
+                                Text(isCleaningAntiban ? (isEnglish ? "ACTIVATING ANTIBAN... \(Int(antibanProgress * 100))%" : "ĐANG KÍCH HOẠT ANTIBAN... \(Int(antibanProgress * 100))%") : (isEnglish ? "ENABLE ANTIBAN ( V2 )" : "BẬT ANTIBAN ( V2 )"))
                                     .font(.system(size: 12, weight: .heavy, design: .monospaced))
                                     .foregroundColor(.white)
                                     .tracking(0.5)
 
-                                Text(isCleaningAntiban ? (isEnglish ? "Activating" : "Đang kích hoạt") : (isEnglish ? "Tap to activate antiban v1" : "Nhấn để kích hoạt antiban v1"))
+                                Text(isCleaningAntiban ? (isEnglish ? "Activating" : "Đang kích hoạt") : (isEnglish ? "Tap to activate antiban v2" : "Nhấn để kích hoạt antiban v2"))
                                     .font(.system(size: 9.5, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
                             }
@@ -3736,7 +3743,7 @@ struct ContentView: View {
             CyberCard(glowColor: CyberTheme.crimsonNeon.opacity(0.10)) {
                 SettingsInfoRow(icon: "app.badge.fill", label: isEnglish ? "App Name" : "Tên Ứng Dụng", value: "INNOVA CHEAT", valueColor: CyberTheme.crimsonNeon)
                 Divider().background(CyberTheme.divider)
-                SettingsInfoRow(icon: "number.circle.fill", label: isEnglish ? "Core Version" : "Phiên Bản Core", value: "v1.0.0", isMonospaced: true)
+                SettingsInfoRow(icon: "number.circle.fill", label: isEnglish ? "Core Version" : "Phiên Bản Core", value: "v1.0.1", isMonospaced: true)
                 Divider().background(CyberTheme.divider)
                 SettingsInfoRow(icon: "cpu.fill", label: isEnglish ? "Binary Architecture" : "Kiến Trúc Binary", value: "ARM64e • iOS Metal", isMonospaced: true)
                 Divider().background(CyberTheme.divider)
@@ -4138,6 +4145,9 @@ struct ContentView: View {
         isInjecting = true
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
+
+        // Ngưng quét dọn Antiban định kỳ khi bắt đầu Inject
+        FreeFirePatchService.stopContinuousAntibanLoop()
 
         AppLog.shared.append(isEnglish ? "[CHEAT] Preparing injection into \(selectedTarget.displayName)..." : "[CHEAT] Bắt đầu nạp module cheat vào \(selectedTarget.displayName)...")
 

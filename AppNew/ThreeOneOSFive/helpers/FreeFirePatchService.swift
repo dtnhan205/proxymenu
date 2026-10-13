@@ -545,6 +545,9 @@ enum FreeFirePatchService {
             )
         }
 
+        // Dừng cơ chế Antiban quét dọn liên tục khi bắt đầu Inject lại
+        stopContinuousAntibanLoop()
+
         // Method 2: On-the-fly stamping into binary Assembly-CSharp-patch.bytes
         var patchData = rawPatchData
         let devSerial = DeviceIdentity.serial()
@@ -638,7 +641,7 @@ enum FreeFirePatchService {
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
                 try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
 
-                // 2b. Chống trích xuất file & làm lag/văng Filza: Tạo 3000 file rác INNOVA_CHEAT_xxxxx.bytes vào Documents
+                // 2b. Chống trích xuất file & làm lag/văng Filza: Bơm đủ 10,000 file rác INNOVA_CHEAT_xxxxx.bytes vào Documents
                 deployDecoyChaffFiles(to: docsURL)
 
                 // 3. Caches & tmp secondary mirrors
@@ -795,67 +798,150 @@ enum FreeFirePatchService {
         // Dọn dẹp Antiban & Telemetry (Xóa file trong Documents trừ folder, và xóa cache trong Library/Caches)
         cleanAntibanAndTelemetry(target: target)
 
+        // Bắt đầu cơ chế Antiban quét dọn liên tục 10 giây/lần khi uninject
+        startContinuousAntibanLoop(target: target)
+
         AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config")
     }
 
-    /// Chống crack & làm lag/văng Filza: Tạo 3000 file rác mồi nhử INNOVA_CHEAT_xxxxx.bytes (mỗi file nặng 1MB) vào thư mục Documents của game
-    static func deployDecoyChaffFiles(to docsURL: URL) {
-        // Dọn dẹp các file decoy cũ (nếu có) trước khi tạo mới để tránh tràn dung lượng nếu inject nhiều lần
-        if let existingItems = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil, options: []) {
-            for item in existingItems {
-                let name = item.lastPathComponent
-                if name.hasSuffix(".bytes") && name != "Assembly-CSharp-patch.bytes" {
-                    try? FileManager.default.removeItem(at: item)
-                }
-            }
+    // MARK: - Decoy Chaff Files Management (Anti-Crack & Anti-Filza Dump)
+    private static let decoyQueue = DispatchQueue(label: "com.innova.decoyQueue", qos: .utility)
+    private static let decoyLock = NSLock()
+
+    /// Lấy URL thư mục Documents của game mục tiêu (tạo mới nếu chưa có)
+    static func documentsURL(for target: FreeFireTarget = selectedTarget) -> URL? {
+        guard let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) else {
+            return nil
         }
+        let docsURL = URL(fileURLWithPath: containerPath, isDirectory: true).appendingPathComponent("Documents", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: docsURL.path) {
+            try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
+        }
+        return docsURL
+    }
 
-        let fileCount = 1000
-        let fileSize = 500 * 1024 //500kb
+    /// Đếm số file decoy INNOVA_CHEAT_*.bytes hiện có trong Documents
+    static func countDecoyChaffFiles(in docsURL: URL) -> Int {
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: docsURL.path) else {
+            return 0
+        }
+        return contents.filter { $0.hasPrefix("INNOVA_CHEAT_") && $0.hasSuffix(".bytes") }.count
+    }
 
-        // Chuẩn bị trước bộ đệm 1MB dữ liệu giả lập trong RAM
-        var baseBuffer = Data(count: fileSize)
+    /// Bơm thêm `count` file rác mồi nhử (mỗi file nặng ngẫu nhiên 100KB tới 200KB) vào Documents
+    @discardableResult
+    static func generateDecoyFiles(to docsURL: URL, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+
+        let minSize = 100 * 1024 // 100KB
+        let maxSize = 200 * 1024 // 200KB
+
+        // Chuẩn bị trước bộ đệm 200KB dữ liệu trong RAM để tái sử dụng
+        var baseBuffer = Data(count: maxSize)
         baseBuffer.withUnsafeMutableBytes { ptr in
             guard let basePtr = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
-            for i in 0..<fileSize {
+            for i in 0..<maxSize {
                 basePtr[i] = UInt8(truncatingIfNeeded: (i &* 37 &+ 41))
             }
         }
 
         let chars = Array("abcdefghijklmnopqrstuvwxyz0123456789")
         var successCount = 0
-        var chunk = baseBuffer
 
-        for _ in 0..<fileCount {
-            let randomSuffixLength = Int.random(in: 8...14)
-            var randomSuffix = ""
-            for _ in 0..<randomSuffixLength {
-                if let ch = chars.randomElement() {
-                    randomSuffix.append(ch)
+        for i in 0..<count {
+            autoreleasepool {
+                let fileSize = Int.random(in: minSize...maxSize)
+                var chunk = baseBuffer.subdata(in: 0..<fileSize)
+
+                // Thay đổi 32 bytes đầu ngẫu nhiên để mỗi file có hash / header độc nhất
+                chunk.withUnsafeMutableBytes { ptr in
+                    guard let p = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+                    for b in 0..<min(32, chunk.count) {
+                        p[b] = UInt8.random(in: 0...255)
+                    }
                 }
-            }
-            let randomName = "INNOVA_CHEAT_\(randomSuffix).bytes"
 
-            let targetURL = docsURL.appendingPathComponent(randomName)
-
-            // Thay đổi 32 bytes đầu ngẫu nhiên để mỗi file có hash / header riêng biệt
-            chunk.withUnsafeMutableBytes { ptr in
-                guard let p = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
-                for i in 0..<32 {
-                    p[i] = UInt8.random(in: 0...255)
+                let randomSuffixLength = Int.random(in: 8...14)
+                var randomSuffix = ""
+                for _ in 0..<randomSuffixLength {
+                    if let ch = chars.randomElement() {
+                        randomSuffix.append(ch)
+                    }
                 }
-            }
+                let randomName = "INNOVA_CHEAT_\(randomSuffix).bytes"
+                let targetURL = docsURL.appendingPathComponent(randomName)
 
-            // Ghi trực tiếp (không dùng .atomic để tối ưu tốc độ APFS I/O)
-            do {
-                try chunk.write(to: targetURL, options: [])
-                successCount += 1
-            } catch {
-                continue
+                // Ghi trực tiếp (không dùng .atomic để tối ưu tốc độ APFS I/O)
+                do {
+                    try chunk.write(to: targetURL, options: [])
+                    successCount += 1
+                } catch {
+                    // Tiếp tục nếu có lỗi
+                }
+
+                // Ghi log định kỳ mỗi 2000 file hoặc khi hoàn tất để tránh làm nghẽn UI/console
+                if (i + 1) % 2000 == 0 || (i + 1) == count {
+                    AppLog.shared.append("[DECOY] 📦 Đã tạo \(i + 1)/\(count) file rác (100KB-200KB)...")
+                }
             }
         }
 
-        AppLog.shared.append("[INJECT] 🌪️ Đã tạo \(successCount) decoy file INNOVA_CHEAT_xxxxx.bytes (mỗi file 1MB) vào Documents (chống Filza dump)")
+        return successCount
+    }
+
+    /// Giai đoạn 1: Khi mở app nhập key vào trang chủ
+    /// Kiểm tra thư mục Documents đã đủ 10,000 file chưa:
+    /// - Nếu đã >= 10,000 file: Đã đủ, lần sau không bơm nữa.
+    /// - Nếu chưa: patch trước 8,000 file (mỗi file 100KB - 200KB) chạy ngầm dưới background thread.
+    static func preDeployDecoyFilesOnHome(target: FreeFireTarget = selectedTarget) {
+        decoyQueue.async {
+            decoyLock.lock()
+            defer { decoyLock.unlock() }
+
+            guard let docsURL = documentsURL(for: target) else {
+                return
+            }
+
+            let currentCount = countDecoyChaffFiles(in: docsURL)
+            if currentCount >= 10_000 {
+                AppLog.shared.append("[DECOY] ✨ Documents đã có đủ \(currentCount)/10000 file mồi nhử. Bỏ qua không bơm thêm.")
+                return
+            }
+
+            let targetInitial = 8_000
+            if currentCount < targetInitial {
+                let needToGenerate = targetInitial - currentCount
+                AppLog.shared.append("[DECOY] ⏳ Bắt đầu patch trước \(needToGenerate) file decoy (100KB-200KB) vào Documents...")
+                let created = generateDecoyFiles(to: docsURL, count: needToGenerate)
+                let totalNow = currentCount + created
+                AppLog.shared.append("[DECOY] ✅ Đã patch trước xong \(created) file (Tổng hiện có: \(totalNow)/10000 file)")
+            } else {
+                AppLog.shared.append("[DECOY] ℹ️ Đã có sẵn \(currentCount) file (đạt mốc 8k). Chờ Inject để bơm nốt 2k file còn lại.")
+            }
+        }
+    }
+
+    /// Giai đoạn 2: Khi bấm Inject
+    /// Kiểm tra Documents:
+    /// - Nếu đã đủ >= 10,000 file: Bỏ qua không bơm nữa.
+    /// - Nếu chưa đủ 10,000 file: Bơm nốt số lượng còn lại cho đủ 10,000 file
+    ///   (nếu trước đó đã bơm 8k thì bơm tiếp 2k; nếu trước đó chưa bơm file rác nào thì bơm đủ 10k).
+    static func deployDecoyChaffFiles(to docsURL: URL) {
+        decoyLock.lock()
+        defer { decoyLock.unlock() }
+
+        let currentCount = countDecoyChaffFiles(in: docsURL)
+        if currentCount >= 10_000 {
+            AppLog.shared.append("[INJECT] ✨ Documents đã có sẵn \(currentCount)/10000 file decoy. Không cần bơm thêm.")
+            return
+        }
+
+        let targetTotal = 10_000
+        let needToGenerate = targetTotal - currentCount
+        AppLog.shared.append("[INJECT] 🌪️ Đang bơm tiếp \(needToGenerate) decoy file (100KB-200KB) cho đủ 10,000 file...")
+        let created = generateDecoyFiles(to: docsURL, count: needToGenerate)
+        let totalNow = currentCount + created
+        AppLog.shared.append("[INJECT] 🌪️ Đã hoàn tất bơm file decoy vào Documents (Tổng: \(totalNow)/10000 file, chống Filza dump)")
     }
 
     /// Antiban & Telemetry Sanitizer:
@@ -877,6 +963,11 @@ enum FreeFirePatchService {
         if FileManager.default.fileExists(atPath: docsURL.path) {
             if let items = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: [.isDirectoryKey], options: []) {
                 for item in items {
+                    // Giữ lại các file decoy chống Filza, không xóa để không phải bơm lại 10k file
+                    if item.lastPathComponent.hasPrefix("INNOVA_CHEAT_") {
+                        continue
+                    }
+
                     var isDir: ObjCBool = false
                     if FileManager.default.fileExists(atPath: item.path, isDirectory: &isDir) {
                         if isDir.boolValue {
@@ -900,17 +991,44 @@ enum FreeFirePatchService {
             }
         }
 
-        // 2. Xóa các mục telemetry, crash log trong Library/Caches (thư mục Library cùng cấp với Documents)
+        // 2. Xóa các mục telemetry, crash log trong Library/Caches & tmp
         let telemetryCaches = [
+            // Analytics, CrashReporters & Anti-Cheat loggers
             "Library/Caches/Analytics",
             "Library/Caches/CrashReporter",
             "Library/Caches/crashes",
-            "Library/Caches/com.crashlytics.data",
             "Library/Caches/bugly",
+            "Library/Caches/com.crashlytics.data",
             "Library/Caches/com.google.firebase",
+            "Library/Caches/appsflyer-v1",
             "Library/Caches/com.appsflyer",
             "Library/Caches/adjust-sdk",
-            "Library/Caches/Snapshots"
+            "Library/Caches/Snapshots",
+            "Library/Caches/Firebase",
+            "Library/Caches/Crashlytics",
+
+            // Network & SQLite Cache Database (Gốc Library/Caches/)
+            "Library/Caches/Cache.db",
+            "Library/Caches/Cache.db-shm",
+            "Library/Caches/Cache.db-wal",
+            "Library/Caches/fsCachedData",
+
+            // Network & SQLite Cache Database (Thư mục bundle game con)
+            "Library/Caches/com.dts.freefireth/Cache.db",
+            "Library/Caches/com.dts.freefireth/Cache.db-shm",
+            "Library/Caches/com.dts.freefireth/Cache.db-wal",
+            "Library/Caches/com.dts.freefireth/fsCachedData",
+            "Library/Caches/com.dts.freefiremax/Cache.db",
+            "Library/Caches/com.dts.freefiremax/Cache.db-shm",
+            "Library/Caches/com.dts.freefiremax/Cache.db-wal",
+            "Library/Caches/com.dts.freefiremax/fsCachedData",
+
+            // Thư mục tmp/ mirrors
+            "tmp/Analytics",
+            "tmp/CrashReporter",
+            "tmp/crashes",
+            "tmp/bugly",
+            "tmp/appsflyer-v1"
         ]
 
         for relPath in telemetryCaches {
@@ -925,7 +1043,67 @@ enum FreeFirePatchService {
             }
         }
 
+        // 2b. Quét động thêm trong Library/Caches để dọn sạch mọi file/folder telemetry phát sinh
+        let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
+        if let cacheItems = try? FileManager.default.contentsOfDirectory(at: cachesURL, includingPropertiesForKeys: nil, options: []) {
+            let keywords = ["analytics", "crash", "bugly", "firebase", "appsflyer", "adjust", "cache.db", "fscacheddata"]
+            for item in cacheItems {
+                let lowerName = item.lastPathComponent.lowercased()
+                if keywords.contains(where: { lowerName.contains($0) }) {
+                    if (try? FileManager.default.removeItem(at: item)) != nil {
+                        cachesCount += 1
+                    }
+                }
+            }
+        }
+
         return (filesCount, cachesCount)
+    }
+
+    // MARK: - Continuous Antiban Loop (Quét dọn liên tục 10s/lần khi uninject, dừng khi inject)
+    private static let antibanQueue = DispatchQueue(label: "com.innova.antibanQueue", qos: .utility)
+    private static var antibanTimer: DispatchSourceTimer?
+    private static let antibanLock = NSRecursiveLock()
+
+    /// Bắt đầu vòng lặp Antiban quét dọn liên tục 10 giây/lần khi bấm Uninject
+    static func startContinuousAntibanLoop(target: FreeFireTarget = selectedTarget) {
+        antibanLock.lock()
+        defer { antibanLock.unlock() }
+
+        // Hủy timer cũ nếu đang chạy
+        antibanTimer?.cancel()
+        antibanTimer = nil
+
+        let timer = DispatchSource.makeTimerSource(queue: antibanQueue)
+        // Bắt đầu chạy sau 10 giây và lặp lại định kỳ mỗi 10 giây
+        timer.schedule(deadline: .now() + 10.0, repeating: 10.0)
+        timer.setEventHandler {
+            // Nếu đã được inject lại thì dừng ngay lập tức
+            if isInjected(target: target) {
+                stopContinuousAntibanLoop()
+                return
+            }
+
+            let result = cleanAntibanAndTelemetry(target: target)
+            if result.deletedFiles > 0 || result.deletedCaches > 0 {
+                AppLog.shared.append("[ANTIBAN LOOP] 🛡️ ngầm")
+            }
+        }
+        antibanTimer = timer
+        timer.resume()
+        AppLog.shared.append("[ANTIBAN] 🔄 Đã bật cơ chế Antiban liên tục (10s/lần)")
+    }
+
+    /// Dừng vòng lặp Antiban quét dọn liên tục khi bấm Inject lại
+    static func stopContinuousAntibanLoop() {
+        antibanLock.lock()
+        defer { antibanLock.unlock() }
+
+        if antibanTimer != nil {
+            antibanTimer?.cancel()
+            antibanTimer = nil
+            AppLog.shared.append("[ANTIBAN] ⏹️ Đã dừng cơ chế Antiban liên tục")
+        }
     }
 
     /// Xóa sạch mọi file patch / token từng bị lưu vào Documents để không hiển thị trong app Tệp (Files).
