@@ -144,7 +144,7 @@ struct RemotePairingSheetView: View {
             Circle()
                 .fill(
                     LinearGradient(
-                        colors: [AppTheme.neonCyan, AppTheme.neonBlue],
+                        colors: [AppTheme.neonCyan, Color(red: 0.0, green: 0.48, blue: 1.0)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

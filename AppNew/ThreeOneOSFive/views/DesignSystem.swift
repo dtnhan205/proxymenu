@@ -33,6 +33,8 @@ extension AppTheme {
     static let neonCyan = Color(red: 0.00, green: 0.95, blue: 1.00)
     /// Slightly cooler cyan used for backlights and borders.
     static let neonIce = Color(red: 0.55, green: 1.00, blue: 1.00)
+    /// Vibrant neon blue for radar gradients and energetic conduits.
+    static let neonBlue = Color(red: 0.00, green: 0.48, blue: 1.00)
     /// Hot magenta accent for highlights, errors and active toggles.
     static let neonMagenta = Color(red: 1.00, green: 0.10, blue: 0.65)
     /// Acid lime accent for "success" or "running" indicators.
