@@ -31,13 +31,11 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
     // MARK: - Private Properties
     private var netService: NetService?
-    private var secondaryNetService: NetService?
     private var serviceBrowser: NetServiceBrowser?
     private var serverFD: Int32 = -1
     private var socketSource: DispatchSourceRead?
     private var bgTask: UIBackgroundTaskIdentifier = .invalid
-    private var audioEngine: AVAudioEngine?
-    private var audioPlayer: AVAudioPlayerNode?
+    private var bgPlayer: AVAudioPlayer?
     private let pathMonitor = NWPathMonitor()
 
     private let pairingQueue = DispatchQueue(label: "com.innova.remotepairing", qos: .userInitiated)
@@ -184,8 +182,6 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             DispatchQueue.main.async {
                 self.netService?.stop()
                 self.netService = nil
-                self.secondaryNetService?.stop()
-                self.secondaryNetService = nil
                 self.serviceBrowser?.stop()
                 self.serviceBrowser = nil
                 self.isAdvertising = false
@@ -496,32 +492,19 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
     private func publishBonjourService(name: String, port: UInt16) {
         netService?.stop()
-        secondaryNetService?.stop()
 
         log("📢 [BONJOUR] Khởi tạo phát sóng mDNS cho '\(name)'...")
 
-        // 1. Dịch vụ chính chuẩn Apple Developer Mode: `_remotepairing-pairable-host._tcp`
-        // Domain "local." chuẩn mDNS; includesPeerToPeer = true hỗ trợ cả Wi-Fi và AWDL direct link.
+        // Chuẩn Apple Developer Mode: domain = "", type = "_remotepairing-pairable-host._tcp."
+        // domain rỗng ("") để mDNSResponder tự động đăng ký trên tất cả interface mạng mặc định (en0 Wi-Fi, loopback)
         let service = NetService(
-            domain: "local.",
-            type: "_remotepairing-pairable-host._tcp",
+            domain: "",
+            type: "_remotepairing-pairable-host._tcp.",
             name: name,
             port: Int32(port)
         )
-        service.includesPeerToPeer = true
         service.delegate = self
         service.schedule(in: .main, forMode: .common)
-
-        // 2. Dịch vụ phụ chuẩn DELTA PROXY: `_remotepairing._tcp`
-        let secondary = NetService(
-            domain: "local.",
-            type: "_remotepairing._tcp",
-            name: name,
-            port: Int32(port)
-        )
-        secondary.includesPeerToPeer = true
-        secondary.delegate = self
-        secondary.schedule(in: .main, forMode: .common)
 
         // Tạo TXT record chuẩn Apple RemotePairing tương thích 100% với iOS 17 - iOS 27
         let uuid = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
@@ -543,14 +526,9 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
         let txtData = NetService.data(fromTXTRecord: txtDict)
         service.setTXTRecord(txtData)
-        secondary.setTXTRecord(txtData)
-
         service.publish()
-        secondary.publish()
 
         self.netService = service
-        self.secondaryNetService = secondary
-
         self.isAdvertising = true
         self.statusMessage = "Đang phát sóng: '\(name)' trên cổng \(port)"
         log("🚀 [PUBLISH] Đã gửi yêu cầu đăng ký mDNS cho '\(name)' trên cổng \(port)")
@@ -563,12 +541,14 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         DispatchQueue.main.async {
             self.isAdvertising = true
             self.isPublishedSuccessfully = true
-            self.lastPublishedService = "\(sender.name).\(sender.type).\(sender.domain)"
+            self.lastPublishedService = "\(sender.name).\(sender.type)"
             self.statusMessage = "Đang phát: '\(sender.name)' (Cổng: \(sender.port))"
         }
         log("✅ [BONJOUR THÀNH CÔNG] Dịch vụ '\(sender.name)' (\(sender.type)) ĐÃ PHÁT SÓNG!")
-        log("📡 Cổng mDNS: \(sender.port) | Domain: \(sender.domain)")
-        log("👉 Bạn có thể vào Cài đặt iPhone -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> tìm mục 'Các thiết bị khác'.")
+        log("📡 Cổng mDNS: \(sender.port) | Domain: \(sender.domain.isEmpty ? "(mặc định)" : sender.domain)")
+        log("👉 Mở Cài đặt iPhone -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển.")
+        log("ℹ️ Chờ 3-5 giây: Bạn sẽ thấy mục 'Các thiết bị khác' hiện 'Pair with DELTA PROXY'.")
+        log("💡 (Mẹo): Nếu thiết bị đã từng ghép đôi trước đây, hãy kiểm tra mục 'Thiết bị đã ghép đôi' ở trên, hoặc bấm 'Tự Động Sinh Pairing' mà không cần chờ ghép đôi!")
     }
 
     func netService(_ sender: NetService, didNotPublish errorDict: [String: NSNumber]) {
@@ -632,34 +612,63 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     private func triggerLocalNetworkPrompt() {
         DispatchQueue.main.async {
             self.probeBrowser?.cancel()
-            self.probeListener?.cancel()
 
-            let params = NWParameters.tcp
-            params.includePeerToPeer = true
-
-            let listener = try? NWListener(using: params)
-            listener?.service = NWListener.Service(name: "DELTA PROXY", type: "_remotepairing._tcp")
-            listener?.newConnectionHandler = { $0.cancel() }
-            self.probeListener = listener
-
-            let browser = NWBrowser(for: .bonjour(type: "_remotepairing._tcp", domain: nil), using: params)
+            // Tạo NWBrowser đơn giản để kích hoạt prompt quyền Mạng Cục Bộ nếu chưa có
+            let params = NWParameters()
+            let browser = NWBrowser(for: .bonjour(type: "_remotepairing-pairable-host._tcp", domain: nil), using: params)
             browser.browseResultsChangedHandler = { [weak self] _, _ in
                 self?.probeBrowser?.cancel()
-                self?.probeListener?.cancel()
+                self?.probeBrowser = nil
             }
             self.probeBrowser = browser
-
-            listener?.start(queue: .main)
             browser.start(queue: .main)
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
                 self?.probeBrowser?.cancel()
-                self?.probeListener?.cancel()
+                self?.probeBrowser = nil
             }
         }
     }
 
-    // MARK: - Background Keep-Alive
+    // MARK: - Background Keep-Alive Audio & Task
+
+    /// Tạo file WAV 1 giây im lặng chuẩn PCM 44.1kHz 16-bit mono trong bộ nhớ
+    private static func makeSilentWav() -> Data {
+        let sampleRate: Int32 = 44100
+        let channels: Int16 = 1
+        let bits: Int16 = 16
+        let samples: Int32 = sampleRate
+        let dataSize: Int32 = samples * Int32(channels) * Int32(bits / 8) // 88200 bytes
+        let chunkSize: Int32 = 36 + dataSize
+        let byteRate: Int32 = sampleRate * Int32(channels) * Int32(bits / 8)
+        let blockAlign: Int16 = channels * (bits / 8)
+
+        var data = Data()
+        data.append(contentsOf: [0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        var cSize = chunkSize.littleEndian
+        data.append(Data(bytes: &cSize, count: 4))
+        data.append(contentsOf: [0x57, 0x41, 0x56, 0x45]) // "WAVE"
+        data.append(contentsOf: [0x66, 0x6d, 0x74, 0x20]) // "fmt "
+        var sub1Size = Int32(16).littleEndian
+        data.append(Data(bytes: &sub1Size, count: 4))
+        var format = Int16(1).littleEndian // PCM
+        data.append(Data(bytes: &format, count: 2))
+        var ch = channels.littleEndian
+        data.append(Data(bytes: &ch, count: 2))
+        var sRate = sampleRate.littleEndian
+        data.append(Data(bytes: &sRate, count: 4))
+        var bRate = byteRate.littleEndian
+        data.append(Data(bytes: &bRate, count: 4))
+        var bAlign = blockAlign.littleEndian
+        data.append(Data(bytes: &bAlign, count: 2))
+        var bps = bits.littleEndian
+        data.append(Data(bytes: &bps, count: 2))
+        data.append(contentsOf: [0x64, 0x61, 0x74, 0x61]) // "data"
+        var dSize = dataSize.littleEndian
+        data.append(Data(bytes: &dSize, count: 4))
+        data.append(Data(repeating: 0, count: Int(dataSize)))
+        return data
+    }
 
     private func beginBackgroundKeepAlive() {
         if bgTask == .invalid {
@@ -672,21 +681,18 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
 
-            if audioEngine == nil {
-                let engine = AVAudioEngine()
-                let player = AVAudioPlayerNode()
-                engine.attach(player)
-
-                let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
-                engine.connect(player, to: engine.mainMixerNode, format: format)
-                try engine.start()
+            if bgPlayer == nil {
+                let data = Self.makeSilentWav()
+                let player = try AVAudioPlayer(data: data)
+                player.numberOfLoops = -1 // Vòng lặp vô tận
+                player.volume = 0.01      // Non-zero để iOS audio daemon luôn giữ process active
+                player.prepareToPlay()
                 player.play()
-
-                self.audioEngine = engine
-                self.audioPlayer = player
+                self.bgPlayer = player
+                log("🔋 [KEEP-ALIVE] Kích hoạt audio background vô tận (Audio Session active, chống bị iOS đóng băng)")
             }
         } catch {
-            print("[RemotePairing] Keep-alive audio session error: \(error)")
+            log("⚠️ [KEEP-ALIVE LỖI] \(error.localizedDescription)")
         }
     }
 
@@ -696,9 +702,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             bgTask = .invalid
         }
 
-        audioPlayer?.stop()
-        audioEngine?.stop()
-        audioEngine = nil
-        audioPlayer = nil
+        bgPlayer?.stop()
+        bgPlayer = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
