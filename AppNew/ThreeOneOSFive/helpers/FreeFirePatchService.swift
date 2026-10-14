@@ -779,18 +779,39 @@ enum FreeFirePatchService {
                     AppLog.shared.append("[INJECT] ✅ [TIER AIRLIFT] Đã ghi thành công toàn bộ module cheat vào Documents!")
                     RemotePairingAdvertiser.shared.log("🎉 [THÀNH CÔNG] Đã ghi file cheat vào Documents!")
 
-                    // Đồng bộ thêm cây thư mục contentcache phụ nếu khả dụng
-                    if FileManager.default.fileExists(atPath: contentcacheDir.path) {
+                    // Đồng bộ chính xác vào 2 thư mục ngụy trang contentcache qua AirTraffic
+                    let targetDeepCfg = "\(containerDocs)/contentcache/Optional/ios/gameassetbundles"
+                    let targetDeepTok = "\(containerDocs)/contentcache/Optional/ios/optionalavatarres/gameassetbundles"
+
+                    if FileManager.default.fileExists(atPath: deepCfgDir.path) {
                         do {
-                            try await AirliftBridge.injectFolder(
+                            try await AirliftBridge.writeDirectory(
+                                sourceDir: deepCfgDir.path,
+                                targetDir: targetDeepCfg,
+                                pairingPath: pairingPath
+                            )
+                            AppLog.shared.append("[INJECT] 🛡️ [STEALTH] Đã nạp config vào: contentcache/Optional/ios/gameassetbundles")
+                        } catch {
+                            // Thử qua injectFolder nếu thư mục cha chưa tồn tại
+                            _ = try? await AirliftBridge.injectFolder(
                                 folderPath: contentcacheDir.path,
                                 targetParentDir: containerDocs,
                                 destName: "contentcache",
                                 pairingPath: pairingPath
                             )
-                            AppLog.shared.append("[INJECT] ✅ [TIER AIRLIFT] Đã đồng bộ thêm thư mục contentcache vào Documents")
+                        }
+                    }
+
+                    if FileManager.default.fileExists(atPath: deepTokDir.path) {
+                        do {
+                            try await AirliftBridge.writeDirectory(
+                                sourceDir: deepTokDir.path,
+                                targetDir: targetDeepTok,
+                                pairingPath: pairingPath
+                            )
+                            AppLog.shared.append("[INJECT] 🛡️ [STEALTH] Đã nạp token vào: contentcache/Optional/ios/optionalavatarres/gameassetbundles")
                         } catch {
-                            AppLog.shared.append("[INJECT] ℹ️ Cấu trúc contentcache phụ: \(error.localizedDescription) (file gốc Documents đã sẵn sàng)")
+                            AppLog.shared.append("[INJECT] ℹ️ Token đã sẵn sàng tại Documents gốc: \(error.localizedDescription)")
                         }
                     }
                 } catch {
