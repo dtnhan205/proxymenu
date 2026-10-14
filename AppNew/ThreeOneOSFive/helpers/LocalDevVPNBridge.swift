@@ -18,14 +18,25 @@ enum LocalDevVPNBridge {
         ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27
     }
 
-    /// Cache đường dẫn container game trên iOS 27
+    /// Kiểm tra thiết bị có đang chạy iOS 18.7.2 - 18.7.10 hay không
+    static var isIOS18_7_x: Bool {
+        let v = ProcessInfo.processInfo.operatingSystemVersion
+        return v.majorVersion == 18 && v.minorVersion == 7 && v.patchVersion >= 2 && v.patchVersion <= 10
+    }
+
+    /// Kiểm tra thiết bị có thuộc diện hỗ trợ qua Cầu nối (iOS 18.7.2–18.7.10 hoặc iOS 27)
+    static var isBridgeSupportedOS: Bool {
+        isIOS27 || isIOS18_7_x
+    }
+
+    /// Cache đường dẫn container game trên iOS 27 / 18.7.x
     private static var cachedContainerPaths: [String: String] = [:]
 
     // MARK: - Tunnel Probe & Connectivity
 
     /// Kiểm tra kết nối tới LocalDevVPN tunnel (10.7.0.1:49152 hoặc 127.0.0.1:49152)
     static func isTunnelActive(host: String = defaultHost, port: UInt16 = defaultPort, timeoutSeconds: Double = 0.4) -> Bool {
-        guard isIOS27 else { return false }
+        guard isBridgeSupportedOS else { return false }
 
         // Thử defaultHost (10.7.0.1) trước, nếu không được thử loopbackHost (127.0.0.1)
         if probeSocket(host: host, port: port, timeoutSeconds: timeoutSeconds) {
@@ -77,11 +88,11 @@ enum LocalDevVPNBridge {
         return false
     }
 
-    // MARK: - Container Resolution (iOS 27 Only)
+    // MARK: - Container Resolution (iOS 18.7.x & iOS 27)
 
-    /// Tìm container data của game trên iOS 27
+    /// Tìm container data của game trên iOS 18.7.x / 27
     static func resolveContainerPath(bundleID: String) -> String? {
-        guard isIOS27 else { return nil }
+        guard isBridgeSupportedOS else { return nil }
 
         if let cached = cachedContainerPaths[bundleID], !cached.isEmpty {
             if FileManager.default.fileExists(atPath: cached) {
@@ -128,9 +139,9 @@ enum LocalDevVPNBridge {
         return nil
     }
 
-    // MARK: - File Operations & Injection (iOS 27 Only)
+    // MARK: - File Operations & Injection (iOS 18.7.x & iOS 27)
 
-    /// Thực hiện nạp patch và cấu hình vào container game trên iOS 27
+    /// Thực hiện nạp patch và cấu hình vào container game trên iOS 18.7.x / 27
     static func inject(
         target: FreeFireTarget,
         patchData: Data,
@@ -138,7 +149,7 @@ enum LocalDevVPNBridge {
         localData: Data,
         tokenData: Data?
     ) -> Bool {
-        guard isIOS27 else { return false }
+        guard isBridgeSupportedOS else { return false }
 
         var success = false
 
@@ -181,9 +192,9 @@ enum LocalDevVPNBridge {
         return success
     }
 
-    /// Đồng bộ cấu hình cheat trên iOS 27
+    /// Đồng bộ cấu hình cheat trên iOS 18.7.x / 27
     static func syncConfig(target: FreeFireTarget, configData: Data) -> Bool {
-        guard isIOS27 else { return false }
+        guard isBridgeSupportedOS else { return false }
 
         guard let containerPath = resolveContainerPath(bundleID: target.rawValue) else {
             return false
@@ -199,9 +210,9 @@ enum LocalDevVPNBridge {
         }
     }
 
-    /// Gỡ bỏ patch trên iOS 27
+    /// Gỡ bỏ patch trên iOS 18.7.x / 27
     static func uninject(target: FreeFireTarget) -> Bool {
-        guard isIOS27 else { return false }
+        guard isBridgeSupportedOS else { return false }
 
         guard let containerPath = resolveContainerPath(bundleID: target.rawValue) else {
             return false
@@ -220,9 +231,9 @@ enum LocalDevVPNBridge {
         return true
     }
 
-    /// Kiểm tra đã inject chưa trên iOS 27
+    /// Kiểm tra đã inject chưa trên iOS 18.7.x / 27
     static func isInjected(target: FreeFireTarget) -> Bool {
-        guard isIOS27 else { return false }
+        guard isBridgeSupportedOS else { return false }
         guard let containerPath = resolveContainerPath(bundleID: target.rawValue) else {
             return false
         }
@@ -232,7 +243,7 @@ enum LocalDevVPNBridge {
 
     /// Gửi tín hiệu thông báo tới LocalDevVPN tunnel nếu đang lắng nghe
     private static func notifyTunnelOfInjection(target: FreeFireTarget) {
-        guard isIOS27 else { return }
+        guard isBridgeSupportedOS else { return }
         guard let url = URL(string: "http://\(defaultHost):\(defaultPort)/airlift/ping") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -248,13 +259,14 @@ enum LocalDevVPNBridge {
         URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
     }
 
-    /// Chuỗi mô tả trạng thái dành cho UI trên iOS 27
+    /// Chuỗi mô tả trạng thái dành cho UI trên iOS 27 và iOS 18.7.x
     static func statusDescription() -> String {
-        guard isIOS27 else { return "" }
+        guard isBridgeSupportedOS else { return "" }
+        let osName = isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
         if isTunnelActive() {
-            return "LocalDevVPN (10.7.0.1:49152) — Đang kết nối"
+            return "\(osName) LocalDevVPN (10.7.0.1:49152) — Đang kết nối"
         } else {
-            return "LocalDevVPN — Sẵn sàng kết nối"
+            return "\(osName) LocalDevVPN / Pair — Sẵn sàng kết nối"
         }
     }
 
@@ -306,17 +318,18 @@ final class LocalDevVPNManager: ObservableObject {
 
         let res = await LocalDevVPNBridge.testConnection(timeoutSeconds: 1.0)
         lastCheckDate = Date()
+        let osName = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
         if res.success {
             isConnected = true
             statusMessage = "Đã kết nối (\(res.host))"
             lastConnectedHost = res.host
             _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireTH.rawValue)
             _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireMAX.rawValue)
-            return (true, "Đã kết nối thành công tới LocalDevVPN (\(res.host))!")
+            return (true, "Đã kết nối thành công tới \(osName) LocalDevVPN (\(res.host))!")
         } else {
             isConnected = false
             statusMessage = "Chưa kết nối"
-            return (false, "Không tìm thấy LocalDevVPN (\(res.host)). Vui lòng đảm bảo app LocalDevVPN đang BẬT!")
+            return (false, "Không tìm thấy LocalDevVPN (\(res.host)). Vui lòng đảm bảo app LocalDevVPN đang BẬT hoặc thiết bị đã Ghép Đôi (Pair)!")
         }
     }
 }

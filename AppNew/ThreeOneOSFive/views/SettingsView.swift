@@ -105,7 +105,7 @@ struct SettingsView: View {
                 Image(systemName: "network")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(AppTheme.neonCyan)
-                NeonReadout(text: language.text("settings.vpn_card_title"), tint: AppTheme.neonCyan)
+                NeonReadout(text: vpnCardTitle, tint: AppTheme.neonCyan)
 
                 Spacer()
 
@@ -171,7 +171,7 @@ struct SettingsView: View {
                             Image(systemName: vpnManager.isConnected ? "arrow.clockwise.circle.fill" : "cable.connector")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.black)
-                            Text(language.text(vpnManager.isConnected ? "settings.vpn_reconnect_button" : "settings.vpn_connect_button"))
+                            Text(vpnConnectButtonText)
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(.black)
                         }
@@ -235,13 +235,14 @@ struct SettingsView: View {
         Task {
             let (success, message) = await vpnManager.connect()
             await MainActor.run {
+                let os = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
                 if success {
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.success)
-                    vpnAlertTitle = "⚡ iOS 27 LocalDevVPN"
+                    vpnAlertTitle = "⚡ \(os) LocalDevVPN / Pair"
                     vpnAlertMessage = message
                     showVPNAlert = true
-                    appState.exploitStatus = .success(method: "LocalDevVPN (10.7.0.1)")
+                    appState.exploitStatus = .success(method: "LocalDevVPN / Pair (10.7.0.1)")
                 } else {
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.error)
@@ -250,6 +251,25 @@ struct SettingsView: View {
                     showVPNAlert = true
                 }
             }
+        }
+    }
+
+    private var vpnCardTitle: String {
+        if LocalDevVPNBridge.isIOS18_7_x {
+            return "LocalDevVPN & Pair (iOS 18.7.x)"
+        } else if LocalDevVPNBridge.isIOS27 {
+            return "LocalDevVPN (iOS 27)"
+        } else {
+            return "LocalDevVPN & Pair (iOS 18.7.x / 27)"
+        }
+    }
+
+    private var vpnConnectButtonText: String {
+        let os = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
+        if vpnManager.isConnected {
+            return "Kết Nối Lại \(os)"
+        } else {
+            return "Kết Nối \(os)"
         }
     }
 
@@ -356,6 +376,16 @@ struct SettingsView: View {
                 compatibilityRow(label: "iOS 18", value: ExploitSupportPolicy.verifiedIOS18Range)
                 compatibilityRow(label: "iOS 26", value: ExploitSupportPolicy.verifiedIOS26Range)
                 compatibilityRow(label: "iOS 27", value: ExploitSupportPolicy.verifiedIOS27Range)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("iOS 18.7.2–18.7.10 (Pair / LocalDevVPN)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.neonAmber)
+                    Text("22H110, 22H120, 22H130, 22H140, 22H150, 22H160, 22H170, 22H180, 22H190")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 2)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("iOS 27.0, 27.0.1 & 27.x (LocalDevVPN)")

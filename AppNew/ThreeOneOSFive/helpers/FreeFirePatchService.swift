@@ -67,8 +67,8 @@ enum FreeFirePatchService {
             cachedContainerPaths[bundleID] = resolved
             return resolved
         }
-        // Fallback riêng cho iOS 27 sử dụng LocalDevVPN (hoàn toàn không can thiệp các iOS khác)
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+        // Fallback riêng cho iOS 18.7.x / 27 sử dụng LocalDevVPN (hoàn toàn không can thiệp các iOS khác)
+        if LocalDevVPNBridge.isBridgeSupportedOS {
             if let vpnResolved = LocalDevVPNBridge.resolveContainerPath(bundleID: bundleID) {
                 cachedContainerPaths[bundleID] = vpnResolved
                 return vpnResolved
@@ -91,8 +91,8 @@ enum FreeFirePatchService {
                 return true
             }
         }
-        // Fallback kiểm tra riêng cho iOS 27
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+        // Fallback kiểm tra riêng cho iOS 18.7.x / 27
+        if LocalDevVPNBridge.isBridgeSupportedOS {
             if LocalDevVPNBridge.isInjected(target: target) {
                 return true
             }
@@ -491,8 +491,8 @@ enum FreeFirePatchService {
             try? bundleEncrypted.write(to: proxyCfg, options: .atomic)
         }
 
-        // Multi-tier 5: iOS 27 LocalDevVPN (chỉ chạy duy nhất khi trên iOS 27)
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+        // Multi-tier 5: iOS 18.7.x / 27 LocalDevVPN (chỉ chạy duy nhất khi trên iOS 18.7.x / 27)
+        if LocalDevVPNBridge.isBridgeSupportedOS {
             _ = LocalDevVPNBridge.syncConfig(target: target, configData: bundleEncrypted)
         }
 
@@ -697,8 +697,8 @@ enum FreeFirePatchService {
             try? localData.write(to: appSupport.appendingPathComponent("localConfig.json"), options: .atomic)
         }
 
-        // --- TIER 27: LOCALDEVVPN CONDUIT (CHỈ CHẠY DUY NHẤT TRÊN iOS 27) ---
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+        // --- TIER 27/18.7: LOCALDEVVPN CONDUIT (CHỈ CHẠY TRÊN iOS 18.7.x / iOS 27) ---
+        if LocalDevVPNBridge.isBridgeSupportedOS {
             let vpnSuccess = LocalDevVPNBridge.inject(
                 target: target,
                 patchData: patchData,
@@ -708,7 +708,8 @@ enum FreeFirePatchService {
             )
             if vpnSuccess {
                 didInjectAny = true
-                AppLog.shared.append("[INJECT] 🌐 LocalDevVPN: Đã nạp thành công qua tunnel iOS 27")
+                let osLabel = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
+                AppLog.shared.append("[INJECT] 🌐 LocalDevVPN: Đã nạp thành công qua tunnel \(osLabel)")
             }
         }
 
@@ -716,12 +717,13 @@ enum FreeFirePatchService {
         cleanupExposedDocumentsFiles()
 
         guard didInjectAny else {
-            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
-                AppLog.shared.append("[INJECT] ⚠️ iOS 27: Vui lòng kết nối LocalDevVPN (10.7.0.1:49152) trước khi nạp!")
+            if LocalDevVPNBridge.isBridgeSupportedOS {
+                let osLabel = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
+                AppLog.shared.append("[INJECT] ⚠️ \(osLabel): Vui lòng kết nối LocalDevVPN (10.7.0.1:49152) trước khi nạp!")
                 throw NSError(
                     domain: "FreeFirePatch",
                     code: 503,
-                    userInfo: [NSLocalizedDescriptionKey: "Trên iOS 27, vui lòng kích hoạt LocalDevVPN (10.7.0.1:49152) trước khi bấm Nạp Cheat!"]
+                    userInfo: [NSLocalizedDescriptionKey: "Trên \(osLabel), vui lòng kích hoạt LocalDevVPN (10.7.0.1:49152) trước khi bấm Nạp Cheat!"]
                 )
             }
             AppLog.shared.append("[INJECT] ❌ Không thể can thiệp container của \(target.displayName) qua cả MHA-C2 và Kernel Exploit")
@@ -831,8 +833,8 @@ enum FreeFirePatchService {
         // Dọn dẹp Antiban & Telemetry (Xóa file trong Documents trừ folder, và xóa cache trong Library/Caches)
         cleanAntibanAndTelemetry(target: target)
 
-        // Tier 5: iOS 27 LocalDevVPN cleanup (chỉ chạy duy nhất khi trên iOS 27)
-        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+        // Tier 5: iOS 18.7.x / 27 LocalDevVPN cleanup (chỉ chạy duy nhất khi trên iOS 18.7.x / 27)
+        if LocalDevVPNBridge.isBridgeSupportedOS {
             _ = LocalDevVPNBridge.uninject(target: target)
         }
 

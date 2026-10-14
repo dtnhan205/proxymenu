@@ -3,9 +3,21 @@ import Foundation
 enum ExploitSupportPolicy {
     static let verifiedIOS16Range = "16.0–16.7.x"
     static let verifiedIOS17Range = "17.0–17.7.x"
-    static let verifiedIOS18Range = "18.0–18.7.1"
+    static let verifiedIOS18Range = "18.0–18.7.10 (Pair / LocalDevVPN)"
     static let verifiedIOS26Range = "26.0–26.6.1"
     static let verifiedIOS27Range = "27.0–27.x (LocalDevVPN)"
+
+    static let verifiedIOS18Builds: [(version: String, build: String)] = [
+        ("18.7.2", "22H110"),
+        ("18.7.3", "22H120"),
+        ("18.7.4", "22H130"),
+        ("18.7.5", "22H140"),
+        ("18.7.6", "22H150"),
+        ("18.7.7", "22H160"),
+        ("18.7.8", "22H170"),
+        ("18.7.9", "22H180"),
+        ("18.7.10", "22H190")
+    ]
 
     static let verifiedIOS27Builds: [(beta: Int, publicBeta: Int?, build: String)] = [
         (1, nil, "24A5355q"),
@@ -55,6 +67,13 @@ enum ExploitSupportPolicy {
     static func isSupported(major: Int, minor: Int, patch: Int, build: String) -> Bool {
         if supportsKernelExploit(major: major, minor: minor, patch: patch) {
             return true
+        }
+
+        // iOS 18.7.2 - 18.7.10: Hỗ trợ qua cơ chế airlift (Pairing / LocalDevVPN Bridge)
+        if major == 18 {
+            if minor == 7 && patch >= 2 && patch <= 10 {
+                return true
+            }
         }
 
         if major == 26 {
