@@ -43,6 +43,8 @@ extension AppTheme {
     static let neonAmber = Color(red: 1.00, green: 0.78, blue: 0.20)
     /// Deep violet used as a tertiary accent (rare).
     static let neonViolet = Color(red: 0.55, green: 0.30, blue: 1.00)
+    /// Urgent neon red for alerts, disconnection, and warnings.
+    static let neonRed = Color(red: 1.00, green: 0.25, blue: 0.25)
 
     // MARK: - Cyberpunk backdrop gradient (Home / per-game menu screens)
     static let techBackgroundTop = Color(red: 0.03, green: 0.06, blue: 0.12)

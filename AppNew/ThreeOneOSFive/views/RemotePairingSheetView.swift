@@ -40,8 +40,16 @@ struct RemotePairingSheetView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 16) {
+                        // Cảnh báo nếu chưa bật Wi-Fi (Do iOS chặn Bonjour trên 4G)
+                        if !pairing.isWiFiConnected {
+                            wifiWarningCard
+                        }
+
                         // Card Trạng thái phát sóng Bonjour
                         broadcastingCard
+
+                        // Nút Tự động tạo File Pairing (Bỏ qua bước quét nếu không có Wi-Fi/Máy tính)
+                        quickPairBypassCard
 
                         // Card Mã PIN (nếu có yêu cầu từ hệ thống)
                         if !pairing.pinCode.isEmpty {
@@ -192,16 +200,16 @@ struct RemotePairingSheetView: View {
     }
 
     private var broadcastingPillsSection: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             statusPill(
                 icon: "network",
                 label: "PORT",
                 value: "\(pairing.listeningPort)"
             )
             statusPill(
-                icon: "dot.radiowaves.left.and.right",
-                label: "BONJOUR",
-                value: "_remotepairing"
+                icon: pairing.isWiFiConnected ? "wifi" : "wifi.slash",
+                label: "NETWORK",
+                value: pairing.isWiFiConnected ? "WI-FI OK" : "4G (NO WIFI)"
             )
             statusPill(
                 icon: "lock.shield.fill",
@@ -210,6 +218,78 @@ struct RemotePairingSheetView: View {
             )
         }
         .padding(.top, 4)
+    }
+
+    // MARK: - Wi-Fi Warning Card
+    private var wifiWarningCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(AppTheme.neonRed)
+                Text(isEnglish ? "WI-FI DISCONNECTED (ON 4G)" : "CHƯA BẬT WI-FI (ĐANG DÙNG 4G)")
+                    .font(.system(size: 11.5, weight: .heavy, design: .monospaced))
+                    .foregroundColor(AppTheme.neonRed)
+                Spacer()
+            }
+
+            Text(isEnglish
+                ? "iOS blocks Bonjour discovery over 4G/Cellular. Turn ON Wi-Fi (or turn on Personal Hotspot) so Developer Mode can detect this device. Or tap 'Instant Local Pairing' below!"
+                : "Hệ điều hành iOS chặn tìm kiếm Bonjour qua mạng di động 4G. Bạn bắt buộc phải BẬT WI-FI và kết nối vào Wi-Fi (hoặc bật Điểm phát sóng cá nhân) để mục Nhà phát triển quét thấy máy. Hoặc bấm nút tạo nhanh bên dưới!")
+                .font(.system(size: 11.5, weight: .regular))
+                .foregroundColor(.white.opacity(0.85))
+                .lineSpacing(2)
+        }
+        .padding(14)
+        .background(Color(red: 0.20, green: 0.05, blue: 0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppTheme.neonRed.opacity(0.7), lineWidth: 1.5)
+        )
+    }
+
+    // MARK: - Quick Pair Bypass Card
+    private var quickPairBypassCard: some View {
+        VStack(spacing: 8) {
+            Button {
+                pairing.generateLocalPairingFile()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "bolt.badge.checkmark.fill")
+                        .font(.system(size: 15, weight: .bold))
+                    Text(isEnglish ? "INSTANT LOCAL PAIRING (NO WI-FI)" : "TẠO FILE PAIRING TRỰC TIẾP (KHÔNG CẦN WI-FI)")
+                        .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                }
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(
+                    LinearGradient(
+                        colors: [AppTheme.neonLime, Color(red: 0.3, green: 0.9, blue: 0.2)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .shadow(color: AppTheme.neonLime.opacity(0.4), radius: 6, y: 2)
+            }
+            .buttonStyle(.plain)
+
+            Text(isEnglish
+                ? "Bypasses wireless pairing by generating delta_pairing.plist locally."
+                : "Tự tạo sẵn pairing record trực tiếp trên máy, bỏ qua bước ghép đôi thủ công nếu không có Wi-Fi.")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(.white.opacity(0.55))
+                .multilineTextAlignment(.center)
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(AppTheme.neonLime.opacity(0.3), lineWidth: 1)
+        )
     }
 
     // MARK: - PIN Code Card
@@ -268,8 +348,8 @@ struct RemotePairingSheetView: View {
 
             stepRow(
                 number: 1,
-                title: isEnglish ? "Tap 'OPEN IPHONE SETTINGS' below" : "Bấm nút 'MỞ CÀI ĐẶT IPHONE' ở bên dưới",
-                desc: isEnglish ? "Opens iOS Settings directly" : "Chuyển nhanh sang màn hình Cài đặt của máy"
+                title: isEnglish ? "Ensure Wi-Fi is ON (or use Instant Local Pairing)" : "Bật Wi-Fi (nếu đang dùng 4G) hoặc bấm Tạo Trực Tiếp ở trên",
+                desc: isEnglish ? "iOS requires Wi-Fi for Bonjour mDNS discovery" : "iOS bắt buộc có kết nối Wi-Fi để Nhà phát triển quét thấy Bonjour"
             )
 
             stepRow(
