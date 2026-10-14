@@ -219,7 +219,7 @@ enum LocalDevVPNBridge {
         }
 
         // 1. Kiểm tra qua LSApplicationProxy (nhanh & chính xác nhất nếu API khả dụng)
-        let info = appInfoForBundleID(bundleID as NSString)
+        let info = (appInfoForBundleID(bundleID) as? [String: Any]) ?? [:]
         if let container = info["container"] as? String, !container.isEmpty, FileManager.default.fileExists(atPath: container) {
             cachedContainerPaths[bundleID] = container
             return container
@@ -332,7 +332,7 @@ enum LocalDevVPNBridge {
             logEntry("GAME", "--- Kiểm tra \(displayName) (\(bundleID)) ---", icon: "🎮")
 
             // Kiểm tra cài đặt qua LSApplicationProxy
-            let info = appInfoForBundleID(bundleID as NSString)
+            let info = (appInfoForBundleID(bundleID) as? [String: Any]) ?? [:]
             let isInstalled = (info["found"] as? NSNumber)?.boolValue ?? false || (info["name"] != nil && (info["name"] as? String) != bundleID)
             let version = info["version"] as? String ?? "N/A"
 
@@ -384,8 +384,8 @@ enum LocalDevVPNBridge {
                     // Kiểm tra patch file hiện tại
                     let patchPath = (docsPath as NSString).appendingPathComponent("Assembly-CSharp-patch.bytes")
                     if FileManager.default.fileExists(atPath: patchPath) {
-                        if let attrs = try? FileManager.default.attributesOfItem(atPath: patchPath),
-                           let size = attrs[.size] as? Int64 {
+                        if let attrs = try? FileManager.default.attributesOfItem(atPath: patchPath) {
+                            let size = (attrs[FileAttributeKey.size] as? NSNumber)?.int64Value ?? 0
                             logEntry("PATCH", "File Assembly-CSharp-patch.bytes: ✅ ĐÃ NẠP SẴN (\(size) bytes)", icon: "⚡")
                         }
                     } else {
