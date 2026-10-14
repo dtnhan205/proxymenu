@@ -209,6 +209,11 @@
 		FF000011 /* LocalDevVPNBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDevVPNBridge.swift; sourceTree = "<group>"; };
 		FF000013 /* RemotePairingAdvertiser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePairingAdvertiser.swift; sourceTree = "<group>"; };
 		FF000015 /* RemotePairingSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePairingSheetView.swift; sourceTree = "<group>"; };
+		FF000021 /* AirliftFFI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = AirliftFFI.xcframework; path = Frameworks/AirliftFFI.xcframework; sourceTree = SOURCE_ROOT; };
+		FF000022 /* GrappaHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GrappaHelper.h; sourceTree = "<group>"; };
+		FF000023 /* GrappaHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GrappaHelper.m; sourceTree = "<group>"; };
+		FF000025 /* RespringHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RespringHelper.swift; sourceTree = "<group>"; };
+		FF000028 /* airlift.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = airlift.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -595,6 +600,7 @@
 					"$(inherited)",
 					"-lz",
 					"-lc++",
+					"-lairlift_ffi",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = "INNOVA CHEAT";
@@ -641,6 +647,7 @@
 					"$(inherited)",
 					"-lz",
 					"-lc++",
+					"-lairlift_ffi",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = "INNOVA CHEAT";
