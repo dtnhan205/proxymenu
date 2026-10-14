@@ -460,16 +460,29 @@ final class LocalDevVPNManager: ObservableObject {
             _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireTH.rawValue)
             _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireMAX.rawValue)
 
-            let msg = """
-            ✅ LOCALDEVVPN ĐÃ KẾT NỐI THÀNH CÔNG!
-            • Giao diện mạng: \(res.interfaceName)
-            • Tunnel: \(res.host)
+            let hasPairing = RemotePairingAdvertiser.shared.hasExistingPairing
+            let msg: String
+            if hasPairing {
+                msg = """
+                ✅ LOCALDEVVPN ĐÃ KẾT NỐI THÀNH CÔNG!
+                • Giao diện mạng: \(res.interfaceName)
+                • Tunnel: \(res.host)
+                • Trạng thái Pairing: ✅ ĐÃ CÓ FILE PAIRING
 
-            👉 BƯỚC GHÉP ĐÔI THIẾT BỊ (iOS 27+):
-            1. Vào Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển.
-            2. Trong mục 'Các thiết bị khác', chọn 'Pair with INNOVA PROXY'.
-            3. Xác nhận ghép đôi để kết nối dịch vụ hệ thống và nạp mod!
-            """
+                🎉 THIẾT BỊ ĐÃ SẴN SÀNG!
+                Bạn không cần vào Chế độ Nhà phát triển để ghép đôi nữa.
+                👉 Hãy mở game Free Fire và bấm 'NẠP MOD / ANTI-BAN' ngay!
+                """
+            } else {
+                msg = """
+                ✅ LOCALDEVVPN ĐÃ KẾT NỐI THÀNH CÔNG!
+                • Giao diện mạng: \(res.interfaceName)
+                • Tunnel: \(res.host)
+
+                👉 BƯỚC TIẾP THEO:
+                Vào Cài đặt > Ghép đôi iOS 27 > Bấm "TẠO FILE PAIRING TRỰC TIẾP" (hoặc Nhập file .plist từ máy tính) để hoàn tất!
+                """
+            }
             return (true, msg)
         } else {
             isConnected = false

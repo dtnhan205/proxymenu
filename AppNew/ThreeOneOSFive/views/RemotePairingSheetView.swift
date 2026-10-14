@@ -1,8 +1,9 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// Cửa sổ hiển thị trạng thái và hướng dẫn Ghép Đôi iOS 27 (RemotePairing)
-/// Tương thích hoàn toàn với cơ chế ghép đôi không dây (Developer Mode) của iOS 27+.
+/// Tương thích hoàn toàn với cơ chế ghép đôi không dây (Developer Mode) và AirTraffic/LocalDevVPN của iOS 27+.
 struct RemotePairingSheetView: View {
     @Environment(\.presentationMode) var presentationMode
     @ObservedObject private var pairing = RemotePairingAdvertiser.shared
@@ -10,6 +11,8 @@ struct RemotePairingSheetView: View {
     @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.vietnamese.rawValue
 
     @State private var isPulsing: Bool = false
+    @State private var showFileImporter: Bool = false
+    @State private var showClearAlert: Bool = false
 
     private var isEnglish: Bool {
         languageCode == AppLanguage.english.rawValue
@@ -40,16 +43,21 @@ struct RemotePairingSheetView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 16) {
-                        // Cảnh báo nếu chưa bật Wi-Fi (Do iOS chặn Bonjour trên 4G)
-                        if !pairing.isWiFiConnected {
+                        // Banner Thành công nếu ĐÃ CÓ FILE PAIRING
+                        if pairing.hasExistingPairing {
+                            pairedSuccessBanner
+                        }
+
+                        // Cảnh báo Wi-Fi nếu CHƯA GHÉP ĐÔI và đang dùng 4G
+                        if !pairing.hasExistingPairing && !pairing.isWiFiConnected {
                             wifiWarningCard
                         }
 
-                        // Card Trạng thái phát sóng Bonjour
+                        // Card Trạng thái phát sóng Bonjour / Conduit
                         broadcastingCard
 
-                        // Nút Tự động tạo File Pairing (Bỏ qua bước quét nếu không có Wi-Fi/Máy tính)
-                        quickPairBypassCard
+                        // Card Hành động ghép đôi nhanh (Tạo trực tiếp + Nhập file .plist)
+                        quickActionsCard
 
                         // Card Mã PIN (nếu có yêu cầu từ hệ thống)
                         if !pairing.pinCode.isEmpty {
@@ -82,6 +90,35 @@ struct RemotePairingSheetView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .fileImporter(
+            isPresented: $showFileImporter,
+            allowedContentTypes: [
+                UTType(filenameExtension: "plist") ?? .data,
+                UTType(filenameExtension: "mobiledevicepairing") ?? .data,
+                UTType(filenameExtension: "mobilepair") ?? .data,
+                .data
+            ]
+        ) { result in
+            switch result {
+            case .success(let url):
+                pairing.importPairingFile(from: url)
+            case .failure(let error):
+                print("[RemotePairing] File picker error: \(error)")
+            }
+        }
+        .alert(
+            isEnglish ? "Delete pairing record?" : "Xác nhận xoá file Pairing?",
+            isPresented: $showClearAlert
+        ) {
+            Button(isEnglish ? "Delete" : "Xoá", role: .destructive) {
+                pairing.clearPairing()
+            }
+            Button(isEnglish ? "Cancel" : "Huỷ", role: .cancel) {}
+        } message: {
+            Text(isEnglish
+                ? "This will delete the pairing credentials from the device."
+                : "Hành động này sẽ xoá file pairing hiện tại để bạn có thể tạo mới hoặc nhập file khác.")
+        }
         .onAppear {
             isPulsing = true
             if !pairing.isAdvertising {
@@ -90,13 +127,64 @@ struct RemotePairingSheetView: View {
         }
     }
 
+    // MARK: - Paired Success Banner
+    private var pairedSuccessBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.neonLime.opacity(0.2))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(AppTheme.neonLime)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isEnglish ? "PAIRING ACTIVE (READY)" : "GHÉP ĐÔI THÀNH CÔNG (ĐÃ SẴN SÀNG)")
+                        .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                        .foregroundColor(AppTheme.neonLime)
+
+                    Text(isEnglish ? "Valid Pairing Record found on device" : "Đã có File Pairing hợp lệ trên máy")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+                Spacer()
+            }
+
+            Text(isEnglish
+                ? "iOS Developer Mode cannot self-discover Bonjour on the same iPhone (which is why 'Other Devices' spins forever). You ALREADY have the pairing file! You do NOT need to pair in Settings."
+                : "Mục Chế độ Nhà phát triển của iOS không hỗ trợ tự quét Bonjour trên cùng một chiếc iPhone (đây là lý do vòng xoay 'Các thiết bị khác' xoay mãi). Bạn ĐÃ CÓ FILE PAIRING trên máy rồi nên KHÔNG CẦN vào Cài đặt nữa!")
+                .font(.system(size: 11.5, weight: .regular))
+                .foregroundColor(.white.opacity(0.85))
+                .lineSpacing(2.5)
+
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(AppTheme.neonLime)
+                    .font(.system(size: 11))
+                Text(isEnglish ? "Skip Settings. Turn on LocalDevVPN and open game!" : "Bỏ qua Cài đặt. Hãy Bật LocalDevVPN và mở game nạp mod ngay!")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(AppTheme.neonLime)
+            }
+            .padding(.top, 2)
+        }
+        .padding(14)
+        .background(Color(red: 0.05, green: 0.16, blue: 0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppTheme.neonLime.opacity(0.8), lineWidth: 1.5)
+        )
+    }
+
     // MARK: - Header Bar
     private var headerBar: some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(pairing.isAdvertising ? AppTheme.neonLime : AppTheme.neonAmber)
+                        .fill(pairing.hasExistingPairing ? AppTheme.neonLime : (pairing.isAdvertising ? AppTheme.neonCyan : AppTheme.neonAmber))
                         .frame(width: 8, height: 8)
                         .scaleEffect(isPulsing ? 1.2 : 0.8)
                         .animation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: isPulsing)
@@ -139,7 +227,7 @@ struct RemotePairingSheetView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
-                    (pairing.isPaired ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.45),
+                    (pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.45),
                     lineWidth: 1
                 )
         )
@@ -152,15 +240,17 @@ struct RemotePairingSheetView: View {
             Circle()
                 .fill(
                     LinearGradient(
-                        colors: [AppTheme.neonCyan, Color(red: 0.0, green: 0.48, blue: 1.0)],
+                        colors: pairing.hasExistingPairing
+                            ? [AppTheme.neonLime, Color(red: 0.1, green: 0.8, blue: 0.3)]
+                            : [AppTheme.neonCyan, Color(red: 0.0, green: 0.48, blue: 1.0)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .frame(width: 58, height: 58)
-                .shadow(color: AppTheme.neonCyan.opacity(0.6), radius: 10)
+                .shadow(color: (pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.6), radius: 10)
 
-            Image(systemName: pairing.isPaired ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
+            Image(systemName: pairing.hasExistingPairing ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.black)
         }
@@ -170,15 +260,15 @@ struct RemotePairingSheetView: View {
     private var radarRingsView: some View {
         ZStack {
             Circle()
-                .strokeBorder(AppTheme.neonCyan.opacity(0.25), lineWidth: 1.5)
+                .strokeBorder((pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.25), lineWidth: 1.5)
                 .frame(width: 64, height: 64)
 
             Circle()
-                .strokeBorder(AppTheme.neonCyan.opacity(0.18), lineWidth: 1.5)
+                .strokeBorder((pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.18), lineWidth: 1.5)
                 .frame(width: 92, height: 92)
 
             Circle()
-                .strokeBorder(AppTheme.neonCyan.opacity(0.11), lineWidth: 1.5)
+                .strokeBorder((pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.11), lineWidth: 1.5)
                 .frame(width: 120, height: 120)
         }
         .scaleEffect(isPulsing ? 1.08 : 0.95)
@@ -193,7 +283,7 @@ struct RemotePairingSheetView: View {
 
             Text(pairing.statusMessage)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(pairing.isPaired ? AppTheme.neonLime : AppTheme.neonAmber)
+                .foregroundColor(pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 10)
         }
@@ -209,56 +299,28 @@ struct RemotePairingSheetView: View {
             statusPill(
                 icon: pairing.isWiFiConnected ? "wifi" : "wifi.slash",
                 label: "NETWORK",
-                value: pairing.isWiFiConnected ? "WI-FI OK" : "4G (NO WIFI)"
+                value: pairing.isWiFiConnected ? "WI-FI OK" : "4G (CELLULAR)"
             )
             statusPill(
                 icon: "lock.shield.fill",
                 label: "STATUS",
-                value: pairing.isPaired ? "PAIRED" : "READY"
+                value: pairing.hasExistingPairing ? "PAIRED" : "READY"
             )
         }
         .padding(.top, 4)
     }
 
-    // MARK: - Wi-Fi Warning Card
-    private var wifiWarningCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "wifi.slash")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(AppTheme.neonRed)
-                Text(isEnglish ? "WI-FI DISCONNECTED (ON 4G)" : "CHƯA BẬT WI-FI (ĐANG DÙNG 4G)")
-                    .font(.system(size: 11.5, weight: .heavy, design: .monospaced))
-                    .foregroundColor(AppTheme.neonRed)
-                Spacer()
-            }
-
-            Text(isEnglish
-                ? "iOS blocks Bonjour discovery over 4G/Cellular. Turn ON Wi-Fi (or turn on Personal Hotspot) so Developer Mode can detect this device. Or tap 'Instant Local Pairing' below!"
-                : "Hệ điều hành iOS chặn tìm kiếm Bonjour qua mạng di động 4G. Bạn bắt buộc phải BẬT WI-FI và kết nối vào Wi-Fi (hoặc bật Điểm phát sóng cá nhân) để mục Nhà phát triển quét thấy máy. Hoặc bấm nút tạo nhanh bên dưới!")
-                .font(.system(size: 11.5, weight: .regular))
-                .foregroundColor(.white.opacity(0.85))
-                .lineSpacing(2)
-        }
-        .padding(14)
-        .background(Color(red: 0.20, green: 0.05, blue: 0.07))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(AppTheme.neonRed.opacity(0.7), lineWidth: 1.5)
-        )
-    }
-
-    // MARK: - Quick Pair Bypass Card
-    private var quickPairBypassCard: some View {
-        VStack(spacing: 8) {
+    // MARK: - Quick Actions Card
+    private var quickActionsCard: some View {
+        VStack(spacing: 10) {
+            // Nút 1: Tự tạo file pairing trực tiếp trên máy
             Button {
                 pairing.generateLocalPairingFile()
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "bolt.badge.checkmark.fill")
                         .font(.system(size: 15, weight: .bold))
-                    Text(isEnglish ? "INSTANT LOCAL PAIRING (NO WI-FI)" : "TẠO FILE PAIRING TRỰC TIẾP (KHÔNG CẦN WI-FI)")
+                    Text(isEnglish ? "INSTANT LOCAL PAIRING (RECOMMENDED)" : "TẠO FILE PAIRING TRỰC TIẾP (KHUYÊN DÙNG)")
                         .font(.system(size: 12, weight: .heavy, design: .monospaced))
                 }
                 .foregroundColor(.black)
@@ -276,19 +338,81 @@ struct RemotePairingSheetView: View {
             }
             .buttonStyle(.plain)
 
-            Text(isEnglish
-                ? "Bypasses wireless pairing by generating delta_pairing.plist locally."
-                : "Tự tạo sẵn pairing record trực tiếp trên máy, bỏ qua bước ghép đôi thủ công nếu không có Wi-Fi.")
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(.white.opacity(0.55))
-                .multilineTextAlignment(.center)
+            // Nút 2: Nhập file pairing (.plist) từ máy tính (pymobiledevice3 / Files)
+            Button {
+                showFileImporter = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.badge.arrow.up.fill")
+                        .font(.system(size: 14, weight: .bold))
+                    Text(isEnglish ? "IMPORT PAIRING FILE (.plist)" : "NHẬP FILE PAIRING (.plist TỪ MÁY TÍNH)")
+                        .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                }
+                .foregroundColor(AppTheme.neonCyan)
+                .frame(maxWidth: .infinity)
+                .frame(height: 42)
+                .background(Color.white.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(AppTheme.neonCyan.opacity(0.5), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+
+            // Nút 3 (nếu đã có file): Xoá file để thiết lập lại
+            if pairing.hasExistingPairing {
+                Button {
+                    showClearAlert = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                        Text(isEnglish ? "Reset Pairing Record" : "Xoá file Pairing để tạo lại")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(AppTheme.neonRed.opacity(0.85))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(12)
         .background(Color.white.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(AppTheme.neonLime.opacity(0.3), lineWidth: 1)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Wi-Fi Warning Card
+    private var wifiWarningCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(AppTheme.neonAmber)
+                Text(isEnglish ? "NO WI-FI CONNECTION DETECTED" : "CHƯA KẾT NỐI WI-FI")
+                    .font(.system(size: 11.5, weight: .heavy, design: .monospaced))
+                    .foregroundColor(AppTheme.neonAmber)
+                Spacer()
+            }
+
+            Text(isEnglish
+                ? "Bonjour scanning requires Wi-Fi. However, you can simply tap 'INSTANT LOCAL PAIRING' above to generate the pairing file immediately without needing Wi-Fi!"
+                : "Quét Bonjour đòi hỏi Wi-Fi. Nhưng bạn chỉ cần bấm nút 'TẠO FILE PAIRING TRỰC TIẾP' màu xanh ở trên là có thể ghép đôi ngay mà không cần bật Wi-Fi!")
+                .font(.system(size: 11.5, weight: .regular))
+                .foregroundColor(.white.opacity(0.85))
+                .lineSpacing(2)
+        }
+        .padding(14)
+        .background(Color(red: 0.18, green: 0.12, blue: 0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppTheme.neonAmber.opacity(0.6), lineWidth: 1)
         )
     }
 
@@ -340,35 +464,45 @@ struct RemotePairingSheetView: View {
             HStack(spacing: 6) {
                 Image(systemName: "list.number")
                     .foregroundColor(AppTheme.neonCyan)
-                Text(isEnglish ? "PAIRING INSTRUCTIONS (4 STEPS)" : "HƯỚNG DẪN GHÉP ĐÔI (4 BƯỚC)")
+                Text(pairing.hasExistingPairing
+                    ? (isEnglish ? "HOW TO APPLY MOD (3 STEPS)" : "CÁCH NẠP MOD (3 BƯỚC)")
+                    : (isEnglish ? "SETUP INSTRUCTIONS" : "HƯỚNG DẪN THIẾT LẬP"))
                     .font(.system(size: 11, weight: .heavy, design: .monospaced))
                     .foregroundColor(AppTheme.neonCyan)
                 Spacer()
             }
 
-            stepRow(
-                number: 1,
-                title: isEnglish ? "Ensure Wi-Fi is ON (or use Instant Local Pairing)" : "Bật Wi-Fi (nếu đang dùng 4G) hoặc bấm Tạo Trực Tiếp ở trên",
-                desc: isEnglish ? "iOS requires Wi-Fi for Bonjour mDNS discovery" : "iOS bắt buộc có kết nối Wi-Fi để Nhà phát triển quét thấy Bonjour"
-            )
+            if pairing.hasExistingPairing {
+                stepRow(
+                    number: 1,
+                    title: isEnglish ? "Turn ON LocalDevVPN" : "Bật LocalDevVPN",
+                    desc: isEnglish ? "Activate the 10.7.0.1 tunnel interface" : "Bật ứng dụng LocalDevVPN để mở tunnel 10.7.0.1 / 10.7.1.1"
+                )
 
-            stepRow(
-                number: 2,
-                title: isEnglish ? "Go to Privacy & Security > Developer Mode" : "Vào Quyền riêng tư & Bảo mật > Chế độ nhà phát triển",
-                desc: isEnglish ? "Ensure Developer Mode toggle is ON" : "Đảm bảo công tắc Chế độ nhà phát triển đã BẬT"
-            )
+                stepRow(
+                    number: 2,
+                    title: isEnglish ? "Launch Free Fire Game" : "Mở Game Free Fire",
+                    desc: isEnglish ? "Open game so the container is active" : "Mở game lên để container ứng dụng sẵn sàng nhận tệp mod"
+                )
 
-            stepRow(
-                number: 3,
-                title: isEnglish ? "Look under 'Other Devices' & tap '\(pairing.advertisedName)'" : "Trong mục 'Các thiết bị khác', chọn '\(pairing.advertisedName)'",
-                desc: isEnglish ? "Wait for the spinner and pairing request" : "Chờ biểu tượng xoay kết nối và mã xác nhận hiện ra"
-            )
+                stepRow(
+                    number: 3,
+                    title: isEnglish ? "Tap Apply Mod / Anti-Ban" : "Bấm Nạp Mod / Anti-Ban",
+                    desc: isEnglish ? "System conduit writes patches instantly" : "Cầu nối hệ thống sẽ ghi patch và áp dụng cheat thành công!"
+                )
+            } else {
+                stepRow(
+                    number: 1,
+                    title: isEnglish ? "Tap 'Instant Local Pairing'" : "Bấm 'Tạo File Pairing Trực Tiếp'",
+                    desc: isEnglish ? "Creates pairing records locally (bypasses manual Bonjour)" : "Tạo sẵn pairing record để không cần máy tính hay Cài đặt"
+                )
 
-            stepRow(
-                number: 4,
-                title: isEnglish ? "Confirm Pairing & Return to App" : "Xác nhận ghép đôi & Quay lại ứng dụng",
-                desc: isEnglish ? "Device moves to 'Paired Devices' and system tunnel is ready" : "Thiết bị sẽ chuyển vào 'Thiết bị đã ghép đôi' và sẵn sàng nạp mod!"
-            )
+                stepRow(
+                    number: 2,
+                    title: isEnglish ? "Or Import from PC (.plist)" : "Hoặc Nhập File từ Máy Tính",
+                    desc: isEnglish ? "Use pymobiledevice3 pairing file if generated externally" : "Nếu bạn đã có file pairing từ pymobiledevice3, bấm nút Nhập File ở trên"
+                )
+            }
         }
         .padding(14)
         .background(Color(red: 0.08, green: 0.08, blue: 0.11))
@@ -411,43 +545,75 @@ struct RemotePairingSheetView: View {
     // MARK: - Bottom Action Bar
     private var bottomActionBar: some View {
         VStack(spacing: 8) {
-            Button {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 15, weight: .bold))
-                    Text(isEnglish ? "OPEN IPHONE SETTINGS" : "MỞ CÀI ĐẶT IPHONE")
-                        .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
-                }
-                .foregroundColor(.black)
-                .frame(maxWidth: .infinity)
-                .frame(height: 46)
-                .background(
-                    LinearGradient(
-                        colors: [AppTheme.neonCyan, Color(red: 0.0, green: 0.8, blue: 0.9)],
-                        startPoint: .leading,
-                        endPoint: .trailing
+            if pairing.hasExistingPairing {
+                // Nút chính khi ĐÃ CÓ FILE: Kết nối VPN & Vào game nạp mod
+                Button {
+                    Task {
+                        _ = await vpnManager.connect()
+                    }
+                    presentationMode.wrappedValue.dismiss()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 15, weight: .bold))
+                        Text(isEnglish ? "ENABLE VPN & APPLY MOD" : "BẬT LOCALDEVVPN & VÀO GAME")
+                            .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+                    .background(
+                        LinearGradient(
+                            colors: [AppTheme.neonLime, Color(red: 0.2, green: 0.9, blue: 0.4)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .shadow(color: AppTheme.neonCyan.opacity(0.55), radius: 8, y: 2)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: AppTheme.neonLime.opacity(0.55), radius: 8, y: 2)
+                }
+                .buttonStyle(.plain)
+            } else {
+                // Nút chính khi CHƯA CÓ FILE: Tạo file pairing ngay
+                Button {
+                    pairing.generateLocalPairingFile()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "bolt.badge.checkmark.fill")
+                            .font(.system(size: 15, weight: .bold))
+                        Text(isEnglish ? "CREATE PAIRING FILE NOW" : "TẠO FILE PAIRING TRỰC TIẾP")
+                            .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+                    .background(
+                        LinearGradient(
+                            colors: [AppTheme.neonLime, Color(red: 0.3, green: 0.9, blue: 0.2)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: AppTheme.neonLime.opacity(0.55), radius: 8, y: 2)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             HStack(spacing: 10) {
                 Button {
-                    pairing.startAdvertising()
+                    showFileImporter = true
                 } label: {
-                    Text(isEnglish ? "Restart Broadcast" : "Phát lại Bonjour")
-                        .font(.system(size: 11.5, weight: .bold))
-                        .foregroundColor(AppTheme.neonCyan)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 34)
-                        .background(Color.white.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    HStack(spacing: 5) {
+                        Image(systemName: "doc.badge.arrow.up")
+                        Text(isEnglish ? "Import .plist" : "Nhập .plist")
+                    }
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundColor(AppTheme.neonCyan)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
 
@@ -455,7 +621,7 @@ struct RemotePairingSheetView: View {
                     pairing.stopAdvertising()
                     presentationMode.wrappedValue.dismiss()
                 } label: {
-                    Text(isEnglish ? "Stop & Close" : "Đóng cửa sổ")
+                    Text(isEnglish ? "Close" : "Đóng cửa sổ")
                         .font(.system(size: 11.5, weight: .bold))
                         .foregroundColor(.white.opacity(0.7))
                         .frame(maxWidth: .infinity)
@@ -477,7 +643,7 @@ struct RemotePairingSheetView: View {
             HStack(spacing: 3) {
                 Image(systemName: icon)
                     .font(.system(size: 9))
-                    .foregroundColor(AppTheme.neonCyan)
+                    .foregroundColor(pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan)
                 Text(value)
                     .font(.system(size: 10.5, weight: .bold, design: .monospaced))
                     .foregroundColor(.white)
@@ -497,7 +663,7 @@ struct RemotePairingSheetView: View {
                 .font(.system(size: 11, weight: .heavy, design: .monospaced))
                 .foregroundColor(.black)
                 .frame(width: 20, height: 20)
-                .background(AppTheme.neonCyan)
+                .background(pairing.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan)
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 2) {

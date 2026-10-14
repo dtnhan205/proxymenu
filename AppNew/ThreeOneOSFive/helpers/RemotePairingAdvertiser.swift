@@ -248,7 +248,19 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         ]
 
         let dict = NSDictionary(dictionary: record)
-        dict.write(toFile: pairingFilePath, atomically: true)
+        let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+        let paths = [
+            pairingFilePath, // delta_pairing.plist
+            (docs as NSString).appendingPathComponent("delta_pairing_import.plist"),
+            (docs as NSString).appendingPathComponent("pairing_records/local_pairing.plist")
+        ]
+
+        let recordsDir = (docs as NSString).appendingPathComponent("pairing_records")
+        try? FileManager.default.createDirectory(atPath: recordsDir, withIntermediateDirectories: true)
+
+        for p in paths {
+            dict.write(toFile: p, atomically: true)
+        }
         print("[RemotePairing] Saved pairing record to \(pairingFilePath)")
     }
 
@@ -262,6 +274,69 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             self.statusMessage = "✅ Đã tạo file Pairing trên máy! Sẵn sàng nạp mod."
             let feedback = UINotificationFeedbackGenerator()
             feedback.notificationOccurred(.success)
+        }
+    }
+
+    /// Nhập file pairing (.plist / .mobiledevicepairing / .mobilepair) từ máy tính hoặc Files app
+    @discardableResult
+    func importPairingFile(from sourceURL: URL) -> Bool {
+        let isAccessing = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if isAccessing {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            let data = try Data(contentsOf: sourceURL)
+            guard !data.isEmpty else { return false }
+
+            let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+            let paths = [
+                pairingFilePath,
+                (docs as NSString).appendingPathComponent("delta_pairing_import.plist"),
+                (docs as NSString).appendingPathComponent("pairing_records/local_pairing.plist")
+            ]
+
+            let recordsDir = (docs as NSString).appendingPathComponent("pairing_records")
+            try? FileManager.default.createDirectory(atPath: recordsDir, withIntermediateDirectories: true)
+
+            for p in paths {
+                try data.write(to: URL(fileURLWithPath: p), options: .atomic)
+            }
+
+            DispatchQueue.main.async {
+                self.isPaired = true
+                self.statusMessage = "✅ Đã nhập file Pairing thành công! Sẵn sàng nạp mod."
+                let feedback = UINotificationFeedbackGenerator()
+                feedback.notificationOccurred(.success)
+            }
+            print("[RemotePairing] Successfully imported pairing file from \(sourceURL.lastPathComponent)")
+            return true
+        } catch {
+            print("[RemotePairing] Failed to import pairing file: \(error)")
+            DispatchQueue.main.async {
+                self.statusMessage = "Lỗi nhập file pairing: \(error.localizedDescription)"
+            }
+            return false
+        }
+    }
+
+    /// Xoá file pairing đã lưu để thiết lập lại
+    func clearPairing() {
+        let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+        let paths = [
+            pairingFilePath,
+            (docs as NSString).appendingPathComponent("delta_pairing_import.plist"),
+            (docs as NSString).appendingPathComponent("pairing_records/local_pairing.plist")
+        ]
+        for p in paths {
+            try? FileManager.default.removeItem(atPath: p)
+        }
+        DispatchQueue.main.async {
+            self.isPaired = false
+            self.pinCode = ""
+            self.statusMessage = "Đã xoá file Pairing"
         }
     }
 

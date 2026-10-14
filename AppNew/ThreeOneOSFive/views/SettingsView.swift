@@ -70,14 +70,15 @@ struct SettingsView: View {
         }
         .alert("Ghép đôi iOS 27", isPresented: $showPairingPromptAlert) {
             Button("Huỷ", role: .cancel) {}
-            Button("Bắt đầu") {
-                pairingAdvertiser.startAdvertising()
+            Button("Mở bảng Ghép đôi") {
                 showPairingSheet = true
-                Task { _ = await vpnManager.connect() }
             }
         } message: {
-            let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "INNOVA PROXY"
-            Text("Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với \(appName)'.\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
+            if pairingAdvertiser.hasExistingPairing {
+                Text("✅ Thiết bị đã có sẵn File Pairing (Ghép đôi hoàn tất)!\n\nBạn có thể mở bảng Ghép đôi để kiểm tra thông số hoặc kết nối LocalDevVPN và nạp mod ngay.")
+            } else {
+                Text("Ghép đôi dịch vụ hệ thống cho iOS 27 & iOS 18.7.x.\n\nBạn có thể tạo File Pairing trực tiếp ngay trên máy (không cần Wi-Fi) hoặc nhập file .plist từ máy tính.")
+            }
         }
         .sheet(isPresented: $showPairingSheet) {
             RemotePairingSheetView()
