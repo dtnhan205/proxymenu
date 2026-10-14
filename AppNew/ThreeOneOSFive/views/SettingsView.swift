@@ -77,7 +77,7 @@ struct SettingsView: View {
                 feedback.notificationOccurred(.success)
             }
         } message: {
-            Text("Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với INNOVA CHEAT'. Hoặc bạn có thể bấm 'Tạo File Trực Tiếp' trong cửa sổ ghép đôi để hoàn tất ngay trên máy.")
+            Text("Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với INNOVA CHEAT'. Hoặc bạn có thể nhập file pairing (.plist) trong cửa sổ ghép đôi để hoàn tất.")
         }
         .sheet(isPresented: $showPairingSheet) {
             RemotePairingSheetView()
@@ -160,7 +160,7 @@ struct SettingsView: View {
                 )
             }
 
-            // Nút bấm chính mở Trung Tâm Ghép Đôi / Test Inject
+            // Nút bấm chính mở Trung Tâm Ghép Đôi iOS 27
             Button {
                 handlePairingTap()
             } label: {
@@ -177,14 +177,14 @@ struct SettingsView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(pairingAdvertiser.hasExistingPairing
-                            ? "TRUNG TÂM GHÉP ĐÔI & TEST MOD"
+                            ? "KÍCH HOẠT GHÉP ĐÔI iOS 27"
                             : "KÍCH HOẠT GHÉP ĐÔI iOS 27")
                             .font(.footnote.weight(.bold))
                             .foregroundStyle(.black)
 
                         Text(pairingAdvertiser.hasExistingPairing
-                            ? "Xem nhật ký live, test inject hoặc sửa lỗi kết nối"
-                            : "Bấm để phát sóng mã PIN hoặc tạo file trực tiếp")
+                            ? "Xem trạng thái ghép đôi hoặc sửa lỗi kết nối"
+                            : "Bấm để phát sóng mã PIN ghép đôi")
                             .font(.caption2)
                             .foregroundStyle(Color.black.opacity(0.8))
                     }
@@ -215,7 +215,7 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
 
-            // Hàng 3 nút phím tắt tiện ích nhanh
+            // Hàng phím tắt tiện ích nhanh
             HStack(spacing: 8) {
                 // Phím tắt 1: Mở LocalDevVPN
                 quickShortcutButton(
@@ -230,20 +230,7 @@ struct SettingsView: View {
                     }
                 }
 
-                // Phím tắt 2: Mở Apple Books (Sách)
-                quickShortcutButton(
-                    icon: "book.closed.fill",
-                    label: "Mở Sách",
-                    tint: Color.orange
-                ) {
-                    if let url = URL(string: "ibooks://"), UIApplication.shared.canOpenURL(url) {
-                        UIApplication.shared.open(url)
-                    } else if let storeURL = URL(string: "https://apps.apple.com/app/apple-books/id364709193") {
-                        UIApplication.shared.open(storeURL)
-                    }
-                }
-
-                // Phím tắt 3: Mở Cài Đặt iPhone
+                // Phím tắt 2: Mở Cài Đặt iPhone
                 quickShortcutButton(
                     icon: "gearshape.fill",
                     label: "Cài Đặt",

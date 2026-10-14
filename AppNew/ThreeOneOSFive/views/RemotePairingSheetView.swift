@@ -63,14 +63,14 @@ struct RemotePairingSheetView: View {
                         // Card Trạng thái phát sóng Bonjour / Conduit
                         broadcastingCard
 
-                        // Card Hành động ghép đôi nhanh (Tạo trực tiếp + Nhập file .plist)
+                        // Card Hành động ghép đôi (Nhập file .plist)
                         quickActionsCard
 
                         // Card Nhật ký phát tín hiệu ghép đôi Bonjour (Realtime)
-                        livePairingLogsCard
+                        // livePairingLogsCard
 
                         // Card Nhật ký kiểm tra thực tế File Pairing & Documents Free Fire
-                        diagnosticConsoleCard
+                        // diagnosticConsoleCard
 
                         // Card Mã PIN (nếu có yêu cầu từ hệ thống)
                         if !pairing.pinCode.isEmpty {
@@ -664,42 +664,6 @@ struct RemotePairingSheetView: View {
     // MARK: - Quick Actions Card
     private var quickActionsCard: some View {
         VStack(spacing: 10) {
-            // Nút Thử Nghiệm Nạp Cheat Ngay (nếu đã ghép đôi)
-            if pairing.hasExistingPairing {
-                Button {
-                    runInjectTest()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isTestingInject {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
-                                .scaleEffect(0.8)
-                            Text(isEnglish ? "INJECTING MODULES..." : "ĐANG NẠP THỬ NGHIỆM...")
-                                .font(.system(size: 12, weight: .heavy, design: .monospaced))
-                        } else {
-                            Image(systemName: "flame.fill")
-                                .font(.system(size: 15, weight: .bold))
-                            Text(isEnglish ? "TEST INJECT CHEAT NOW" : "⚡ THỬ NGHIỆM NẠP CHEAT (TEST INJECT)")
-                                .font(.system(size: 12, weight: .heavy, design: .monospaced))
-                        }
-                    }
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(red: 1.0, green: 0.8, blue: 0.2), Color(red: 1.0, green: 0.5, blue: 0.0)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .shadow(color: Color.orange.opacity(0.4), radius: 6, y: 2)
-                }
-                .buttonStyle(.plain)
-                .disabled(isTestingInject)
-            }
-
             // Nút Mở Ứng Dụng LocalDevVPN (nếu VPN chưa bật)
             if !vpnManager.isConnected {
                 Button {
@@ -727,58 +691,6 @@ struct RemotePairingSheetView: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            // Nút Mở / Cài Đặt Apple Books (Sách) - Bắt buộc cho tiến trình AirTraffic
-            Button {
-                if let url = URL(string: "ibooks://"), UIApplication.shared.canOpenURL(url) {
-                    UIApplication.shared.open(url)
-                } else if let storeURL = URL(string: "https://apps.apple.com/app/apple-books/id364709193") {
-                    UIApplication.shared.open(storeURL)
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "book.closed.fill")
-                        .font(.system(size: 13, weight: .bold))
-                    Text(isEnglish ? "OPEN APPLE BOOKS (AIRTRAFFIC REQUIRED)" : "📚 MỞ / CÀI ỨNG DỤNG SÁCH (BẮT BUỘC ĐỂ NẠP)")
-                        .font(.system(size: 11, weight: .heavy, design: .monospaced))
-                }
-                .foregroundColor(Color.orange)
-                .frame(maxWidth: .infinity)
-                .frame(height: 38)
-                .background(Color.orange.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-
-            // Nút 1: Tự tạo file pairing trực tiếp trên máy
-            Button {
-                pairing.generateLocalPairingFile()
-                runProbe()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "bolt.badge.checkmark.fill")
-                        .font(.system(size: 15, weight: .bold))
-                    Text(isEnglish ? "INSTANT LOCAL PAIRING (RECOMMENDED)" : "TẠO FILE PAIRING TRỰC TIẾP (KHUYÊN DÙNG)")
-                        .font(.system(size: 12, weight: .heavy, design: .monospaced))
-                }
-                .foregroundColor(.black)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(
-                    LinearGradient(
-                        colors: [AppTheme.neonLime, Color(red: 0.3, green: 0.9, blue: 0.2)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .shadow(color: AppTheme.neonLime.opacity(0.4), radius: 6, y: 2)
-            }
-            .buttonStyle(.plain)
 
             // Nút 2: Nhập file pairing (.plist) từ máy tính (pymobiledevice3 / Files)
             Button {
@@ -843,8 +755,8 @@ struct RemotePairingSheetView: View {
             }
 
             Text(isEnglish
-                ? "Bonjour scanning requires Wi-Fi. However, you can simply tap 'INSTANT LOCAL PAIRING' above to generate the pairing file immediately without needing Wi-Fi!"
-                : "Quét Bonjour đòi hỏi Wi-Fi. Nhưng bạn chỉ cần bấm nút 'TẠO FILE PAIRING TRỰC TIẾP' màu xanh ở trên là có thể ghép đôi ngay mà không cần bật Wi-Fi!")
+                ? "Bonjour scanning requires Wi-Fi. You can connect to Wi-Fi to pair in iPhone Settings, or import a pairing record (.plist) from your computer."
+                : "Quét Bonjour đòi hỏi Wi-Fi. Hãy kết nối Wi-Fi để ghép đôi trong Cài đặt iPhone, hoặc bấm 'Nhập file pairing (.plist)' ở trên.")
                 .font(.system(size: 11.5, weight: .regular))
                 .foregroundColor(.white.opacity(0.85))
                 .lineSpacing(2)
@@ -953,8 +865,8 @@ struct RemotePairingSheetView: View {
 
                 stepRow(
                     number: 3,
-                    title: isEnglish ? "Or Tap 'Instant Local Pairing'" : "Hoặc Bấm 'Tạo File Trực Tiếp'",
-                    desc: isEnglish ? "Instantly generates pairing records on-device without Wi-Fi" : "Hoặc bấm nút xanh 'TẠO FILE PAIRING TRỰC TIẾP' ở trên nếu không có Wi-Fi"
+                    title: isEnglish ? "Or Import .plist File" : "Hoặc Nhập File .plist",
+                    desc: isEnglish ? "Import pairing record file (.plist) from computer" : "Hoặc bấm nút 'Nhập File Pairing (.plist)' nếu bạn đã có file ghép đôi"
                 )
             }
         }
@@ -1000,41 +912,7 @@ struct RemotePairingSheetView: View {
     private var bottomActionBar: some View {
         VStack(spacing: 8) {
             if pairing.hasExistingPairing {
-                // Nút Thử Nghiệm Nạp Cheat
-                Button {
-                    runInjectTest()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isTestingInject {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
-                                .scaleEffect(0.8)
-                            Text(isEnglish ? "TESTING INJECTION..." : "ĐANG KIỂM TRA INJECT...")
-                                .font(.system(size: 13, weight: .heavy, design: .monospaced))
-                        } else {
-                            Image(systemName: "flame.fill")
-                                .font(.system(size: 15, weight: .bold))
-                            Text(isEnglish ? "TEST INJECT CHEAT NOW" : "⚡ THỬ NGHIỆM NẠP CHEAT (TEST INJECT)")
-                                .font(.system(size: 13, weight: .heavy, design: .monospaced))
-                        }
-                    }
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [Color(red: 1.0, green: 0.8, blue: 0.2), Color(red: 1.0, green: 0.5, blue: 0.0)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: Color.orange.opacity(0.55), radius: 8, y: 2)
-                }
-                .buttonStyle(.plain)
-                .disabled(isTestingInject)
-
-                // Nút phụ: Kết nối VPN & Vào game
+                // Nút: Kết nối VPN & Vào game
                 Button {
                     Task {
                         _ = await vpnManager.connect()
@@ -1045,43 +923,17 @@ struct RemotePairingSheetView: View {
                         Image(systemName: "bolt.fill")
                             .font(.system(size: 14, weight: .bold))
                         Text(isEnglish ? "ENABLE VPN & ENTER GAME" : "BẬT LOCALDEVVPN & VÀO GAME")
-                            .font(.system(size: 12.5, weight: .heavy, design: .monospaced))
+                            .font(.system(size: 13, weight: .heavy, design: .monospaced))
                     }
                     .foregroundColor(AppTheme.neonLime)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 40)
+                    .frame(height: 44)
                     .background(AppTheme.neonLime.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .strokeBorder(AppTheme.neonLime.opacity(0.4), lineWidth: 1)
                     )
-                }
-                .buttonStyle(.plain)
-            } else {
-                // Nút chính khi CHƯA CÓ FILE: Tạo file pairing ngay
-                Button {
-                    pairing.generateLocalPairingFile()
-                    runProbe()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "bolt.badge.checkmark.fill")
-                            .font(.system(size: 15, weight: .bold))
-                        Text(isEnglish ? "CREATE PAIRING FILE NOW" : "TẠO FILE PAIRING TRỰC TIẾP")
-                            .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
-                    }
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [AppTheme.neonLime, Color(red: 0.3, green: 0.9, blue: 0.2)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: AppTheme.neonLime.opacity(0.55), radius: 8, y: 2)
                 }
                 .buttonStyle(.plain)
             }

@@ -336,7 +336,7 @@ enum LocalDevVPNBridge {
             }
         }
         if !foundPairing {
-            logEntry("PAIRING", "CHƯA CÓ FILE PAIRING! Hãy bấm 'Tạo File Trực Tiếp' hoặc 'Nhập .plist'.", icon: "⚠️")
+            logEntry("PAIRING", "CHƯA CÓ FILE PAIRING! Hãy ghép đôi trong Cài đặt iPhone hoặc 'Nhập .plist'.", icon: "⚠️")
         }
 
         // 2. KIỂM TRA LOCALDEVVPN TUNNEL
@@ -843,7 +843,7 @@ final class LocalDevVPNManager: ObservableObject {
                 • Tunnel: \(res.host)
 
                 👉 BƯỚC TIẾP THEO:
-                Vào Cài đặt > Ghép đôi iOS 27 > Bấm "TẠO FILE PAIRING TRỰC TIẾP" (hoặc Nhập file .plist từ máy tính) để hoàn tất!
+                Vào Cài đặt > Ghép đôi iOS 27 > Ghép đôi với iPhone hoặc Nhập file .plist từ máy tính để hoàn tất!
                 """
             }
             return (true, msg)
