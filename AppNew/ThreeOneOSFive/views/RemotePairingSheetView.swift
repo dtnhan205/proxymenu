@@ -16,6 +16,9 @@ struct RemotePairingSheetView: View {
     @State private var diagnosticLogs: [String] = []
     @State private var isRunningProbe: Bool = false
     @State private var showCopiedAlert: Bool = false
+    @State private var isTestingInject: Bool = false
+    @State private var showTestInjectAlert: Bool = false
+    @State private var testInjectAlertText: String = ""
 
     private var isEnglish: Bool {
         languageCode == AppLanguage.english.rawValue
@@ -139,6 +142,14 @@ struct RemotePairingSheetView: View {
         } message: {
             Text(isEnglish ? "Diagnostic logs copied successfully." : "Toàn bộ nhật ký kiểm tra đã được sao chép vào bộ nhớ tạm.")
         }
+        .alert(
+            isEnglish ? "Inject Test Result" : "Kết Quả Kiểm Tra Inject",
+            isPresented: $showTestInjectAlert
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(testInjectAlertText)
+        }
         .onAppear {
             isPulsing = true
             if !pairing.isAdvertising {
@@ -156,6 +167,40 @@ struct RemotePairingSheetView: View {
             DispatchQueue.main.async {
                 self.diagnosticLogs = logs
                 self.isRunningProbe = false
+            }
+        }
+    }
+
+    // MARK: - Test Inject Cheat Directly
+    private func runInjectTest() {
+        guard !isTestingInject else { return }
+        isTestingInject = true
+
+        let target = FreeFirePatchService.selectedTarget
+        diagnosticLogs.append("═══════════════════════════════════════════════")
+        diagnosticLogs.append("[TEST] 🚀 BẮT ĐẦU KIỂM TRA INJECT VÀO \(target.displayName.uppercased())...")
+        diagnosticLogs.append("[TEST] 📁 File Pairing: \(pairing.pairingFilePath) (\(pairing.hasExistingPairing ? "OK" : "CHƯA CÓ"))")
+        let vpn = LocalDevVPNBridge.detectVPNInterface()
+        diagnosticLogs.append("[TEST] 🌐 LocalDevVPN: \(vpn.active ? "Đang BẬT (\(vpn.deviceIP))" : "Đang TẮT (Nên bật để mở cổng RSD 49152)")")
+        diagnosticLogs.append("[TEST] 📶 Wi-Fi IP: \(RemotePairingAdvertiser.getWiFiAddress() ?? "Không có")")
+
+        Task {
+            do {
+                try await FreeFirePatchService.inject(target: target)
+                await MainActor.run {
+                    self.isTestingInject = false
+                    self.diagnosticLogs.append("[TEST] 🎉 KẾT QUẢ: INJECT THÀNH CÔNG 100% VÀO GAME!")
+                    self.diagnosticLogs.append("[TEST] 💡 Bạn có thể mở \(target.displayName) để trải nghiệm.")
+                    self.testInjectAlertText = "🎉 INJECT THÀNH CÔNG!\nĐã nạp toàn bộ module cheat vào \(target.displayName) qua kết nối Developer Mode!"
+                    self.showTestInjectAlert = true
+                }
+            } catch {
+                await MainActor.run {
+                    self.isTestingInject = false
+                    self.diagnosticLogs.append("[TEST] ❌ LỖI INJECT: \(error.localizedDescription)")
+                    self.testInjectAlertText = "❌ LỖI INJECT:\n\(error.localizedDescription)\n\n👉 Vui lòng xem chi tiết trong khung 'NHẬT KÝ KIỂM TRA TRUY CẬP THỰC TẾ' bên dưới!"
+                    self.showTestInjectAlert = true
+                }
             }
         }
     }
@@ -579,6 +624,70 @@ struct RemotePairingSheetView: View {
     // MARK: - Quick Actions Card
     private var quickActionsCard: some View {
         VStack(spacing: 10) {
+            // Nút Thử Nghiệm Nạp Cheat Ngay (nếu đã ghép đôi)
+            if pairing.hasExistingPairing {
+                Button {
+                    runInjectTest()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isTestingInject {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                .scaleEffect(0.8)
+                            Text(isEnglish ? "INJECTING MODULES..." : "ĐANG NẠP THỬ NGHIỆM...")
+                                .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                        } else {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 15, weight: .bold))
+                            Text(isEnglish ? "TEST INJECT CHEAT NOW" : "⚡ THỬ NGHIỆM NẠP CHEAT (TEST INJECT)")
+                                .font(.system(size: 12, weight: .heavy, design: .monospaced))
+                        }
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(red: 1.0, green: 0.8, blue: 0.2), Color(red: 1.0, green: 0.5, blue: 0.0)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .shadow(color: Color.orange.opacity(0.4), radius: 6, y: 2)
+                }
+                .buttonStyle(.plain)
+                .disabled(isTestingInject)
+            }
+
+            // Nút Mở Ứng Dụng LocalDevVPN (nếu VPN chưa bật)
+            if !vpnManager.isConnected {
+                Button {
+                    if let url = URL(string: "localdevvpn://"), UIApplication.shared.canOpenURL(url) {
+                        UIApplication.shared.open(url)
+                    } else {
+                        diagnosticLogs.append("[VPN] ℹ️ Hãy thoát ra màn hình chính và mở app LocalDevVPN")
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "network")
+                            .font(.system(size: 13, weight: .bold))
+                        Text(isEnglish ? "OPEN LOCALDEVVPN APP" : "🌐 MỞ APP LOCALDEVVPN (KÍCH HOẠT 10.7.0.1)")
+                            .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                    }
+                    .foregroundColor(AppTheme.neonCyan)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 38)
+                    .background(AppTheme.neonCyan.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(AppTheme.neonCyan.opacity(0.35), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
             // Nút 1: Tự tạo file pairing trực tiếp trên máy
             Button {
                 pairing.generateLocalPairingFile()
@@ -819,7 +928,41 @@ struct RemotePairingSheetView: View {
     private var bottomActionBar: some View {
         VStack(spacing: 8) {
             if pairing.hasExistingPairing {
-                // Nút chính khi ĐÃ CÓ FILE: Kết nối VPN & Vào game nạp mod
+                // Nút Thử Nghiệm Nạp Cheat
+                Button {
+                    runInjectTest()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isTestingInject {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                .scaleEffect(0.8)
+                            Text(isEnglish ? "TESTING INJECTION..." : "ĐANG KIỂM TRA INJECT...")
+                                .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                        } else {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 15, weight: .bold))
+                            Text(isEnglish ? "TEST INJECT CHEAT NOW" : "⚡ THỬ NGHIỆM NẠP CHEAT (TEST INJECT)")
+                                .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                        }
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+                    .background(
+                        LinearGradient(
+                            colors: [Color(red: 1.0, green: 0.8, blue: 0.2), Color(red: 1.0, green: 0.5, blue: 0.0)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: Color.orange.opacity(0.55), radius: 8, y: 2)
+                }
+                .buttonStyle(.plain)
+                .disabled(isTestingInject)
+
+                // Nút phụ: Kết nối VPN & Vào game
                 Button {
                     Task {
                         _ = await vpnManager.connect()
@@ -828,22 +971,19 @@ struct RemotePairingSheetView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "bolt.fill")
-                            .font(.system(size: 15, weight: .bold))
-                        Text(isEnglish ? "ENABLE VPN & APPLY MOD" : "BẬT LOCALDEVVPN & VÀO GAME")
-                            .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                            .font(.system(size: 14, weight: .bold))
+                        Text(isEnglish ? "ENABLE VPN & ENTER GAME" : "BẬT LOCALDEVVPN & VÀO GAME")
+                            .font(.system(size: 12.5, weight: .heavy, design: .monospaced))
                     }
-                    .foregroundColor(.black)
+                    .foregroundColor(AppTheme.neonLime)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 46)
-                    .background(
-                        LinearGradient(
-                            colors: [AppTheme.neonLime, Color(red: 0.2, green: 0.9, blue: 0.4)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                    .frame(height: 40)
+                    .background(AppTheme.neonLime.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: AppTheme.neonLime.opacity(0.55), radius: 8, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(AppTheme.neonLime.opacity(0.4), lineWidth: 1)
+                    )
                 }
                 .buttonStyle(.plain)
             } else {

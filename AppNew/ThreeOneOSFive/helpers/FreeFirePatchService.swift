@@ -54,20 +54,33 @@ enum FreeFirePatchService {
         return nil
     }
 
-    /// Container path resolver using MHA-C2 with fallback to Kernel Exploit metadata scan
+    /// Container path resolver using Airlift FFI, MHA-C2, and LocalDevVPN
     static func getOrResolveContainerPath(bundleID: String) -> String? {
         if let cached = cachedContainerPaths[bundleID], !cached.isEmpty {
-            if FileManager.default.fileExists(atPath: cached) {
+            if FileManager.default.fileExists(atPath: cached) || cached.contains("/Containers/Data/Application/") {
                 return cached
             }
             cachedContainerPaths.removeValue(forKey: bundleID)
         }
+
+        // ƯU TIÊN 1: Nếu đã có Pairing File từ Developer Mode (Airlift / RPPairing), truy vấn qua RSD Installation Proxy
+        if RemotePairingAdvertiser.shared.hasExistingPairing {
+            let pairingPath = RemotePairingAdvertiser.shared.pairingFilePath
+            if let airliftPath = AirliftBridge.findAppContainerSync(bundleID: bundleID, pairingPath: pairingPath),
+               !airliftPath.isEmpty {
+                cachedContainerPaths[bundleID] = airliftPath
+                return airliftPath
+            }
+        }
+
+        // ƯU TIÊN 2: ContainerStore (MHA-C2 / Kernel Exploit)
         if let resolved = ContainerStore.resolveAppContainerPath(bundleID: bundleID),
            ContainerStore.isApplicationContainerPath(resolved) {
             cachedContainerPaths[bundleID] = resolved
             return resolved
         }
-        // Fallback riêng cho iOS 18.7.x / 27 sử dụng LocalDevVPN (hoàn toàn không can thiệp các iOS khác)
+
+        // ƯU TIÊN 3: Cầu nối LocalDevVPN
         if LocalDevVPNBridge.isBridgeSupportedOS {
             if let vpnResolved = LocalDevVPNBridge.resolveContainerPath(bundleID: bundleID) {
                 cachedContainerPaths[bundleID] = vpnResolved
@@ -79,6 +92,9 @@ enum FreeFirePatchService {
 
     /// Check if Assembly-CSharp-patch.bytes is injected in the specified game container (Data or Bundle)
     static func isInjected(target: FreeFireTarget = selectedTarget) -> Bool {
+        if UserDefaults.standard.bool(forKey: "innova.isInjected.\(target.rawValue)") {
+            return true
+        }
         if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue) {
             let altPath = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents/Assembly-CSharp-patch.bytes").path
             if FileManager.default.fileExists(atPath: altPath) {
@@ -91,7 +107,7 @@ enum FreeFirePatchService {
                 return true
             }
         }
-        // Fallback kiểm tra riêng cho iOS 18.7.x / 27
+        // Fallback kiểm tra qua LocalDevVPN
         if LocalDevVPNBridge.isBridgeSupportedOS {
             if LocalDevVPNBridge.isInjected(target: target) {
                 return true
@@ -510,29 +526,130 @@ enum FreeFirePatchService {
         return "{\"testCodePatch\":true,\"resetGuest\":true}".data(using: .utf8) ?? Data()
     }
 
-    /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit + MHA-C2
+    /// Inject patch file and initial config into the selected game using Multi-Tier Kernel Exploit, Airlift FFI, and LocalDevVPN
     static func inject(target: FreeFireTarget = selectedTarget) async throws {
-        // 1. Kiểm tra chống tiêm dylib / can thiệp nhị phân trước khi giải mã nạp game
+        AppLog.shared.append("[INJECT] ════════════════════════════════════════")
+        AppLog.shared.append("[INJECT] 🚀 BẮT ĐẦU NẠP CHEAT VÀO \(target.displayName.uppercased())")
+        AppLog.shared.append("[INJECT] ════════════════════════════════════════")
+        RemotePairingAdvertiser.shared.log("🚀 [INJECT] Bắt đầu nạp module cheat vào \(target.displayName)")
+
+        // 1. Kiểm tra thiết bị và phiên bản
+        let devSerial = DeviceIdentity.serial()
+        let osVersion = "\(AppInfo.osVersion) (\(AppInfo.osBuild))"
+        AppLog.shared.append("[INJECT] 📱 Thiết bị: \(AppInfo.displayMachineName) · iOS \(osVersion) · HWID: \(devSerial.prefix(8))…")
+
+        // 2. Kiểm tra chống tiêm dylib / can thiệp nhị phân trước khi giải mã nạp game
         DylibInjectionGuard.enforceAllProtections()
         IntegrityChecker.verifyBinaryTextSegment()
+        AppLog.shared.append("[INJECT] 🛡️ Bảo vệ nhị phân: AN TOÀN")
 
-        // 2. Zero Trust: Bắt buộc phải có License Key hợp lệ và còn hạn sử dụng
+        // 3. Zero Trust: Bắt buộc phải có License Key hợp lệ và còn hạn sử dụng
         guard let savedKey = LicenseStore.shared.savedKey, !savedKey.isEmpty,
               let expDate = LicenseStore.shared.expiresAt, expDate > Date() else {
             uninject(target: target)
             AppLog.shared.append("[INJECT] ❌ License key không tồn tại hoặc đã hết hạn! Đã thu hồi toàn bộ module can thiệp.")
+            RemotePairingAdvertiser.shared.log("❌ [INJECT] License Key không hợp lệ hoặc đã hết hạn!")
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 403,
                 userInfo: [NSLocalizedDescriptionKey: "Chưa kích hoạt License Key hoặc key đã hết hạn! Vui lòng nhập key hợp lệ."]
             )
         }
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm"
+        AppLog.shared.append("[INJECT] 🔑 License Key: \(savedKey.prefix(6))… · Hạn: \(df.string(from: expDate))")
 
-        // Lấy container UUID để cấp token chính xác từ server
-        let resolvedContainerPath = getOrResolveContainerPath(bundleID: target.rawValue)
+        // 4. Kiểm tra file pairing và kết nối mạng
+        let hasPairing = RemotePairingAdvertiser.shared.hasExistingPairing
+        let pairingPath = RemotePairingAdvertiser.shared.pairingFilePath
+        let pairingSize = (try? FileManager.default.attributesOfItem(atPath: pairingPath)[.size] as? Int) ?? 0
+        let vpn = LocalDevVPNBridge.detectVPNInterface()
+        let wifiIP = RemotePairingAdvertiser.getWiFiAddress() ?? "Không có"
+
+        AppLog.shared.append("[INJECT] 📁 Pairing Record: \(hasPairing ? "✅ CÓ SẴN (\(pairingSize) bytes)" : "⚠️ Chưa có file pairing")")
+        AppLog.shared.append("[INJECT] 🌐 LocalDevVPN: \(vpn.active ? "✅ ĐANG BẬT (\(vpn.deviceIP))" : "ℹ️ Chưa bật (Khuyên bật)")")
+        AppLog.shared.append("[INJECT] 📶 Wi-Fi IP: \(wifiIP)")
+        RemotePairingAdvertiser.shared.log("📁 [INJECT] Pairing: \(hasPairing ? "OK (\(pairingSize)B)" : "Chưa có") · VPN: \(vpn.active ? "BẬT" : "TẮT")")
+
+        if hasPairing && !vpn.active {
+            AppLog.shared.append("[INJECT] 💡 MẸO: Nếu RSD tunnel bị lỗi kết nối, hãy mở app LocalDevVPN và bấm Connect để mở cổng 49152!")
+            RemotePairingAdvertiser.shared.log("💡 [MẸO] Mở LocalDevVPN để thông cổng RSD 10.7.0.1:49152")
+        }
+
+        // 5. Tìm container UUID để cấp token chính xác từ server
+        AppLog.shared.append("[INJECT] 🔍 Đang dò tìm container của \(target.displayName) (\(target.rawValue))…")
+        RemotePairingAdvertiser.shared.log("🔍 [INJECT] Dò tìm container của \(target.displayName)...")
+        var resolvedContainerPath: String? = nil
+
+        // Thử tìm qua cache hoặc system database trước
+        if let cached = cachedContainerPaths[target.rawValue], !cached.isEmpty {
+            resolvedContainerPath = cached
+            AppLog.shared.append("[INJECT] ⚡ Container tìm thấy từ cache: \(cached)")
+        }
+
+        // Nếu chưa có, thử dò qua RSD InstallationProxy
+        if (resolvedContainerPath == nil || resolvedContainerPath?.isEmpty == true) && hasPairing {
+            AppLog.shared.append("[INJECT] 📡 Dò tìm container qua Developer Mode RSD tunnel…")
+            RemotePairingAdvertiser.shared.log("📡 [INJECT] Quét container qua RSD tunnel...")
+            do {
+                let rsdPath = try await AirliftBridge.findAppContainer(bundleID: target.rawValue, pairingPath: pairingPath)
+                if !rsdPath.isEmpty {
+                    resolvedContainerPath = rsdPath
+                    cachedContainerPaths[target.rawValue] = rsdPath
+                    AppLog.shared.append("[INJECT] ✅ Container tìm thấy qua RSD: \(rsdPath)")
+                    RemotePairingAdvertiser.shared.log("✅ [INJECT] Tìm thấy container: \(rsdPath)")
+                }
+            } catch {
+                AppLog.shared.append("[INJECT] ⚠️ RSD dò tìm container thất bại: \(error.localizedDescription)")
+                RemotePairingAdvertiser.shared.log("⚠️ [INJECT] RSD lookup: \(error.localizedDescription)")
+            }
+        }
+
+        // Fallback: Thử qua Local ContainerStore & LocalDevVPNBridge
+        if resolvedContainerPath == nil || resolvedContainerPath?.isEmpty == true {
+            AppLog.shared.append("[INJECT] 🔎 Thử dò qua Local ContainerStore & System Metadata…")
+            if let storePath = ContainerStore.resolveAppContainerPath(bundleID: target.rawValue), !storePath.isEmpty {
+                resolvedContainerPath = storePath
+                cachedContainerPaths[target.rawValue] = storePath
+                AppLog.shared.append("[INJECT] ✅ Container tìm thấy qua ContainerStore: \(storePath)")
+            } else if let vpnPath = LocalDevVPNBridge.resolveContainerPath(bundleID: target.rawValue), !vpnPath.isEmpty {
+                resolvedContainerPath = vpnPath
+                cachedContainerPaths[target.rawValue] = vpnPath
+                AppLog.shared.append("[INJECT] ✅ Container tìm thấy qua VPN Bridge: \(vpnPath)")
+            }
+        }
+
+        // Fallback: Thử kiểm tra target thay thế (MAX <-> TH)
+        if resolvedContainerPath == nil || resolvedContainerPath?.isEmpty == true {
+            let altTarget = (target == .freeFireTH) ? FreeFireTarget.freeFireMAX : FreeFireTarget.freeFireTH
+            AppLog.shared.append("[INJECT] ℹ️ Thử kiểm tra phiên bản game thay thế: \(altTarget.displayName)…")
+            if hasPairing {
+                if let altPath = try? await AirliftBridge.findAppContainer(bundleID: altTarget.rawValue, pairingPath: pairingPath), !altPath.isEmpty {
+                    resolvedContainerPath = altPath
+                    cachedContainerPaths[target.rawValue] = altPath
+                    AppLog.shared.append("[INJECT] 🎮 Phát hiện game đang cài là \(altTarget.displayName): \(altPath)")
+                    RemotePairingAdvertiser.shared.log("🎮 [INJECT] Tìm thấy \(altTarget.displayName)")
+                }
+            }
+            if resolvedContainerPath == nil {
+                if let altStore = ContainerStore.resolveAppContainerPath(bundleID: altTarget.rawValue), !altStore.isEmpty {
+                    resolvedContainerPath = altStore
+                    cachedContainerPaths[target.rawValue] = altStore
+                    AppLog.shared.append("[INJECT] 🎮 Phát hiện container \(altTarget.displayName) qua System: \(altStore)")
+                }
+            }
+        }
+
+        if let container = resolvedContainerPath, !container.isEmpty {
+            AppLog.shared.append("[INJECT] 📂 Container sử dụng: \(container)")
+            RemotePairingAdvertiser.shared.log("📂 [INJECT] Container: \(container)")
+        } else {
+            AppLog.shared.append("[INJECT] ⚠️ Chưa thể xác định container của \(target.displayName). Hãy chắc chắn bạn đã mở game ít nhất 1 lần!")
+            RemotePairingAdvertiser.shared.log("⚠️ [INJECT] Chưa thấy container game! Hãy mở game 1 lần")
+        }
         let resolvedCid = (resolvedContainerPath != nil) ? extractContainerUUID(from: resolvedContainerPath!) : ""
 
-        // Bắt buộc tải payload từ Server nếu chưa có trong RAM
+        // 6. Bắt buộc tải payload từ Server nếu chưa có trong RAM
         if inMemoryServerPatchData == nil || inMemoryServerPatchData?.isEmpty == true {
             AppLog.shared.append("[INJECT] ⬇️ Đang tải dữ liệu patch từ Server...")
             _ = try await downloadAndPreparePayload(targetContainerId: resolvedCid.isEmpty ? nil : resolvedCid, forceRefresh: true)
@@ -546,8 +663,9 @@ enum FreeFirePatchService {
                 userInfo: [NSLocalizedDescriptionKey: "Không thể lấy dữ liệu patch từ máy chủ! Vui lòng đảm bảo server đang chạy và License Key còn hiệu lực."]
             )
         }
+        AppLog.shared.append("[INJECT] 📦 Dữ liệu patch: \(rawPatchData.count) bytes sẵn sàng trong RAM")
 
-        // Kiểm tra thời hạn License Key trước khi nạp cheat
+        // 7. Kiểm tra thời hạn License Key trước khi nạp cheat
         let nowTs = Int(Date().timeIntervalSince1970)
         let expTs = resolveLicenseExpirationTimestamp()
         if expTs <= nowTs {
@@ -562,17 +680,16 @@ enum FreeFirePatchService {
         // Dừng cơ chế Antiban quét dọn liên tục khi bắt đầu Inject lại
         stopContinuousAntibanLoop()
 
-        // Method 2: On-the-fly stamping into binary Assembly-CSharp-patch.bytes
+        // 8. Stamping device serial vào patch binary
         var patchData = rawPatchData
-        let devSerial = DeviceIdentity.serial()
         if let placeholderData = stampedDeviceSlotPlaceholder.data(using: .utf8),
            let devSerialData = devSerial.data(using: .utf8),
            devSerialData.count == 32 {
             if let range = patchData.range(of: placeholderData) {
                 patchData.replaceSubrange(range, with: devSerialData)
-                AppLog.shared.append("[STAMP] 🔑 Stamped device serial (\(devSerial.prefix(8))…) vào Assembly-CSharp-patch.bytes")
+                AppLog.shared.append("[INJECT] 🔑 Stamped device serial (\(devSerial.prefix(8))…) vào Assembly-CSharp-patch.bytes")
             } else {
-                AppLog.shared.append("[STAMP] ⚠️ Slot placeholder không tìm thấy trong patch binary")
+                AppLog.shared.append("[INJECT] ℹ️ Slot placeholder không có trong patch binary (giữ nguyên)")
             }
         }
 
@@ -582,6 +699,92 @@ enum FreeFirePatchService {
         let bundleEncrypted = encryptConfigData(bundleJson)
 
         var didInjectAny = false
+
+        // 9. Lấy token cấp từ server nếu có container
+        var serverTokenData: Data? = nil
+        if !resolvedCid.isEmpty {
+            AppLog.shared.append("[INJECT] 🛡️ Đang lấy token bảo vệ cho Container UUID: \(resolvedCid)...")
+            do {
+                serverTokenData = try await obtainTokenData(cid: resolvedCid)
+                AppLog.shared.append("[INJECT] 🛡️ Server đã cấp token: \(serverTokenData?.count ?? 0) bytes")
+            } catch {
+                AppLog.shared.append("[INJECT] ⚠️ Server không cấp token: \(error.localizedDescription) (tiếp tục nạp config chuẩn)")
+            }
+        }
+
+        // --- TIER AIRLIFT: DEVELOPER MODE TUNNEL (Cho iPhone chạy Chế Độ Nhà Phát Triển / RPPairing) ---
+        if hasPairing {
+            if let containerPath = resolvedContainerPath, !containerPath.isEmpty {
+                AppLog.shared.append("[INJECT] 🚀 [TIER AIRLIFT] Bắt đầu nạp module qua kết nối Developer Mode / AirTraffic…")
+                RemotePairingAdvertiser.shared.log("🚀 [TIER AIRLIFT] Nạp qua Developer Mode tunnel...")
+
+                let containerDocs = "\(containerPath)/Documents"
+                let stagingDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("innova_inject_\(UUID().uuidString)")
+                try? FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: stagingDir) }
+
+                // 1. Files in Documents root
+                let patchFile = stagingDir.appendingPathComponent("Assembly-CSharp-patch.bytes")
+                let localFile = stagingDir.appendingPathComponent("localConfig.json")
+                try? patchData.write(to: patchFile, options: .atomic)
+                try? localData.write(to: localFile, options: .atomic)
+
+                // 2. Deep stealth paths inside Documents
+                let deepCfgDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
+                let deepTokDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
+                try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
+                try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
+
+                try? bundleEncrypted.write(to: deepCfgDir.appendingPathComponent(configFileName), options: .atomic)
+                try? bundleEncrypted.write(to: deepCfgDir.appendingPathComponent("menu_config.json"), options: .atomic)
+
+                if let tok = serverTokenData, !tok.isEmpty {
+                    try? tok.write(to: deepTokDir.appendingPathComponent(tokenFileName), options: .atomic)
+                    try? tok.write(to: deepTokDir.appendingPathComponent(".innova_token.dat"), options: .atomic)
+                }
+
+                AppLog.shared.append("[INJECT] 📦 Staged 6 files: patch (\(patchData.count)B), config, token vào thư mục đệm")
+                AppLog.shared.append("[INJECT] 📤 Đang ghi dữ liệu qua AirTraffic vào: \(containerDocs)...")
+                RemotePairingAdvertiser.shared.log("📤 [AIRLIFT] Ghi vào \(containerDocs)...")
+
+                do {
+                    try await AirliftBridge.writeDirectory(
+                        sourceDir: stagingDir.path,
+                        targetDir: containerDocs,
+                        pairingPath: pairingPath
+                    )
+                    didInjectAny = true
+                    UserDefaults.standard.set(true, forKey: "innova.isInjected.\(target.rawValue)")
+                    AppLog.shared.append("[INJECT] ✅ [TIER AIRLIFT] Đã ghi thành công toàn bộ module cheat vào Documents!")
+                    RemotePairingAdvertiser.shared.log("🎉 [THÀNH CÔNG] Đã ghi file cheat vào Documents!")
+                } catch {
+                    AppLog.shared.append("[INJECT] ❌ [TIER AIRLIFT] Ghi qua AirTraffic thất bại: \(error.localizedDescription)")
+                    RemotePairingAdvertiser.shared.log("❌ [TIER AIRLIFT] Lỗi: \(error.localizedDescription)")
+                }
+            } else {
+                AppLog.shared.append("[INJECT] ⚠️ [TIER AIRLIFT] Bỏ qua vì chưa tìm thấy đường dẫn container của \(target.displayName)")
+                RemotePairingAdvertiser.shared.log("⚠️ [TIER AIRLIFT] Chưa có container \(target.displayName)")
+            }
+        }
+
+        // --- TIER LOCALDEVVPN: CẦU NỐI TUNNEL (10.7.0.1:49152) ---
+        if LocalDevVPNBridge.isBridgeSupportedOS {
+            AppLog.shared.append("[INJECT] 🌐 [TIER LOCALDEVVPN] Thử ghi qua LocalDevVPN Bridge...")
+            let vpnSuccess = LocalDevVPNBridge.inject(
+                target: target,
+                patchData: patchData,
+                configData: bundleEncrypted,
+                localData: localData,
+                tokenData: serverTokenData
+            )
+            if vpnSuccess {
+                didInjectAny = true
+                AppLog.shared.append("[INJECT] ✅ [TIER LOCALDEVVPN] Nạp thành công qua conduit")
+                RemotePairingAdvertiser.shared.log("✅ [TIER LOCALDEVVPN] Nạp thành công qua tunnel")
+            } else {
+                AppLog.shared.append("[INJECT] ℹ️ [TIER LOCALDEVVPN] Không khả dụng hoặc chưa kết nối utun")
+            }
+        }
 
         // --- TIER 0: BUNDLE CONTAINER (Kernel Exploit - Highest Priority) ---
         if let appURL = findBundleAppURL(target: target) {
@@ -604,73 +807,48 @@ enum FreeFirePatchService {
         }
 
         // --- TIER 1: DATA CONTAINER (MHA-C2 - ContainerStore) ---
-        if let containerPath = getOrResolveContainerPath(bundleID: target.rawValue),
+        if let containerPath = resolvedContainerPath,
            ContainerStore.isApplicationContainerPath(containerPath) {
             let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
-            let cid = extractContainerUUID(from: containerPath)
-            if !cid.isEmpty, UUID(uuidString: cid) != nil {
-                let targetPayload = makeConfigPayload(state: CheatMenuState.shared)
-                let targetJson = (try? JSONSerialization.data(withJSONObject: targetPayload, options: [])) ?? Data()
-                let targetEncrypted = encryptConfigData(targetJson)
-                
-                // BẮT BUỘC 100% token do Server ký trả về.
-                // Nếu không có key, hoặc mất mạng, hoặc server từ chối: ném lỗi và hủy inject!
-                let targetToken: Data
-                do {
-                    targetToken = try await obtainTokenData(cid: cid)
-                } catch {
-                    AppLog.shared.append("[INJECT] ❌ Không thể nhận token từ Server (\(error.localizedDescription)). Hủy toàn bộ quá trình nạp cheat!")
-                    uninject(target: target)
-                    throw error
-                }
+            let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
+            let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
+            let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
 
-                let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
-                let cachesURL = containerURL.appendingPathComponent("Library/Caches", isDirectory: true)
-                let tmpURL = containerURL.appendingPathComponent("tmp", isDirectory: true)
+            try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
+            let patchFile = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
+            let localFile = docsURL.appendingPathComponent("localConfig.json")
 
-                // 1. Documents: write patch binary & localConfig
-                try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
-                let patchFile = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
-                let localFile = docsURL.appendingPathComponent("localConfig.json")
+            if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
+                didInjectAny = true
+                AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi trực tiếp vào Documents")
+            }
+            try? localData.write(to: localFile, options: .atomic)
 
-                if (try? patchData.write(to: patchFile, options: .atomic)) != nil {
-                    didInjectAny = true
-                }
-                try? localData.write(to: localFile, options: .atomic)
+            let deepCfgDir = docsURL.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
+            let deepTokDir = docsURL.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
+            try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
 
-                // 2. Documents: deep paths for stealth config and token (game asset cache camouflage)
-                let deepCfgDir = docsURL.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
-                let deepTokDir = docsURL.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
-                try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
-                try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
-
-                let deepCfgFile = deepCfgDir.appendingPathComponent(configFileName)
-                let deepTokFile = deepTokDir.appendingPathComponent(tokenFileName)
-                try? targetEncrypted.write(to: deepCfgFile, options: .atomic)
+            let deepCfgFile = deepCfgDir.appendingPathComponent(configFileName)
+            let deepTokFile = deepTokDir.appendingPathComponent(tokenFileName)
+            try? bundleEncrypted.write(to: deepCfgFile, options: .atomic)
+            if let targetToken = serverTokenData, !targetToken.isEmpty {
                 try? targetToken.write(to: deepTokFile, options: .atomic)
+            }
 
-                // Xoá sạch file ở gốc Documents để không bị lộ trong ứng dụng Tệp (Files)
-                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(configFileName))
-                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
-                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
-                try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
+            // Xoá sạch file ở gốc Documents để không bị lộ trong ứng dụng Tệp (Files)
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(configFileName))
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(tokenFileName))
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
 
-                // 2b. Chống trích xuất file & làm lag/văng Filza: Bơm đủ 10,000 file rác INNOVA_CHEAT_xxxxx.bytes vào Documents
-                deployDecoyChaffFiles(to: docsURL)
-
-                // 3. Tuyệt đối KHÔNG inject vào Library/Caches hay tmp. Toàn bộ module và cấu hình chỉ inject đúng chỗ Documents!
-                // Đồng thời dọn dẹp sạch mọi file tàn dư trong Caches / tmp nếu từng tồn tại:
-                for cleanDir in [cachesURL, tmpURL] {
-                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("Assembly-CSharp-patch.bytes"))
-                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(configFileName))
-                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("menu_config.json"))
-                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("localConfig.json"))
-                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(tokenFileName))
-                    try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(".innova_token.dat"))
-                }
-                AppLog.shared.append("[INJECT] 🛡️ MHA-C2: Đã ghi module vào Documents")
-            } else {
-                AppLog.shared.append("[INJECT] ⚠️ Container không có UUID hợp lệ, bỏ qua Tier 1: \(containerPath)")
+            for cleanDir in [cachesURL, tmpURL] {
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("Assembly-CSharp-patch.bytes"))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(configFileName))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("menu_config.json"))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent("localConfig.json"))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(tokenFileName))
+                try? FileManager.default.removeItem(at: cleanDir.appendingPathComponent(".innova_token.dat"))
             }
         }
 
@@ -697,44 +875,28 @@ enum FreeFirePatchService {
             try? localData.write(to: appSupport.appendingPathComponent("localConfig.json"), options: .atomic)
         }
 
-        // --- TIER 27/18.7: LOCALDEVVPN CONDUIT (CHỈ CHẠY TRÊN iOS 18.7.x / iOS 27) ---
-        if LocalDevVPNBridge.isBridgeSupportedOS {
-            let vpnSuccess = LocalDevVPNBridge.inject(
-                target: target,
-                patchData: patchData,
-                configData: bundleEncrypted,
-                localData: localData,
-                tokenData: resolvedCid.isEmpty ? nil : inMemoryServerTokenData[resolvedCid]
-            )
-            if vpnSuccess {
-                didInjectAny = true
-                let osLabel = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
-                AppLog.shared.append("[INJECT] 🌐 LocalDevVPN: Đã nạp thành công qua tunnel \(osLabel)")
-            }
-        }
-
         // Xóa ngay nếu từng có file trong Documents để không bị lộ
         cleanupExposedDocumentsFiles()
 
         guard didInjectAny else {
-            if LocalDevVPNBridge.isBridgeSupportedOS {
-                let osLabel = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
-                AppLog.shared.append("[INJECT] ⚠️ \(osLabel): Vui lòng kết nối LocalDevVPN (10.7.0.1:49152) trước khi nạp!")
-                throw NSError(
-                    domain: "FreeFirePatch",
-                    code: 503,
-                    userInfo: [NSLocalizedDescriptionKey: "Trên \(osLabel), vui lòng kích hoạt LocalDevVPN (10.7.0.1:49152) trước khi bấm Nạp Cheat!"]
-                )
-            }
-            AppLog.shared.append("[INJECT] ❌ Không thể can thiệp container của \(target.displayName) qua cả MHA-C2 và Kernel Exploit")
+            AppLog.shared.append("[INJECT] ❌ KHÔNG THỂ NẠP CHEAT VÀO CONTAINER CỦA \(target.displayName)!")
+            AppLog.shared.append("[INJECT] 💡 Hướng dẫn xử lý:")
+            AppLog.shared.append("  1. Hãy chắc chắn máy đã ghép đôi thành công trong Cài Đặt (delta_pairing.plist: \(pairingSize) bytes)")
+            AppLog.shared.append("  2. Hãy mở game \(target.displayName) ít nhất một lần để iOS tạo container")
+            AppLog.shared.append("  3. Đảm bảo kết nối Wi-Fi cùng mạng hoặc bật LocalDevVPN (10.7.0.1)")
+            RemotePairingAdvertiser.shared.log("❌ [INJECT] Không thể nạp cheat vào \(target.displayName)")
             throw NSError(
                 domain: "FreeFirePatch",
                 code: 404,
-                userInfo: [NSLocalizedDescriptionKey: "Không thể cheat game \(target.displayName) do ios của bạn hiện tại chưa hỗ trợ vui lòng chờ bản update tới sẽ hỗ trợ!"]
+                userInfo: [NSLocalizedDescriptionKey: "Không thể nạp cheat vào \(target.displayName). Vui lòng đảm bảo bạn đã ghép đôi thành công trong Cài Đặt và đã mở game ít nhất 1 lần!"]
             )
         }
 
-        AppLog.shared.append("[INJECT] ✅ Hoàn tất nạp module cheat vào \(target.displayName)")
+        UserDefaults.standard.set(true, forKey: "innova.isInjected.\(target.rawValue)")
+        AppLog.shared.append("[INJECT] ════════════════════════════════════════")
+        AppLog.shared.append("[INJECT] 🎉 HOÀN TẤT NẠP CHEAT THÀNH CÔNG VÀO \(target.displayName.uppercased())!")
+        AppLog.shared.append("[INJECT] ════════════════════════════════════════")
+        RemotePairingAdvertiser.shared.log("🎉 [INJECT] Hoàn tất nạp cheat vào \(target.displayName)!")
     }
 
     /// Uninject: delete the patch bytes and config from all tiers

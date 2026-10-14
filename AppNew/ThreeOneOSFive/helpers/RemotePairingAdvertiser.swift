@@ -411,6 +411,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
                 log("🎉 [GHÉP ĐÔI THÀNH CÔNG] Đã ghép đôi với \(outcome.devName) (\(size) bytes)!")
                 log("📁 [PAIRING FILE] Đã lưu file: \(canonical)")
                 log("💡 Thiết bị đã sẵn sàng! Bây giờ bạn có thể kích hoạt LocalDevVPN để nạp mod game.")
+                AirliftBridge.syncTargetHosts()
                 let feedback = UINotificationFeedbackGenerator()
                 feedback.notificationOccurred(.success)
             }
@@ -623,3 +624,261 @@ private func cStr(_ ptr: UnsafeMutablePointer<CChar>?) -> String {
     guard let ptr = ptr else { return "" }
     return String(cString: ptr)
 }
+
+// MARK: - AirliftBridge (High-level Swift Wrapper for Airlift Rust FFI)
+
+enum AirliftBridge {
+    /// Đồng bộ danh sách địa chỉ IP mục tiêu vào Rust Airlift core trước khi kết nối RSD / AirTraffic tunnel
+    static func syncTargetHosts() {
+        var hosts: [String] = []
+
+        // 1. IP LocalDevVPN nếu interface utun đang bật (10.7.0.1 / 10.7.1.1) - Ưu tiên hàng đầu cho loopback RSD
+        let vpn = LocalDevVPNBridge.detectVPNInterface()
+        if vpn.active {
+            if !vpn.deviceIP.isEmpty && !hosts.contains(vpn.deviceIP) {
+                hosts.append(vpn.deviceIP)
+            }
+            if !vpn.tunnelIP.isEmpty && !hosts.contains(vpn.tunnelIP) {
+                hosts.append(vpn.tunnelIP)
+            }
+        }
+
+        // 2. IP Wi-Fi cục bộ của thiết bị (ví dụ: 192.168.1.9)
+        if let wifiIP = RemotePairingAdvertiser.getWiFiAddress(), !wifiIP.isEmpty, !hosts.contains(wifiIP) {
+            hosts.append(wifiIP)
+        }
+
+        // 3. Fallbacks tiêu chuẩn của hệ thống
+        if !hosts.contains("10.7.0.1") { hosts.append("10.7.0.1") }
+        if !hosts.contains("10.7.1.1") { hosts.append("10.7.1.1") }
+        if !hosts.contains("127.0.0.1") { hosts.append("127.0.0.1") }
+        if !hosts.contains("::1") { hosts.append("::1") }
+
+        let primary = hosts.first ?? "127.0.0.1"
+        al_set_target_host(primary)
+
+        let cStrings = hosts.map { strdup($0) }
+        defer {
+            for ptr in cStrings {
+                if let ptr = ptr { free(ptr) }
+            }
+        }
+        var ptrArray: [UnsafePointer<CChar>?] = cStrings.map { $0.map { UnsafePointer($0) } }
+        ptrArray.withUnsafeBufferPointer { buf in
+            if let base = buf.baseAddress {
+                _ = al_set_target_hosts(base, hosts.count)
+            }
+        }
+
+        AppLog.shared.append("[AIRLIFT] 🎯 Đã đồng bộ target hosts: \(hosts.joined(separator: ", "))")
+        RemotePairingAdvertiser.shared.log("🎯 [AIRLIFT] Target hosts: \(hosts.joined(separator: ", "))")
+    }
+
+    /// Truy vấn đồng bộ đường dẫn Application Container qua RSD tunnel (Installation Proxy)
+    static func findAppContainerSync(bundleID: String, pairingPath: String) -> String? {
+        guard FileManager.default.fileExists(atPath: pairingPath) else {
+            AppLog.shared.append("[AIRLIFT] ⚠️ Không tìm thấy file pairing: \(pairingPath)")
+            RemotePairingAdvertiser.shared.log("⚠️ [AIRLIFT] Không có file pairing: \(pairingPath)")
+            return nil
+        }
+
+        syncTargetHosts()
+        AppLog.shared.append("[AIRLIFT] 🔍 Đang dò tìm container cho \(bundleID) qua RSD...")
+        RemotePairingAdvertiser.shared.log("🔍 [AIRLIFT] Truy vấn container cho \(bundleID)...")
+
+        var outContainer: UnsafeMutablePointer<CChar>? = nil
+        var outError: UnsafeMutablePointer<CChar>? = nil
+
+        let cb: ALLogCallback = { _, msg in
+            guard let msg = msg else { return }
+            let line = String(cString: msg)
+            AppLog.shared.append("[AIRLIFT LOG] \(line)")
+            RemotePairingAdvertiser.shared.log("[AIRLIFT] \(line)")
+        }
+
+        let rc = al_find_app_container(
+            pairingPath,
+            bundleID,
+            cb,
+            nil,
+            &outContainer,
+            &outError
+        )
+
+        if rc == 0, let ptr = outContainer {
+            let path = String(cString: ptr)
+            al_string_free(ptr)
+            if let err = outError { al_string_free(err) }
+            AppLog.shared.append("[AIRLIFT] ✅ Tìm thấy container: \(path)")
+            RemotePairingAdvertiser.shared.log("✅ [AIRLIFT] Container: \(path)")
+            return path
+        } else {
+            let errStr = outError != nil ? String(cString: outError!) : "rc=\(rc)"
+            if let err = outError { al_string_free(err) }
+            if let ptr = outContainer { al_string_free(ptr) }
+            AppLog.shared.append("[AIRLIFT] ⚠️ findAppContainer thất bại (\(bundleID)): \(errStr)")
+            RemotePairingAdvertiser.shared.log("⚠️ [AIRLIFT] Không tìm thấy container: \(errStr)")
+            return nil
+        }
+    }
+
+    /// Truy vấn bất đồng bộ đường dẫn Application Container
+    static func findAppContainer(bundleID: String, pairingPath: String) async throws -> String {
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                if let path = findAppContainerSync(bundleID: bundleID, pairingPath: pairingPath), !path.isEmpty {
+                    continuation.resume(returning: path)
+                } else {
+                    continuation.resume(throwing: NSError(
+                        domain: "AirliftBridge",
+                        code: 404,
+                        userInfo: [NSLocalizedDescriptionKey: "Không tìm thấy Application Container cho \(bundleID) qua RSD tunnel."]
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Ghi toàn bộ nội dung trong `sourceDir` vào `targetDir` trên thiết bị qua AirTraffic tunnel
+    static func writeDirectory(sourceDir: String, targetDir: String, pairingPath: String) async throws {
+        guard FileManager.default.fileExists(atPath: pairingPath) else {
+            throw NSError(
+                domain: "AirliftBridge",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "Thiếu file pairing (delta_pairing.plist)! Vui lòng ghép đôi trước."]
+            )
+        }
+
+        syncTargetHosts()
+        AppLog.shared.append("[AIRLIFT] 📤 Bắt đầu ghi dữ liệu: \(sourceDir) -> \(targetDir)")
+        RemotePairingAdvertiser.shared.log("📤 [AIRLIFT] Ghi thư mục vào \(targetDir)...")
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var outError: UnsafeMutablePointer<CChar>? = nil
+
+                let cb: ALLogCallback = { _, msg in
+                    guard let msg = msg else { return }
+                    let line = String(cString: msg)
+                    AppLog.shared.append("[AIRLIFT LOG] \(line)")
+                    RemotePairingAdvertiser.shared.log("[AIRLIFT] \(line)")
+                }
+
+                let rc = al_exploit_write_dir(
+                    pairingPath,
+                    sourceDir,
+                    targetDir,
+                    cb,
+                    nil,
+                    &outError
+                )
+
+                if rc == 0 {
+                    if let err = outError { al_string_free(err) }
+                    AppLog.shared.append("[AIRLIFT] ✅ Ghi thư mục thành công vào \(targetDir)")
+                    RemotePairingAdvertiser.shared.log("✅ [AIRLIFT] Ghi thành công vào \(targetDir)")
+                    continuation.resume(returning: ())
+                } else {
+                    let errStr = outError != nil ? String(cString: outError!) : "rc=\(rc)"
+                    if let err = outError { al_string_free(err) }
+                    AppLog.shared.append("[AIRLIFT] ❌ Lỗi ghi thư mục: \(errStr)")
+                    RemotePairingAdvertiser.shared.log("❌ [AIRLIFT] Lỗi ghi: \(errStr)")
+                    continuation.resume(throwing: NSError(
+                        domain: "AirliftBridge",
+                        code: Int(rc),
+                        userInfo: [NSLocalizedDescriptionKey: errStr]
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Inject cả thư mục kèm cấu trúc nội bộ vào `targetParentDir/destName`
+    static func injectFolder(folderPath: String, targetParentDir: String, destName: String, pairingPath: String) async throws {
+        guard FileManager.default.fileExists(atPath: pairingPath) else {
+            throw NSError(
+                domain: "AirliftBridge",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "Thiếu file pairing! Vui lòng ghép đôi trước."]
+            )
+        }
+
+        syncTargetHosts()
+        AppLog.shared.append("[AIRLIFT] 📁 Inject folder: \(destName) -> \(targetParentDir)")
+        RemotePairingAdvertiser.shared.log("📁 [AIRLIFT] Inject folder '\(destName)' vào \(targetParentDir)...")
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var outError: UnsafeMutablePointer<CChar>? = nil
+
+                let cb: ALLogCallback = { _, msg in
+                    guard let msg = msg else { return }
+                    let line = String(cString: msg)
+                    AppLog.shared.append("[AIRLIFT LOG] \(line)")
+                    RemotePairingAdvertiser.shared.log("[AIRLIFT] \(line)")
+                }
+
+                let rc = al_exploit_inject_folder(
+                    pairingPath,
+                    folderPath,
+                    targetParentDir,
+                    destName,
+                    cb,
+                    nil,
+                    &outError
+                )
+
+                if rc == 0 {
+                    if let err = outError { al_string_free(err) }
+                    AppLog.shared.append("[AIRLIFT] ✅ Inject folder '\(destName)' thành công!")
+                    RemotePairingAdvertiser.shared.log("✅ [AIRLIFT] Inject '\(destName)' thành công!")
+                    continuation.resume(returning: ())
+                } else {
+                    let errStr = outError != nil ? String(cString: outError!) : "rc=\(rc)"
+                    if let err = outError { al_string_free(err) }
+                    AppLog.shared.append("[AIRLIFT] ❌ Lỗi inject folder: \(errStr)")
+                    RemotePairingAdvertiser.shared.log("❌ [AIRLIFT] Lỗi: \(errStr)")
+                    continuation.resume(throwing: NSError(
+                        domain: "AirliftBridge",
+                        code: Int(rc),
+                        userInfo: [NSLocalizedDescriptionKey: errStr]
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Khởi động lại SpringBoard / Diagnostics Relay qua kết nối ghép đôi
+    static func respring(pairingPath: String) async throws {
+        syncTargetHosts()
+        AppLog.shared.append("[AIRLIFT] ⚡ Đang gửi lệnh respring thiết bị...")
+        RemotePairingAdvertiser.shared.log("⚡ [AIRLIFT] Respring thiết bị...")
+
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                var outError: UnsafeMutablePointer<CChar>? = nil
+                let cb: ALLogCallback = { _, msg in
+                    guard let msg = msg else { return }
+                    let line = String(cString: msg)
+                    AppLog.shared.append("[AIRLIFT LOG] \(line)")
+                }
+
+                let rc = al_device_respring(pairingPath, cb, nil, &outError)
+                if rc == 0 {
+                    if let err = outError { al_string_free(err) }
+                    AppLog.shared.append("[AIRLIFT] ✅ Lệnh respring đã được thực thi!")
+                    continuation.resume(returning: ())
+                } else {
+                    let errStr = outError != nil ? String(cString: outError!) : "rc=\(rc)"
+                    if let err = outError { al_string_free(err) }
+                    continuation.resume(throwing: NSError(
+                        domain: "AirliftBridge",
+                        code: Int(rc),
+                        userInfo: [NSLocalizedDescriptionKey: errStr]
+                    ))
+                }
+            }
+        }
+    }
+}
+

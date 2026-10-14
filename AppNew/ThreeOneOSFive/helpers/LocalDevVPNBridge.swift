@@ -26,9 +26,12 @@ enum LocalDevVPNBridge {
         return v.majorVersion == 18 && v.minorVersion == 7 && v.patchVersion >= 2 && v.patchVersion <= 10
     }
 
-    /// Kiểm tra thiết bị có thuộc diện hỗ trợ qua Cầu nối (iOS 18.7.2–18.7.10 hoặc iOS 27)
+    /// Kiểm tra thiết bị có thuộc diện hỗ trợ qua Cầu nối (Pairing record, LocalDevVPN hoặc iOS 17+)
     static var isBridgeSupportedOS: Bool {
-        isIOS27 || isIOS18_7_x
+        if RemotePairingAdvertiser.shared.hasExistingPairing || detectVPNInterface().active {
+            return true
+        }
+        return isIOS27 || isIOS18_7_x || ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 17
     }
 
     /// Cache đường dẫn container game trên iOS 27 / 18.7.x
@@ -212,10 +215,21 @@ enum LocalDevVPNBridge {
         guard isBridgeSupportedOS else { return nil }
 
         if let cached = cachedContainerPaths[bundleID], !cached.isEmpty {
-            if ContainerStore.isApplicationContainerPath(cached) && FileManager.default.fileExists(atPath: cached) {
+            if ContainerStore.isApplicationContainerPath(cached) {
                 return cached
             }
             cachedContainerPaths.removeValue(forKey: bundleID)
+        }
+
+        // 0. ƯU TIÊN 1: Nếu đã có Pairing File từ Developer Mode (Airlift / RPPairing), truy vấn qua RSD Installation Proxy
+        if RemotePairingAdvertiser.shared.hasExistingPairing {
+            let pairingPath = RemotePairingAdvertiser.shared.pairingFilePath
+            if let airliftPath = AirliftBridge.findAppContainerSync(bundleID: bundleID, pairingPath: pairingPath),
+               !airliftPath.isEmpty {
+                _ = ContainerStore.grantContainerAccess(airliftPath)
+                cachedContainerPaths[bundleID] = airliftPath
+                return airliftPath
+            }
         }
 
         // 1. Kiểm tra qua MobileContainerManager (MCMActivateContainerPath)
@@ -395,17 +409,45 @@ enum LocalDevVPNBridge {
                     // Test ghi / đọc file thực tế (Read/Write Probe)
                     let probePath = (docsPath as NSString).appendingPathComponent(".innova_probe_test.tmp")
                     let testPayload = "INNOVA_PROBE_\(Date().timeIntervalSince1970)".data(using: .utf8)!
+                    var probeSuccess = false
                     do {
                         try testPayload.write(to: URL(fileURLWithPath: probePath), options: .atomic)
                         let verifyData = try Data(contentsOf: URL(fileURLWithPath: probePath))
                         try? FileManager.default.removeItem(atPath: probePath)
                         if verifyData == testPayload {
-                            logEntry("PROBE", "THỰC TẾ TRUY CẬP DOCUMENTS: ✅ ĐÃ GHI & ĐỌC THÀNH CÔNG (100% ACCESS)", icon: "🎉")
+                            probeSuccess = true
+                            logEntry("PROBE", "TRUY CẬP DOCUMENTS (POSIX TRỰC TIẾP): ✅ ĐÃ GHI & ĐỌC THÀNH CÔNG (100% ACCESS)", icon: "🎉")
                         } else {
                             logEntry("PROBE", "Dữ liệu kiểm tra không khớp", icon: "⚠️")
                         }
                     } catch {
-                        logEntry("PROBE", "Ghi thử nghiệm vào Documents: Lỗi (\(error.localizedDescription))", icon: "❌")
+                        logEntry("PROBE", "Ghi trực tiếp POSIX: \(error.localizedDescription) (Sandbox hạn chế)", icon: "ℹ️")
+                    }
+
+                    if !probeSuccess && RemotePairingAdvertiser.shared.hasExistingPairing {
+                        let pairingPath = RemotePairingAdvertiser.shared.pairingFilePath
+                        let probeStaging = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("probe_\(UUID().uuidString)")
+                        try? FileManager.default.createDirectory(at: probeStaging, withIntermediateDirectories: true)
+                        defer { try? FileManager.default.removeItem(at: probeStaging) }
+                        try? testPayload.write(to: probeStaging.appendingPathComponent(".innova_probe_test.tmp"), options: .atomic)
+
+                        logEntry("PROBE", "Thử nghiệm ghi qua AirTraffic / Developer Mode tunnel...", icon: "📡")
+                        var outError: UnsafeMutablePointer<CChar>? = nil
+                        AirliftBridge.syncTargetHosts()
+                        let cb: ALLogCallback = { _, msg in
+                            guard let msg = msg else { return }
+                            let line = String(cString: msg)
+                            AppLog.shared.append("[AIRLIFT LOG] \(line)")
+                            RemotePairingAdvertiser.shared.log("[AIRLIFT] \(line)")
+                        }
+                        let rc = al_exploit_write_dir(pairingPath, probeStaging.path, docsPath, cb, nil, &outError)
+                        if rc == 0 {
+                            logEntry("PROBE", "TRUY CẬP DOCUMENTS QUA AIRLIFT/DEVELOPER MODE: ✅ ĐÃ GHI THÀNH CÔNG (100% ACCESS)", icon: "🎉")
+                        } else {
+                            let msg = outError != nil ? String(cString: outError!) : "rc=\(rc)"
+                            if let errPtr = outError { al_string_free(errPtr) }
+                            logEntry("PROBE", "Thử nghiệm AirTraffic: \(msg)", icon: "⚠️")
+                        }
                     }
 
                     // Kiểm tra patch file hiện tại
@@ -443,6 +485,51 @@ enum LocalDevVPNBridge {
         guard isBridgeSupportedOS else { return false }
 
         var success = false
+
+        // 0. ƯU TIÊN 1: Nếu có Pairing Record từ Developer Mode (Airlift / RPPairing), ghi qua AirTraffic tunnel
+        if RemotePairingAdvertiser.shared.hasExistingPairing,
+           let containerPath = resolveContainerPath(bundleID: target.rawValue) {
+            let pairingPath = RemotePairingAdvertiser.shared.pairingFilePath
+            let stagingDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("vpn_staging_\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: stagingDir) }
+
+            let patchFile = stagingDir.appendingPathComponent("Assembly-CSharp-patch.bytes")
+            let localFile = stagingDir.appendingPathComponent("localConfig.json")
+            try? patchData.write(to: patchFile, options: .atomic)
+            try? localData.write(to: localFile, options: .atomic)
+
+            let deepCfgDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
+            let deepTokDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
+            try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
+
+            try? configData.write(to: deepCfgDir.appendingPathComponent("menu_config.json"), options: .atomic)
+            try? configData.write(to: deepCfgDir.appendingPathComponent(FreeFirePatchService.configFileName), options: .atomic)
+            if let tokenData, !tokenData.isEmpty {
+                try? tokenData.write(to: deepTokDir.appendingPathComponent(".innova_token.dat"), options: .atomic)
+                try? tokenData.write(to: deepTokDir.appendingPathComponent(FreeFirePatchService.tokenFileName), options: .atomic)
+            }
+
+            AirliftBridge.syncTargetHosts()
+            var outError: UnsafeMutablePointer<CChar>? = nil
+            let rc = al_exploit_write_dir(
+                pairingPath,
+                stagingDir.path,
+                "\(containerPath)/Documents",
+                nil,
+                nil,
+                &outError
+            )
+            if rc == 0 {
+                success = true
+                AppLog.shared.append("[VPN] ✅ Ghi file qua AirTraffic tunnel thành công!")
+            } else {
+                let msg = outError != nil ? String(cString: outError!) : "rc=\(rc)"
+                if let err = outError { al_string_free(err) }
+                AppLog.shared.append("[VPN] ⚠️ Ghi qua AirTraffic: \(msg)")
+            }
+        }
 
         // 1. Ghi trực tiếp vào Container nếu đã tìm thấy đường dẫn
         if let containerPath = resolveContainerPath(bundleID: target.rawValue),

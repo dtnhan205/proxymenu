@@ -1670,6 +1670,10 @@ struct ContentView: View {
         languageCode == AppLanguage.english.rawValue
     }
 
+    private var isAntibanEffectivelyReady: Bool {
+        pairingAdvertiser.hasExistingPairing || isAntibanReady || antibanCountdownSeconds <= 0
+    }
+
     private var isLicenseValid: Bool {
         guard let key = licenseStore.savedKey, !key.isEmpty,
               let exp = licenseStore.expiresAt, exp > Date() else {
@@ -1829,20 +1833,27 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             isInjected = FreeFirePatchService.isInjected(target: selectedTarget)
-            let status = FreeFirePatchService.currentDecoyStatus(target: selectedTarget)
-            isAntibanReady = status.isReadyForInject
-            decoyCurrentCount = status.currentCount
-            if isAntibanReady || status.currentCount >= 100_000 {
+            if pairingAdvertiser.hasExistingPairing {
                 isAntibanReady = true
                 antibanCountdownSeconds = 0
                 antibanCountdownTimer?.invalidate()
                 antibanCountdownTimer = nil
-            } else if status.estimatedSecondsRemaining > 0 {
-                startAntibanCountdown(initialSeconds: status.estimatedSecondsRemaining)
             } else {
-                antibanCountdownSeconds = 0
+                let status = FreeFirePatchService.currentDecoyStatus(target: selectedTarget)
+                isAntibanReady = status.isReadyForInject
+                decoyCurrentCount = status.currentCount
+                if isAntibanReady || status.currentCount >= 100_000 {
+                    isAntibanReady = true
+                    antibanCountdownSeconds = 0
+                    antibanCountdownTimer?.invalidate()
+                    antibanCountdownTimer = nil
+                } else if status.estimatedSecondsRemaining > 0 {
+                    startAntibanCountdown(initialSeconds: status.estimatedSecondsRemaining)
+                } else {
+                    antibanCountdownSeconds = 0
+                }
+                FreeFirePatchService.preDeployDecoyFilesOnHome(target: selectedTarget)
             }
-            FreeFirePatchService.preDeployDecoyFilesOnHome(target: selectedTarget)
         }
         .onReceive(NotificationCenter.default.publisher(for: FreeFirePatchService.decoyStatusChangedNotification)) { notif in
             if let userInfo = notif.userInfo {
@@ -3547,7 +3558,7 @@ struct ContentView: View {
                     if isInjected {
                         handleUninjectCheat()
                     } else {
-                        guard isAntibanReady else { return }
+                        guard isAntibanEffectivelyReady else { return }
                         handleInjectCheat()
                     }
                 } label: {
@@ -3562,7 +3573,7 @@ struct ContentView: View {
                                 Image(systemName: "trash.fill")
                                     .font(.system(size: 16, weight: .heavy))
                                     .foregroundColor(.white)
-                            } else if !isAntibanReady && antibanCountdownSeconds > 0 {
+                            } else if !isAntibanEffectivelyReady && antibanCountdownSeconds > 0 {
                                 Image(systemName: "timer")
                                     .font(.system(size: 16, weight: .heavy))
                                     .foregroundColor(.white)
@@ -3593,7 +3604,7 @@ struct ContentView: View {
                                     .foregroundColor(Color.white.opacity(0.85))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
-                            } else if !isAntibanReady && antibanCountdownSeconds > 0 {
+                            } else if !isAntibanEffectivelyReady && antibanCountdownSeconds > 0 {
                                 HStack(spacing: 6) {
                                     Text(isEnglish ? "PREPARING ANTIBAN" : "ĐANG CHUẨN BỊ")
                                         .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
@@ -3644,7 +3655,7 @@ struct ContentView: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
-                            } else if !isAntibanReady && antibanCountdownSeconds > 0 {
+                            } else if !isAntibanEffectivelyReady && antibanCountdownSeconds > 0 {
                                 LinearGradient(
                                     colors: [
                                         Color(red: 0.85, green: 0.55, blue: 0.15),
@@ -3671,20 +3682,20 @@ struct ContentView: View {
                             .stroke(Color.white.opacity(0.35), lineWidth: 1)
                     )
                     .shadow(
-                        color: (isInjected ? Color.red : ((!isAntibanReady && antibanCountdownSeconds > 0) ? Color.orange : CyberTheme.matrixGreen)).opacity(0.65),
+                        color: (isInjected ? Color.red : ((!isAntibanEffectivelyReady && antibanCountdownSeconds > 0) ? Color.orange : CyberTheme.matrixGreen)).opacity(0.65),
                         radius: 12,
                         y: 3
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(isInjecting || (!isInjected && !isAntibanReady && antibanCountdownSeconds > 0))
+                .disabled(isInjecting || (!isInjected && !isAntibanEffectivelyReady && antibanCountdownSeconds > 0))
 
                 // Secondary Quick Action Circular Button (Lightning Bolt)
                 Button {
                     let impact = UIImpactFeedbackGenerator(style: .rigid)
                     impact.impactOccurred()
                     if !isInjected {
-                        guard isAntibanReady || antibanCountdownSeconds <= 0 else { return }
+                        guard isAntibanEffectivelyReady else { return }
                         handleInjectCheat()
                     } else {
                         handleResetDefaults()
@@ -3714,7 +3725,7 @@ struct ContentView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(isInjecting || (!isInjected && !isAntibanReady && antibanCountdownSeconds > 0))
+                .disabled(isInjecting || (!isInjected && !isAntibanEffectivelyReady && antibanCountdownSeconds > 0))
                 .fixedSize()
             }
             .frame(maxWidth: .infinity)
@@ -4638,7 +4649,7 @@ struct ContentView: View {
     // MARK: - Actions
     private func handleInjectCheat() {
         guard !isInjecting else { return }
-        guard isAntibanReady else {
+        guard isAntibanEffectivelyReady else {
             injectionAlertText = isEnglish ? "⏳ Antiban protection files are still preparing (need 95,000 files). Please wait..." : "⏳ Hệ thống đang bơm file bảo vệ Antiban (cần đủ 95,000 file). Vui lòng đợi trong giây lát..."
             showInjectionAlert = true
             return
