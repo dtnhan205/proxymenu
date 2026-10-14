@@ -2,7 +2,6 @@ import Foundation
 import UIKit
 import Network
 import AVFoundation
-import AirliftFFI
 
 // MARK: - Keep-Alive Engine
 

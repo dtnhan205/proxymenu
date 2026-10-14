@@ -9,7 +9,6 @@ import UIKit
 import Foundation
 import WebKit
 import SwiftUI
-import AirliftFFI
 
 public final class RespringHelper: NSObject {
 

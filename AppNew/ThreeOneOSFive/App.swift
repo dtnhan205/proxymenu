@@ -1,5 +1,4 @@
 import SwiftUI
-import AirliftFFI
 
 @main
 struct ThreeOneOSFiveApp: App {

@@ -369,6 +369,7 @@
 				FF000022 /* GrappaHelper.h */,
 				FF000023 /* GrappaHelper.m */,
 				FF000025 /* RespringHelper.swift */,
+				FF000028 /* airlift.h */,
 			);
 			path = helpers;
 			sourceTree = "<group>";
@@ -586,6 +587,10 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks/AirliftFFI.xcframework/ios-arm64",
+				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lz",
@@ -627,6 +632,10 @@
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks/AirliftFFI.xcframework/ios-arm64",
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
