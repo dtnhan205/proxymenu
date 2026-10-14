@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FF000020 /* AirliftFFI.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF000021 /* AirliftFFI.xcframework */; };
+		FF000024 /* GrappaHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = FF000023 /* GrappaHelper.m */; };
+		FF000026 /* RespringHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000025 /* RespringHelper.swift */; };
 		3105A200 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A020; };
 		3105A201 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A021; };
 		3105A203 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105A023; };
@@ -213,6 +216,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF000020 /* AirliftFFI.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,7 +228,16 @@
 			children = (
 				3105A401 /* ThreeOneOSFive */,
 				3105A402 /* Products */,
+				FF000027 /* Frameworks */,
 			);
+			sourceTree = "<group>";
+		};
+		FF000027 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				FF000021 /* AirliftFFI.xcframework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		3105A401 /* ThreeOneOSFive */ = {
@@ -353,6 +366,9 @@
 				FF00000A /* DylibInjectionGuard.swift */,
 				FF000011 /* LocalDevVPNBridge.swift */,
 				FF000013 /* RemotePairingAdvertiser.swift */,
+				FF000022 /* GrappaHelper.h */,
+				FF000023 /* GrappaHelper.m */,
+				FF000025 /* RespringHelper.swift */,
 			);
 			path = helpers;
 			sourceTree = "<group>";
@@ -521,6 +537,8 @@
 				FF000010,
 				FF000012,
 				FF000014,
+				FF000024,
+				FF000026,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -564,7 +582,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.1.2;
-				OTHER_LDFLAGS = "-lz";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+					"-lc++",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = "INNOVA CHEAT";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -598,7 +624,15 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 2.1.2;
-				OTHER_LDFLAGS = "-lz";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lz",
+					"-lc++",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = "INNOVA CHEAT";
 				SWIFT_EMIT_LOC_STRINGS = YES;

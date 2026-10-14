@@ -5,4 +5,5 @@
 #import "kexploit/kutils.h"
 #import "helpers/AppIconHelper.h"
 #import "helpers/DisplayIdentity.h"
+#import "helpers/GrappaHelper.h"
 #import <sys/clonefile.h>

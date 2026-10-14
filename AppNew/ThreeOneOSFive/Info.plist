@@ -102,6 +102,7 @@
     <array>
         <string>_remotepairing-pairable-host._tcp</string>
         <string>_remotepairing._tcp</string>
+        <string>_aircardprobe._tcp</string>
     </array>
     <key>NSLocalNetworkUsageDescription</key>
     <string>DELTA PROXY tạo dịch vụ ghép đôi cục bộ để iPhone tự ghép với chính nó và kết nối tới dịch vụ hệ thống nhằm áp dụng mod (chỉ trên iOS 27+).</string>

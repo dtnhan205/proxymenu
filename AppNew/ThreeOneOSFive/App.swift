@@ -1,4 +1,5 @@
 import SwiftUI
+import AirliftFFI
 
 @main
 struct ThreeOneOSFiveApp: App {
@@ -17,6 +18,16 @@ struct ThreeOneOSFiveApp: App {
         setupLogCapture()
         // Kiểm tra toàn vẹn cơ bản khi khởi động (an toàn cho cả chứng chỉ cá nhân / ESign)
         IntegrityChecker.runStartupChecks()
+
+        // Kết nối router log từ Rust Airlift / idevice vào nhật ký app
+        al_log_init({ _, msg in
+            guard let msg = msg else { return }
+            let line = String(cString: msg)
+            RemotePairingAdvertiser.shared.log(line)
+        }, nil)
+
+        // Đảm bảo symbol ALGetGrappaToken không bị linker strip
+        _ = ALGetGrappaToken(0, 0, 0, nil, 0, nil, nil, 0)
     }
 
     var body: some Scene {
