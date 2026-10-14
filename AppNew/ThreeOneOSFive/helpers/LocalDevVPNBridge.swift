@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import UIKit
+import SystemConfiguration
 
 /// Bridge chuyên dụng dành riêng cho iOS 27 sử dụng LocalDevVPN tunnel (10.7.0.1:49152 / 127.0.0.1)
 /// Cung cấp giải pháp nạp patch, quản lý container game và đồng bộ cấu hình trên iOS 27 release builds.
@@ -43,15 +44,46 @@ enum LocalDevVPNBridge {
     }
 
     /// Kiểm tra xem Network Interface của LocalDevVPN (utun với IP 10.7.0.1 / 10.7.1.1) có đang Active thực tế trên máy không
-    /// QUY TẮC CHẶT CHẼ:
-    /// - Chỉ chấp nhận interface ảo có tên bắt đầu bằng "utun" (LocalDevVPN NetworkExtension PacketTunnel).
-    /// - Cờ mạng bắt buộc phải IFF_UP và IFF_RUNNING.
-    /// - IP thiết bị bắt buộc phải chính xác là "10.7.0.1" (do LocalDevVPN cấu hình).
-    /// - Tuyệt đối không kiểm tra en0 (Wi-Fi), pdp_ip0 (Cellular), lo0 (Loopback) để tránh kết quả giả mạo.
+    /// SỬ DỤNG ĐA PHƯƠNG THỨC XÁC THỰC THỰC TẾ (MULTI-TIER REAL PROBE):
+    /// 1. getifaddrs: Tìm giao diện ảo utun (chỉ cần IFF_UP, không đòi hỏi IFF_RUNNING) có IP 10.7.0.1 hoặc 10.7.1.1 qua inet_ntop chuẩn.
+    /// 2. UDP Route Probe: Tạo socket UDP tới 10.7.1.1 để kiểm tra bảng định tuyến kernel iOS xem IP nguồn có được gán là 10.7.0.1 hay không.
+    /// 3. System Proxy Scopes: Kiểm tra utun trong __SCOPED__ của hệ thống.
     static func detectVPNInterface() -> VPNInterfaceInfo {
+        // --- PHƯƠNG THỨC 1: Quét getifaddrs với POSIX inet_ntop chuẩn ---
+        if let ifInfo = scanInterfacesForVPN() {
+            return ifInfo
+        }
+
+        // --- PHƯƠNG THỨC 2: Kiểm tra Kernel Routing Table (UDP Connect to 10.7.1.1) ---
+        let route = probeKernelRouteToTunnel()
+        if route.routed {
+            let ifName = route.interfaceName.isEmpty ? "utun (tunnel route)" : route.interfaceName
+            return VPNInterfaceInfo(
+                active: true,
+                deviceIP: defaultHost, // "10.7.0.1"
+                tunnelIP: tunnelHost,  // "10.7.1.1"
+                interfaceName: ifName
+            )
+        }
+
+        // --- PHƯƠNG THỨC 3: Kiểm tra System Configuration Scoped VPN ---
+        if checkSystemVPNScoped() && route.canRouteToSubnet {
+            return VPNInterfaceInfo(
+                active: true,
+                deviceIP: defaultHost,
+                tunnelIP: tunnelHost,
+                interfaceName: "utun (system scoped)"
+            )
+        }
+
+        return VPNInterfaceInfo(active: false, deviceIP: "", tunnelIP: "", interfaceName: "")
+    }
+
+    /// Quét các interface mạng qua getifaddrs
+    private static func scanInterfacesForVPN() -> VPNInterfaceInfo? {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
-            return VPNInterfaceInfo(active: false, deviceIP: "", tunnelIP: "", interfaceName: "")
+            return nil
         }
         defer { freeifaddrs(ifaddr) }
 
@@ -61,43 +93,43 @@ enum LocalDevVPNBridge {
             let interface = current.pointee
             let flags = UInt32(interface.ifa_flags)
 
-            // 1. Giao diện mạng bắt buộc phải đang BẬT (IFF_UP) và đang CHẠY (IFF_RUNNING)
+            // Giao diện mạng bắt buộc phải đang BẬT (IFF_UP).
+            // LƯU Ý: Không check IFF_RUNNING vì trên iOS virtual tunnel interfaces (utun) thường không bật cờ này.
             let isUp = (flags & UInt32(IFF_UP)) != 0
-            let isRunning = (flags & UInt32(IFF_RUNNING)) != 0
 
-            if isUp && isRunning, let ifaAddr = interface.ifa_addr {
+            if isUp, let ifaAddr = interface.ifa_addr {
                 let name = String(cString: interface.ifa_name)
 
-                // 2. LocalDevVPN trên iOS luôn tạo interface ảo utun (chẳng hạn utun0, utun1, utun2...)
-                if name.hasPrefix("utun") {
+                // Chỉ quét các interface dạng tunnel ảo (utun, tun, ppp, ipsec)
+                if name.hasPrefix("utun") || name.hasPrefix("tun") || name.hasPrefix("ppp") || name.hasPrefix("ipsec") {
                     let addrFamily = ifaAddr.pointee.sa_family
                     if addrFamily == UInt8(AF_INET) {
-                        var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                        let res = getnameinfo(
-                            ifaAddr,
-                            socklen_t(ifaAddr.pointee.sa_len),
-                            &hostname,
-                            socklen_t(hostname.count),
-                            nil,
-                            0,
-                            NI_NUMERICHOST
-                        )
-                        if res == 0 {
-                            let ip = String(cString: hostname)
-                            // 3. Địa chỉ IP của LocalDevVPN trên máy bắt buộc là 10.7.0.1 (Device IP)
-                            if ip == defaultHost {
-                                var tunnelIP = tunnelHost
-                                if let dstAddr = interface.ifa_dstaddr, dstAddr.pointee.sa_family == UInt8(AF_INET) {
-                                    var dstHost = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                                    if getnameinfo(dstAddr, socklen_t(dstAddr.pointee.sa_len), &dstHost, socklen_t(dstHost.count), nil, 0, NI_NUMERICHOST) == 0 {
-                                        let parsedDst = String(cString: dstHost)
-                                        if !parsedDst.isEmpty {
-                                            tunnelIP = parsedDst
-                                        }
-                                    }
-                                }
-                                return VPNInterfaceInfo(active: true, deviceIP: ip, tunnelIP: tunnelIP, interfaceName: name)
+                        var addrIn = ifaAddr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+                        var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                        var ip = ""
+                        if inet_ntop(AF_INET, &addrIn.sin_addr, &buffer, socklen_t(INET_ADDRSTRLEN)) != nil {
+                            ip = String(cString: buffer)
+                        }
+
+                        var dstIP = ""
+                        if let dstAddr = interface.ifa_dstaddr, dstAddr.pointee.sa_family == UInt8(AF_INET) {
+                            var dstIn = dstAddr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+                            var dstBuf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                            if inet_ntop(AF_INET, &dstIn.sin_addr, &dstBuf, socklen_t(INET_ADDRSTRLEN)) != nil {
+                                dstIP = String(cString: dstBuf)
                             }
+                        }
+
+                        // LocalDevVPN gán Device IP = 10.7.0.1 và Tunnel IP = 10.7.1.1
+                        if ip == defaultHost || dstIP == tunnelHost || ip == tunnelHost || dstIP == defaultHost {
+                            let resolvedDevice = (ip == defaultHost || dstIP == defaultHost) ? defaultHost : ip
+                            let resolvedTunnel = (dstIP == tunnelHost || ip == tunnelHost) ? tunnelHost : dstIP
+                            return VPNInterfaceInfo(
+                                active: true,
+                                deviceIP: resolvedDevice,
+                                tunnelIP: resolvedTunnel.isEmpty ? tunnelHost : resolvedTunnel,
+                                interfaceName: name
+                            )
                         }
                     }
                 }
@@ -105,7 +137,65 @@ enum LocalDevVPNBridge {
             ptr = interface.ifa_next
         }
 
-        return VPNInterfaceInfo(active: false, deviceIP: "", tunnelIP: "", interfaceName: "")
+        return nil
+    }
+
+    /// Thử tạo kết nối UDP socket tới 10.7.1.1:49152 để truy vấn bảng định tuyến kernel iOS
+    private static func probeKernelRouteToTunnel() -> (routed: Bool, canRouteToSubnet: Bool, interfaceName: String) {
+        let sock = socket(AF_INET, SOCK_DGRAM, 0)
+        guard sock >= 0 else { return (false, false, "") }
+        defer { close(sock) }
+
+        var targetAddr = sockaddr_in()
+        targetAddr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        targetAddr.sin_family = sa_family_t(AF_INET)
+        targetAddr.sin_port = in_port_t(defaultPort).bigEndian
+        inet_pton(AF_INET, tunnelHost, &targetAddr.sin_addr) // 10.7.1.1
+
+        let connectRes = withUnsafePointer(to: &targetAddr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { saPtr in
+                connect(sock, saPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+
+        guard connectRes == 0 else { return (false, false, "") }
+
+        var localAddr = sockaddr_in()
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let getRes = withUnsafeMutablePointer(to: &localAddr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { saPtr in
+                getsockname(sock, saPtr, &len)
+            }
+        }
+
+        guard getRes == 0 else { return (false, false, "") }
+
+        var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+        if inet_ntop(AF_INET, &localAddr.sin_addr, &buf, socklen_t(INET_ADDRSTRLEN)) != nil {
+            let localIP = String(cString: buf)
+            // Nếu bảng định tuyến kernel của iOS gán địa chỉ nguồn tới 10.7.1.1 là 10.7.0.1
+            // thì chắc chắn giao diện tunnel của LocalDevVPN đang hoạt động!
+            if localIP == defaultHost {
+                return (true, true, "utun (10.7.0.1)")
+            } else if localIP.hasPrefix("10.7.") {
+                return (true, true, "utun (\(localIP))")
+            }
+        }
+
+        return (false, false, "")
+    }
+
+    /// Kiểm tra các Scoped VPN interface qua System Configuration
+    private static func checkSystemVPNScoped() -> Bool {
+        guard let cfDict = CFNetworkCopySystemProxySettings() else { return false }
+        let nsDict = cfDict.takeRetainedValue() as NSDictionary
+        guard let scopes = nsDict["__SCOPED__"] as? NSDictionary else { return false }
+        for key in scopes.allKeys {
+            if let name = key as? String, name.hasPrefix("utun") || name.hasPrefix("tun") || name.hasPrefix("ipsec") {
+                return true
+            }
+        }
+        return false
     }
 
     /// Kiểm tra kết nối tới LocalDevVPN tunnel (10.7.0.1)
