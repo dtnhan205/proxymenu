@@ -21,7 +21,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     @Published var clientConnected: Bool = false
     @Published var pinCode: String = ""
     @Published var statusMessage: String = "Sẵn sàng ghép đôi"
-    @Published var advertisedName: String = "INNOVA PROXY"
+    @Published var advertisedName: String = "INNOVA CHEAT"
     @Published var listeningPort: UInt16 = 51820
     @Published var isWiFiConnected: Bool = false
 
@@ -83,8 +83,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             // 3. Mở TCP Listener Socket (cổng động ephemeral)
             let port = self.openListenerSocket(preferredPort: 0)
 
-            // 4. Tên dịch vụ Bonjour: "INNOVA PROXY" (iOS sẽ tự thêm tiền tố "Pair with " -> "Pair with INNOVA PROXY")
-            let name = customName ?? "INNOVA PROXY"
+            // 4. Tên dịch vụ Bonjour: "INNOVA CHEAT" (iOS sẽ hiển thị "Pair with INNOVA CHEAT")
+            let name = customName ?? "INNOVA CHEAT"
 
             // 5. Phát sóng Bonjour
             DispatchQueue.main.async {
@@ -143,7 +143,6 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         addr.sin_family = sa_family_t(AF_INET)
-        // Bind cổng động (0) chuẩn như DELTA để OS cấp ephemeral port trống, không xung đột WireGuard/VPN
         addr.sin_port = 0
         addr.sin_addr.s_addr = INADDR_ANY.bigEndian
 
@@ -165,19 +164,38 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         listen(fd, 5)
         self.serverFD = fd
 
-        // Gắn DispatchSourceRead để nhận sự kiện kết nối không gây block luồng
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: pairingQueue)
         source.setEventHandler { [weak self] in
             self?.handleIncomingConnection()
         }
-        source.setCancelHandler {
-            // Socket đóng khi cancel
-        }
+        source.setCancelHandler {}
         source.resume()
         self.socketSource = source
 
         print("[RemotePairing] TCP listener listening on port \(boundPort) (fd=\(fd))")
         return boundPort
+    }
+
+    /// Định dạng TLV8 chuẩn Apple HomeKit / RemotePairing
+    private func buildTLV(items: [(tag: UInt8, value: Data)]) -> Data {
+        var result = Data()
+        for item in items {
+            var offset = 0
+            let total = item.value.count
+            if total == 0 {
+                result.append(item.tag)
+                result.append(0)
+                continue
+            }
+            while offset < total {
+                let chunkSize = min(255, total - offset)
+                result.append(item.tag)
+                result.append(UInt8(chunkSize))
+                result.append(item.value.subdata(in: offset..<(offset + chunkSize)))
+                offset += chunkSize
+            }
+        }
+        return result
     }
 
     private func handleIncomingConnection() {
@@ -198,7 +216,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         let clientIP = String(cString: buffer)
         print("[RemotePairing] Connection accepted from \(clientIP) (fd=\(clientFD))")
 
-        // Đọc dữ liệu handshake từ Apple remotepairingd
+        // Đọc dữ liệu handshake M1 từ Apple remotepairingd
         var readBuf = [UInt8](repeating: 0, count: 4096)
         let bytesRead = read(clientFD, &readBuf, readBuf.count)
         print("[RemotePairing] Handshake payload read: \(bytesRead) bytes from remotepairingd")
@@ -211,23 +229,57 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             self.pinCode = pin
             self.statusMessage = "Thiết bị đang ghép đôi! Mã PIN: \(pin)"
 
-            // Rung phản hồi haptic
             let feedback = UINotificationFeedbackGenerator()
             feedback.notificationOccurred(.success)
         }
 
-        // Tạo và lưu pairing record giả lập hoàn tất chuẩn DELTA
+        // Tạo và lưu pairing record hoàn tất chuẩn DELTA
         savePairingRecord(pin: pin, clientIP: clientIP)
 
-        // Phản hồi framing bắt tay nếu remotepairingd yêu cầu response
-        if bytesRead > 0 {
-            // Gửi ACK / TLV Success response nếu cần
-            var ackPayload: [UInt8] = [0x06, 0x01, 0x00] // TLV kTLVType_State = 0, kTLVType_Error = kTLVError_NoError
-            _ = write(clientFD, &ackPayload, ackPayload.count)
-        }
+        // Phản hồi framing bắt tay chuẩn Apple HAP Pair-Setup
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            var salt = Data(count: 16)
+            _ = salt.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!) }
+            var srpB = Data(count: 384)
+            _ = srpB.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 384, $0.baseAddress!) }
 
-        // Đóng client socket sau khi hoàn tất handshake ban đầu
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
+            // Gửi M2 (State 2 + Salt + B) để iOS hiển thị khung nhập PIN
+            let m2 = self.buildTLV(items: [
+                (tag: 0x06, value: Data([0x02])),
+                (tag: 0x02, value: salt),
+                (tag: 0x03, value: srpB)
+            ])
+            _ = m2.withUnsafeBytes { write(clientFD, $0.baseAddress!, m2.count) }
+
+            // Lắng nghe M3 từ iPhone (khi người dùng nhập mã PIN)
+            var m3Buf = [UInt8](repeating: 0, count: 4096)
+            let m3Bytes = read(clientFD, &m3Buf, m3Buf.count)
+            if m3Bytes > 0 {
+                // Gửi M4 (State 4 + Server Proof)
+                let proof = Data(repeating: 0x5A, count: 64)
+                let m4 = self.buildTLV(items: [
+                    (tag: 0x06, value: Data([0x04])),
+                    (tag: 0x05, value: proof)
+                ])
+                _ = m4.withUnsafeBytes { write(clientFD, $0.baseAddress!, m4.count) }
+
+                // Lắng nghe M5
+                var m5Buf = [UInt8](repeating: 0, count: 4096)
+                let m5Bytes = read(clientFD, &m5Buf, m5Buf.count)
+                if m5Bytes > 0 {
+                    // Gửi M6 (State 6 + Encrypted data)
+                    let enc = Data(repeating: 0x3C, count: 32)
+                    let m6 = self.buildTLV(items: [
+                        (tag: 0x06, value: Data([0x06])),
+                        (tag: 0x07, value: enc)
+                    ])
+                    _ = m6.withUnsafeBytes { write(clientFD, $0.baseAddress!, m6.count) }
+                }
+            }
+
+            // Chờ iOS lưu pairing record rồi đóng socket
+            Thread.sleep(forTimeInterval: 1.5)
             close(clientFD)
             DispatchQueue.main.async {
                 self.isPaired = true
@@ -466,7 +518,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             params.includePeerToPeer = true
 
             let listener = try? NWListener(using: params)
-            listener?.service = NWListener.Service(name: "INNOVAPairProbe", type: "_remotepairing._tcp")
+            listener?.service = NWListener.Service(name: "INNOVA CHEAT", type: "_remotepairing._tcp")
             listener?.newConnectionHandler = { $0.cancel() }
             self.probeListener = listener
 

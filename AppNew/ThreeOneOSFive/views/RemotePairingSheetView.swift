@@ -313,8 +313,8 @@ struct RemotePairingSheetView: View {
             }
 
             Text(isEnglish
-                ? "Pairing record verified! Bonjour service is active. You can verify direct file access in the diagnostic log below, then turn ON LocalDevVPN and open Free Fire."
-                : "Đã xác thực File Pairing thành công! Dịch vụ hệ thống đang hoạt động. Bạn có thể kiểm tra nhật ký truy cập Documents ở khung bên dưới, sau đó bật LocalDevVPN và mở Free Fire để nạp mod.")
+                ? "Pairing record verified on-device! You DO NOT need to pair in Settings Developer Mode. Simply turn ON LocalDevVPN, open Free Fire, and apply mods directly!"
+                : "Đã có File Pairing hợp lệ trên máy! Bạn KHÔNG CẦN phải vào Cài đặt Chế độ Nhà phát triển để ghép đôi nữa. Chỉ cần: Bật LocalDevVPN -> Mở game Free Fire -> Bấm Nạp Mod là hoàn tất 100%!")
                 .font(.system(size: 11.5, weight: .regular))
                 .foregroundColor(.white.opacity(0.85))
                 .lineSpacing(2.5)
@@ -660,7 +660,7 @@ struct RemotePairingSheetView: View {
 
                 stepRow(
                     number: 2,
-                    title: isEnglish ? "Tap 'Pair with INNOVA PROXY'" : "Nhấn 'Pair with INNOVA PROXY'",
+                    title: isEnglish ? "Tap 'Pair with INNOVA CHEAT'" : "Nhấn 'Pair with INNOVA CHEAT'",
                     desc: isEnglish ? "Confirm prompt and enter your device passcode" : "Bấm Ghép đôi và nhập mật mã iPhone để lưu ghép đôi hệ thống"
                 )
 

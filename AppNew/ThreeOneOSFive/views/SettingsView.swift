@@ -77,7 +77,7 @@ struct SettingsView: View {
                 feedback.notificationOccurred(.success)
             }
         } message: {
-            Text("Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với INNOVA PROXY'. Sau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
+            Text("Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với INNOVA CHEAT'. Hoặc bạn có thể bấm 'Tạo File Trực Tiếp' trong cửa sổ ghép đôi để hoàn tất ngay trên máy.")
         }
         .sheet(isPresented: $showPairingSheet) {
             RemotePairingSheetView()

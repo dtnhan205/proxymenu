@@ -1898,7 +1898,7 @@ struct ContentView: View {
                 startPairingFlow()
             }
         } message: {
-            let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "INNOVA PROXY"
+            let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "INNOVA CHEAT"
             Text(isEnglish
                 ? "On iPhone: Settings -> Privacy & Security -> Developer Mode -> 'Pair with \(appName)'.\n\nA PIN code will appear — enter it on device."
                 : "Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với \(appName)'.\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")

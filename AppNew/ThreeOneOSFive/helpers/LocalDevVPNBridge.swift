@@ -212,20 +212,33 @@ enum LocalDevVPNBridge {
         guard isBridgeSupportedOS else { return nil }
 
         if let cached = cachedContainerPaths[bundleID], !cached.isEmpty {
-            if FileManager.default.fileExists(atPath: cached) {
+            if ContainerStore.isApplicationContainerPath(cached) && FileManager.default.fileExists(atPath: cached) {
                 return cached
             }
             cachedContainerPaths.removeValue(forKey: bundleID)
         }
 
-        // 1. Kiểm tra qua LSApplicationProxy (nhanh & chính xác nhất nếu API khả dụng)
+        // 1. Kiểm tra qua MobileContainerManager (MCMActivateContainerPath)
+        var lookupError: NSString?
+        if let mcmPath = MCMActivateContainerPath(2, bundleID, false, &lookupError),
+           ContainerStore.isApplicationContainerPath(mcmPath) {
+            _ = ContainerStore.grantContainerAccess(mcmPath)
+            cachedContainerPaths[bundleID] = mcmPath
+            return mcmPath
+        }
+
+        // 2. Kiểm tra qua LSApplicationProxy (chỉ chấp nhận nếu path hợp lệ /Containers/Data/Application/...)
         let info = (appInfoForBundleID(bundleID) as? [String: Any]) ?? [:]
-        if let container = info["container"] as? String, !container.isEmpty, FileManager.default.fileExists(atPath: container) {
+        if let container = info["container"] as? String,
+           !container.isEmpty,
+           ContainerStore.isApplicationContainerPath(container),
+           FileManager.default.fileExists(atPath: container) {
+            _ = ContainerStore.grantContainerAccess(container)
             cachedContainerPaths[bundleID] = container
             return container
         }
 
-        // 2. Quét qua appDataRoot /var/mobile/Containers/Data/Application
+        // 3. Quét qua appDataRoot /var/mobile/Containers/Data/Application
         let candidates = [
             "/var/mobile/Containers/Data/Application",
             "/private/var/mobile/Containers/Data/Application"
@@ -241,6 +254,7 @@ enum LocalDevVPNBridge {
                    let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
                    let bid = plist["MCMMetadataIdentifier"] as? String,
                    bid == bundleID {
+                    _ = ContainerStore.grantContainerAccess(containerPath)
                     cachedContainerPaths[bundleID] = containerPath
                     return containerPath
                 }
@@ -252,6 +266,7 @@ enum LocalDevVPNBridge {
                         let unityFolder = "\(containerPath)/Library/Unity"
                         let shadowTracker = "\(docsPath)/contentcache"
                         if FileManager.default.fileExists(atPath: unityFolder) || FileManager.default.fileExists(atPath: shadowTracker) {
+                            _ = ContainerStore.grantContainerAccess(containerPath)
                             cachedContainerPaths[bundleID] = containerPath
                             return containerPath
                         }
@@ -342,18 +357,30 @@ enum LocalDevVPNBridge {
                 logEntry("GAME", "\(displayName): Thử tìm theo bundle ID \(bundleID)", icon: "🔍")
             }
 
-            // Tìm container path
-            let containerPath = resolveContainerPath(bundleID: bundleID)
-                ?? (info["container"] as? String)
-                ?? ContainerStore.resolveAppContainerPath(bundleID: bundleID)
+            // Tìm container path (chỉ chấp nhận container hợp lệ của game, tuyệt đối không chấp nhận /var/mobile)
+            var containerPath: String? = nil
+            if let c = ContainerStore.resolveAppContainerPath(bundleID: bundleID), ContainerStore.isApplicationContainerPath(c) {
+                containerPath = c
+            } else if let c = resolveContainerPath(bundleID: bundleID), ContainerStore.isApplicationContainerPath(c) {
+                containerPath = c
+            } else if let c = info["container"] as? String, ContainerStore.isApplicationContainerPath(c) {
+                containerPath = c
+            }
 
-            if let container = containerPath, !container.isEmpty {
+            if let container = containerPath, ContainerStore.isApplicationContainerPath(container) {
                 logEntry("CONTAINER", "Container Data: \(container)", icon: "📂")
 
                 let docsPath = (container as NSString).appendingPathComponent("Documents")
                 let docsExists = FileManager.default.fileExists(atPath: docsPath)
 
                 if docsExists {
+                    let grantHandle = ContainerStore.grantContainerAccess(container)
+                    defer {
+                        if grantHandle >= 0 {
+                            bad_query_release(grantHandle)
+                        }
+                    }
+
                     let isReadable = FileManager.default.isReadableFile(atPath: docsPath)
                     let isWritable = FileManager.default.isWritableFile(atPath: docsPath)
                     logEntry("DOCUMENTS", "Thư mục Documents: TỒN TẠI (Đọc: \(isReadable ? "OK" : "NO"), Ghi: \(isWritable ? "OK" : "NO"))", icon: "📁")
@@ -418,7 +445,14 @@ enum LocalDevVPNBridge {
         var success = false
 
         // 1. Ghi trực tiếp vào Container nếu đã tìm thấy đường dẫn
-        if let containerPath = resolveContainerPath(bundleID: target.rawValue) {
+        if let containerPath = resolveContainerPath(bundleID: target.rawValue),
+           ContainerStore.isApplicationContainerPath(containerPath) {
+            let grantHandle = ContainerStore.grantContainerAccess(containerPath)
+            defer {
+                if grantHandle >= 0 {
+                    bad_query_release(grantHandle)
+                }
+            }
             let docsURL = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents", isDirectory: true)
             let deepCfgDir = docsURL.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
             let deepTokDir = docsURL.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)

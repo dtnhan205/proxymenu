@@ -82,7 +82,14 @@ static void addApplicationInfo(NSMutableDictionary *result, NSString *fallbackBu
 
     NSMutableDictionary *entry = [NSMutableDictionary dictionary];
     entry[@"name"] = name.length > 0 ? name : bundleID;
-    if (container.length > 0) entry[@"container"] = container;
+    if (container.length > 0 &&
+        ![container isEqualToString:@"/var/mobile"] &&
+        ![container isEqualToString:@"/var/mobile/"] &&
+        ![container isEqualToString:@"/private/var/mobile"] &&
+        ![container isEqualToString:@"/private/var/mobile/"] &&
+        [container containsString:@"/Containers/Data/Application"]) {
+        entry[@"container"] = container;
+    }
     if (version.length > 0) entry[@"version"] = version;
     result[bundleID] = entry;
 }
@@ -342,8 +349,31 @@ NSDictionary *appInfoForBundleID(NSString *bundleID) {
         id value = ((id (*)(id, SEL))objc_msgSend)(proxy, containerSel);
         NSString *path = [value isKindOfClass:[NSURL class]] ? [value path] : value;
         if ([path isKindOfClass:[NSString class]] && path.length > 0) {
-            result[@"container"] = path;
-            break;
+            if (![path isEqualToString:@"/var/mobile"] &&
+                ![path isEqualToString:@"/var/mobile/"] &&
+                ![path isEqualToString:@"/private/var/mobile"] &&
+                ![path isEqualToString:@"/private/var/mobile/"] &&
+                [path containsString:@"/Containers/Data/Application"]) {
+                result[@"container"] = path;
+                break;
+            }
+        }
+    }
+
+    if (!result[@"container"]) {
+        SEL envSel = NSSelectorFromString(@"environmentVariables");
+        if ([proxy respondsToSelector:envSel]) {
+            id env = ((id (*)(id, SEL))objc_msgSend)(proxy, envSel);
+            if ([env isKindOfClass:[NSDictionary class]]) {
+                for (NSString *key in @[@"HOME", @"CFFIXED_USER_HOME"]) {
+                    NSString *home = env[key];
+                    if ([home isKindOfClass:[NSString class]] &&
+                        [home containsString:@"/Containers/Data/Application"]) {
+                        result[@"container"] = home;
+                        break;
+                    }
+                }
+            }
         }
     }
 
