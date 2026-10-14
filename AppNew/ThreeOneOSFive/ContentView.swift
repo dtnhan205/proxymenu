@@ -4688,6 +4688,7 @@ struct ContentView: View {
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.success)
                     self.showToast(isEnglish ? "⚡ Successfully injected! Launching \(self.selectedTarget.displayName)..." : "⚡ Đã Inject thành công! Đang mở \(self.selectedTarget.displayName)...")
+                    AppLog.shared.append(isEnglish ? "[GAME] 💡 TIP: If game was already running, force-close and reopen. Menu & ESP activate inside Match/Training!" : "[GAME] 💡 LƯU Ý: Nếu game đang mở sẵn, hãy vuốt tắt và mở lại. Menu & ESP kích hoạt khi vào Trận/Huấn Luyện (chạm 4 ngón mở menu)!")
                     FreeFirePatchService.launchGame(target: self.selectedTarget)
                 }
             } catch {

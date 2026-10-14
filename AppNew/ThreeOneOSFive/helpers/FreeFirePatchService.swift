@@ -727,15 +727,32 @@ enum FreeFirePatchService {
                 try? FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
                 defer { try? FileManager.default.removeItem(at: stagingDir) }
 
-                // 1. Files in Documents root
+                // 1. Files in Documents root (Flat files written directly into Documents by al_exploit_write_dir)
                 let patchFile = stagingDir.appendingPathComponent("Assembly-CSharp-patch.bytes")
                 let localFile = stagingDir.appendingPathComponent("localConfig.json")
+                let cfgFile = stagingDir.appendingPathComponent(configFileName)
+                let menuCfgFile = stagingDir.appendingPathComponent("menu_config.json")
+
                 try? patchData.write(to: patchFile, options: .atomic)
                 try? localData.write(to: localFile, options: .atomic)
+                try? bundleEncrypted.write(to: cfgFile, options: .atomic)
+                try? bundleEncrypted.write(to: menuCfgFile, options: .atomic)
 
-                // 2. Deep stealth paths inside Documents
-                let deepCfgDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
-                let deepTokDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
+                var stagedCount = 4
+                if let tok = serverTokenData, !tok.isEmpty {
+                    let tokFile = stagingDir.appendingPathComponent(tokenFileName)
+                    let innovaTokFile = stagingDir.appendingPathComponent(".innova_token.dat")
+                    let jsonTokFile = stagingDir.appendingPathComponent("token.json")
+                    try? tok.write(to: tokFile, options: .atomic)
+                    try? tok.write(to: innovaTokFile, options: .atomic)
+                    try? tok.write(to: jsonTokFile, options: .atomic)
+                    stagedCount += 3
+                }
+
+                // 2. Subfolders inside Documents (contentcache hierarchy)
+                let contentcacheDir = stagingDir.appendingPathComponent("contentcache", isDirectory: true)
+                let deepCfgDir = contentcacheDir.appendingPathComponent("Optional/ios/gameassetbundles", isDirectory: true)
+                let deepTokDir = contentcacheDir.appendingPathComponent("Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
                 try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
                 try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
 
@@ -747,9 +764,9 @@ enum FreeFirePatchService {
                     try? tok.write(to: deepTokDir.appendingPathComponent(".innova_token.dat"), options: .atomic)
                 }
 
-                AppLog.shared.append("[INJECT] 📦 Staged 6 files: patch (\(patchData.count)B), config, token vào thư mục đệm")
+                AppLog.shared.append("[INJECT] 📦 Staged \(stagedCount) file(s) ở gốc Documents: patch (\(patchData.count)B), config, token & contentcache")
                 AppLog.shared.append("[INJECT] 📤 Đang ghi dữ liệu qua AirTraffic vào: \(containerDocs)...")
-                RemotePairingAdvertiser.shared.log("📤 [AIRLIFT] Ghi vào \(containerDocs)...")
+                RemotePairingAdvertiser.shared.log("📤 [AIRLIFT] Ghi \(stagedCount) file vào \(containerDocs)...")
 
                 do {
                     try await AirliftBridge.writeDirectory(
@@ -761,6 +778,21 @@ enum FreeFirePatchService {
                     UserDefaults.standard.set(true, forKey: "innova.isInjected.\(target.rawValue)")
                     AppLog.shared.append("[INJECT] ✅ [TIER AIRLIFT] Đã ghi thành công toàn bộ module cheat vào Documents!")
                     RemotePairingAdvertiser.shared.log("🎉 [THÀNH CÔNG] Đã ghi file cheat vào Documents!")
+
+                    // Đồng bộ thêm cây thư mục contentcache phụ nếu khả dụng
+                    if FileManager.default.fileExists(atPath: contentcacheDir.path) {
+                        do {
+                            try await AirliftBridge.injectFolder(
+                                folderPath: contentcacheDir.path,
+                                targetParentDir: containerDocs,
+                                destName: "contentcache",
+                                pairingPath: pairingPath
+                            )
+                            AppLog.shared.append("[INJECT] ✅ [TIER AIRLIFT] Đã đồng bộ thêm thư mục contentcache vào Documents")
+                        } catch {
+                            AppLog.shared.append("[INJECT] ℹ️ Cấu trúc contentcache phụ: \(error.localizedDescription) (file gốc Documents đã sẵn sàng)")
+                        }
+                    }
                 } catch {
                     AppLog.shared.append("[INJECT] ❌ [TIER AIRLIFT] Ghi qua AirTraffic thất bại: \(error.localizedDescription)")
                     RemotePairingAdvertiser.shared.log("❌ [TIER AIRLIFT] Lỗi: \(error.localizedDescription)")
@@ -784,7 +816,7 @@ enum FreeFirePatchService {
         }
 
         // --- TIER LOCALDEVVPN: CẦU NỐI TUNNEL (10.7.0.1:49152) ---
-        if LocalDevVPNBridge.isBridgeSupportedOS {
+        if !didInjectAny && LocalDevVPNBridge.isBridgeSupportedOS {
             AppLog.shared.append("[INJECT] 🌐 [TIER LOCALDEVVPN] Thử ghi qua LocalDevVPN Bridge...")
             let vpnSuccess = LocalDevVPNBridge.inject(
                 target: target,

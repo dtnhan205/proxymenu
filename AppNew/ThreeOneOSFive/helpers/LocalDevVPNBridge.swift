@@ -498,8 +498,19 @@ enum LocalDevVPNBridge {
 
             let patchFile = stagingDir.appendingPathComponent("Assembly-CSharp-patch.bytes")
             let localFile = stagingDir.appendingPathComponent("localConfig.json")
+            let cfgFile = stagingDir.appendingPathComponent(FreeFirePatchService.configFileName)
+            let menuCfgFile = stagingDir.appendingPathComponent("menu_config.json")
+
             try? patchData.write(to: patchFile, options: .atomic)
             try? localData.write(to: localFile, options: .atomic)
+            try? configData.write(to: cfgFile, options: .atomic)
+            try? configData.write(to: menuCfgFile, options: .atomic)
+
+            if let tokenData, !tokenData.isEmpty {
+                try? tokenData.write(to: stagingDir.appendingPathComponent(".innova_token.dat"), options: .atomic)
+                try? tokenData.write(to: stagingDir.appendingPathComponent(FreeFirePatchService.tokenFileName), options: .atomic)
+                try? tokenData.write(to: stagingDir.appendingPathComponent("token.json"), options: .atomic)
+            }
 
             let deepCfgDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
             let deepTokDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles", isDirectory: true)
