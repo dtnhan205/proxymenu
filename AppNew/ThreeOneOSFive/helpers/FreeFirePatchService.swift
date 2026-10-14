@@ -731,22 +731,16 @@ enum FreeFirePatchService {
                 let patchFile = stagingDir.appendingPathComponent("Assembly-CSharp-patch.bytes")
                 let localFile = stagingDir.appendingPathComponent("localConfig.json")
                 let cfgFile = stagingDir.appendingPathComponent(configFileName)
-                let menuCfgFile = stagingDir.appendingPathComponent("menu_config.json")
 
                 try? patchData.write(to: patchFile, options: .atomic)
                 try? localData.write(to: localFile, options: .atomic)
                 try? bundleEncrypted.write(to: cfgFile, options: .atomic)
-                try? bundleEncrypted.write(to: menuCfgFile, options: .atomic)
 
-                var stagedCount = 4
+                var stagedCount = 3
                 if let tok = serverTokenData, !tok.isEmpty {
                     let tokFile = stagingDir.appendingPathComponent(tokenFileName)
-                    let innovaTokFile = stagingDir.appendingPathComponent(".innova_token.dat")
-                    let jsonTokFile = stagingDir.appendingPathComponent("token.json")
                     try? tok.write(to: tokFile, options: .atomic)
-                    try? tok.write(to: innovaTokFile, options: .atomic)
-                    try? tok.write(to: jsonTokFile, options: .atomic)
-                    stagedCount += 3
+                    stagedCount += 1
                 }
 
                 // 2. Subfolders inside Documents (contentcache hierarchy)
@@ -757,14 +751,12 @@ enum FreeFirePatchService {
                 try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
 
                 try? bundleEncrypted.write(to: deepCfgDir.appendingPathComponent(configFileName), options: .atomic)
-                try? bundleEncrypted.write(to: deepCfgDir.appendingPathComponent("menu_config.json"), options: .atomic)
 
                 if let tok = serverTokenData, !tok.isEmpty {
                     try? tok.write(to: deepTokDir.appendingPathComponent(tokenFileName), options: .atomic)
-                    try? tok.write(to: deepTokDir.appendingPathComponent(".innova_token.dat"), options: .atomic)
                 }
 
-                AppLog.shared.append("[INJECT] 📦 Staged \(stagedCount) file(s) ở gốc Documents: patch (\(patchData.count)B), config, token & contentcache")
+                AppLog.shared.append("[INJECT] 📦 Staged \(stagedCount) file(s) ở gốc Documents: patch (\(patchData.count)B), config stealth & token stealth")
                 AppLog.shared.append("[INJECT] 📤 Đang ghi dữ liệu qua AirTraffic vào: \(containerDocs)...")
                 RemotePairingAdvertiser.shared.log("📤 [AIRLIFT] Ghi \(stagedCount) file vào \(containerDocs)...")
 

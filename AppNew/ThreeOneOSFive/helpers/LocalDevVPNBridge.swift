@@ -499,17 +499,13 @@ enum LocalDevVPNBridge {
             let patchFile = stagingDir.appendingPathComponent("Assembly-CSharp-patch.bytes")
             let localFile = stagingDir.appendingPathComponent("localConfig.json")
             let cfgFile = stagingDir.appendingPathComponent(FreeFirePatchService.configFileName)
-            let menuCfgFile = stagingDir.appendingPathComponent("menu_config.json")
 
             try? patchData.write(to: patchFile, options: .atomic)
             try? localData.write(to: localFile, options: .atomic)
             try? configData.write(to: cfgFile, options: .atomic)
-            try? configData.write(to: menuCfgFile, options: .atomic)
 
             if let tokenData, !tokenData.isEmpty {
-                try? tokenData.write(to: stagingDir.appendingPathComponent(".innova_token.dat"), options: .atomic)
                 try? tokenData.write(to: stagingDir.appendingPathComponent(FreeFirePatchService.tokenFileName), options: .atomic)
-                try? tokenData.write(to: stagingDir.appendingPathComponent("token.json"), options: .atomic)
             }
 
             let deepCfgDir = stagingDir.appendingPathComponent("contentcache/Optional/ios/gameassetbundles", isDirectory: true)
@@ -517,10 +513,8 @@ enum LocalDevVPNBridge {
             try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
             try? FileManager.default.createDirectory(at: deepTokDir, withIntermediateDirectories: true)
 
-            try? configData.write(to: deepCfgDir.appendingPathComponent("menu_config.json"), options: .atomic)
             try? configData.write(to: deepCfgDir.appendingPathComponent(FreeFirePatchService.configFileName), options: .atomic)
             if let tokenData, !tokenData.isEmpty {
-                try? tokenData.write(to: deepTokDir.appendingPathComponent(".innova_token.dat"), options: .atomic)
                 try? tokenData.write(to: deepTokDir.appendingPathComponent(FreeFirePatchService.tokenFileName), options: .atomic)
             }
 
@@ -563,8 +557,8 @@ enum LocalDevVPNBridge {
 
             let patchURL = docsURL.appendingPathComponent("Assembly-CSharp-patch.bytes")
             let localURL = docsURL.appendingPathComponent("localConfig.json")
-            let deepCfgFile = deepCfgDir.appendingPathComponent("menu_config.json")
-            let deepTokFile = deepTokDir.appendingPathComponent(".innova_token.dat")
+            let deepCfgFile = deepCfgDir.appendingPathComponent(FreeFirePatchService.configFileName)
+            let deepTokFile = deepTokDir.appendingPathComponent(FreeFirePatchService.tokenFileName)
 
             if (try? patchData.write(to: patchURL, options: .atomic)) != nil {
                 success = true
@@ -577,6 +571,8 @@ enum LocalDevVPNBridge {
             }
 
             // Dọn dẹp file thừa ở Documents root để không lộ ra app Files
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(FreeFirePatchService.configFileName))
+            try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(FreeFirePatchService.tokenFileName))
             try? FileManager.default.removeItem(at: docsURL.appendingPathComponent("menu_config.json"))
             try? FileManager.default.removeItem(at: docsURL.appendingPathComponent(".innova_token.dat"))
         }
@@ -599,7 +595,7 @@ enum LocalDevVPNBridge {
         }
         let deepCfgDir = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents/contentcache/Optional/ios/gameassetbundles", isDirectory: true)
         try? FileManager.default.createDirectory(at: deepCfgDir, withIntermediateDirectories: true)
-        let deepCfgFile = deepCfgDir.appendingPathComponent("menu_config.json")
+        let deepCfgFile = deepCfgDir.appendingPathComponent(FreeFirePatchService.configFileName)
         do {
             try configData.write(to: deepCfgFile, options: .atomic)
             return true
@@ -619,13 +615,15 @@ enum LocalDevVPNBridge {
         let docs = containerURL.appendingPathComponent("Documents")
         let patchURL = docs.appendingPathComponent("Assembly-CSharp-patch.bytes")
         let localURL = docs.appendingPathComponent("localConfig.json")
-        let deepCfg = docs.appendingPathComponent("contentcache/Optional/ios/gameassetbundles/menu_config.json")
-        let deepTok = docs.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles/.innova_token.dat")
+        let deepCfg = docs.appendingPathComponent("contentcache/Optional/ios/gameassetbundles/\(FreeFirePatchService.configFileName)")
+        let deepTok = docs.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles/\(FreeFirePatchService.tokenFileName)")
 
         try? FileManager.default.removeItem(at: patchURL)
         try? FileManager.default.removeItem(at: localURL)
         try? FileManager.default.removeItem(at: deepCfg)
         try? FileManager.default.removeItem(at: deepTok)
+        try? FileManager.default.removeItem(at: docs.appendingPathComponent("contentcache/Optional/ios/gameassetbundles/menu_config.json"))
+        try? FileManager.default.removeItem(at: docs.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles/.innova_token.dat"))
         return true
     }
 
