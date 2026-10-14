@@ -35,104 +35,84 @@ enum LocalDevVPNBridge {
 
     // MARK: - Live Network Interface & Tunnel Probe
 
-    /// Kiểm tra xem Network Interface của LocalDevVPN (utun với IP 10.7.0.1 / 10.7.1.1) có đang Active trên máy không
-    static func detectVPNInterface() -> (active: Bool, deviceIP: String, tunnelIP: String) {
+    struct VPNInterfaceInfo {
+        let active: Bool
+        let deviceIP: String
+        let tunnelIP: String
+        let interfaceName: String
+    }
+
+    /// Kiểm tra xem Network Interface của LocalDevVPN (utun với IP 10.7.0.1 / 10.7.1.1) có đang Active thực tế trên máy không
+    /// QUY TẮC CHẶT CHẼ:
+    /// - Chỉ chấp nhận interface ảo có tên bắt đầu bằng "utun" (LocalDevVPN NetworkExtension PacketTunnel).
+    /// - Cờ mạng bắt buộc phải IFF_UP và IFF_RUNNING.
+    /// - IP thiết bị bắt buộc phải chính xác là "10.7.0.1" (do LocalDevVPN cấu hình).
+    /// - Tuyệt đối không kiểm tra en0 (Wi-Fi), pdp_ip0 (Cellular), lo0 (Loopback) để tránh kết quả giả mạo.
+    static func detectVPNInterface() -> VPNInterfaceInfo {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
-            return (false, "", "")
+            return VPNInterfaceInfo(active: false, deviceIP: "", tunnelIP: "", interfaceName: "")
         }
         defer { freeifaddrs(ifaddr) }
 
         var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
-        var foundDeviceIP = ""
-        var isFound = false
 
         while let current = ptr {
             let interface = current.pointee
-            let addrFamily = interface.ifa_addr.pointee.sa_family
-            if addrFamily == UInt8(AF_INET) {
-                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                getnameinfo(
-                    interface.ifa_addr,
-                    socklen_t(interface.ifa_addr.pointee.sa_len),
-                    &hostname,
-                    socklen_t(hostname.count),
-                    nil,
-                    0,
-                    NI_NUMERICHOST
-                )
-                let ip = String(cString: hostname)
-                if ip == "10.7.0.1" || ip.hasPrefix("10.7.") {
-                    foundDeviceIP = ip
-                    isFound = true
-                    break
+            let flags = UInt32(interface.ifa_flags)
+
+            // 1. Giao diện mạng bắt buộc phải đang BẬT (IFF_UP) và đang CHẠY (IFF_RUNNING)
+            let isUp = (flags & UInt32(IFF_UP)) != 0
+            let isRunning = (flags & UInt32(IFF_RUNNING)) != 0
+
+            if isUp && isRunning, let ifaAddr = interface.ifa_addr {
+                let name = String(cString: interface.ifa_name)
+
+                // 2. LocalDevVPN trên iOS luôn tạo interface ảo utun (chẳng hạn utun0, utun1, utun2...)
+                if name.hasPrefix("utun") {
+                    let addrFamily = ifaAddr.pointee.sa_family
+                    if addrFamily == UInt8(AF_INET) {
+                        var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                        let res = getnameinfo(
+                            ifaAddr,
+                            socklen_t(ifaAddr.pointee.sa_len),
+                            &hostname,
+                            socklen_t(hostname.count),
+                            nil,
+                            0,
+                            NI_NUMERICHOST
+                        )
+                        if res == 0 {
+                            let ip = String(cString: hostname)
+                            // 3. Địa chỉ IP của LocalDevVPN trên máy bắt buộc là 10.7.0.1 (Device IP)
+                            if ip == defaultHost {
+                                var tunnelIP = tunnelHost
+                                if let dstAddr = interface.ifa_dstaddr, dstAddr.pointee.sa_family == UInt8(AF_INET) {
+                                    var dstHost = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                                    if getnameinfo(dstAddr, socklen_t(dstAddr.pointee.sa_len), &dstHost, socklen_t(dstHost.count), nil, 0, NI_NUMERICHOST) == 0 {
+                                        let parsedDst = String(cString: dstHost)
+                                        if !parsedDst.isEmpty {
+                                            tunnelIP = parsedDst
+                                        }
+                                    }
+                                }
+                                return VPNInterfaceInfo(active: true, deviceIP: ip, tunnelIP: tunnelIP, interfaceName: name)
+                            }
+                        }
+                    }
                 }
             }
             ptr = interface.ifa_next
         }
 
-        if isFound {
-            return (true, foundDeviceIP.isEmpty ? defaultHost : foundDeviceIP, tunnelHost)
-        }
-        return (false, "", "")
+        return VPNInterfaceInfo(active: false, deviceIP: "", tunnelIP: "", interfaceName: "")
     }
 
-    /// Kiểm tra kết nối tới LocalDevVPN tunnel (10.7.0.1, 10.7.1.1 hoặc 127.0.0.1)
-    static func isTunnelActive(host: String = defaultHost, port: UInt16 = defaultPort, timeoutSeconds: Double = 0.4) -> Bool {
+    /// Kiểm tra kết nối tới LocalDevVPN tunnel (10.7.0.1)
+    /// Trả về true NẾU VÀ CHỈ NẾU giao diện utun của LocalDevVPN đang hoạt động thực tế
+    static func isTunnelActive() -> Bool {
         guard isBridgeSupportedOS else { return false }
-
-        // 1. Kiểm tra interface mạng utun của LocalDevVPN (10.7.0.1 / 10.7.1.1)
-        if detectVPNInterface().active {
-            return true
-        }
-
-        // 2. Thử socket probe tới các IP của LocalDevVPN
-        for candidate in [defaultHost, tunnelHost, loopbackHost] {
-            if probeSocket(host: candidate, port: port, timeoutSeconds: timeoutSeconds) {
-                return true
-            }
-        }
-        return false
-    }
-
-    /// Thử kết nối TCP socket non-blocking tới endpoint với timeout
-    private static func probeSocket(host: String, port: UInt16, timeoutSeconds: Double) -> Bool {
-        var hints = addrinfo()
-        hints.ai_family = AF_INET
-        hints.ai_socktype = SOCK_STREAM
-
-        var res: UnsafeMutablePointer<addrinfo>?
-        let portString = "\(port)"
-        guard getaddrinfo(host, portString, &hints, &res) == 0, let addr = res else {
-            return false
-        }
-        defer { freeaddrinfo(res) }
-
-        let sock = socket(addr.pointee.ai_family, addr.pointee.ai_socktype, addr.pointee.ai_protocol)
-        guard sock >= 0 else { return false }
-        defer { close(sock) }
-
-        // Set non-blocking mode
-        let flags = fcntl(sock, F_GETFL, 0)
-        _ = fcntl(sock, F_SETFL, flags | O_NONBLOCK)
-
-        let connectResult = connect(sock, addr.pointee.ai_addr, addr.pointee.ai_addrlen)
-        if connectResult == 0 {
-            return true
-        }
-
-        if errno == EINPROGRESS {
-            var pfd = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
-            let pollRes = poll(&pfd, 1, Int32(timeoutSeconds * 1000))
-            if pollRes > 0 && (pfd.revents & Int16(POLLOUT)) != 0 {
-                var err: Int32 = 0
-                var len = socklen_t(MemoryLayout<Int32>.size)
-                if getsockopt(sock, SOL_SOCKET, SO_ERROR, &err, &len) == 0 && err == 0 {
-                    return true
-                }
-            }
-        }
-        return false
+        return detectVPNInterface().active
     }
 
     // MARK: - Container Resolution (iOS 18.7.x & iOS 27)
@@ -291,7 +271,8 @@ enum LocalDevVPNBridge {
     /// Gửi tín hiệu thông báo tới LocalDevVPN tunnel nếu đang lắng nghe
     private static func notifyTunnelOfInjection(target: FreeFireTarget) {
         guard isBridgeSupportedOS else { return }
-        for host in [defaultHost, tunnelHost, loopbackHost] {
+        guard isTunnelActive() else { return }
+        for host in [defaultHost, tunnelHost] {
             guard let url = URL(string: "http://\(host):\(defaultPort)/airlift/ping") else { continue }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
@@ -314,33 +295,24 @@ enum LocalDevVPNBridge {
         let osName = isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
         let vpn = detectVPNInterface()
         if vpn.active {
-            return "\(osName) LocalDevVPN (\(vpn.deviceIP)) — Đang kết nối"
-        } else if isTunnelActive() {
-            return "\(osName) LocalDevVPN (10.7.0.1) — Đang kết nối"
+            return "\(osName) LocalDevVPN (\(vpn.interfaceName): \(vpn.deviceIP)) — Đã kết nối"
         } else {
-            return "\(osName) LocalDevVPN / Pair — Sẵn sàng kết nối"
+            return "\(osName) LocalDevVPN — Chưa kết nối (VPN đang tắt)"
         }
     }
 
-    /// Thử nghiệm kết nối tới LocalDevVPN tunnel (10.7.0.1, 10.7.1.1 hoặc 127.0.0.1)
-    static func testConnection(timeoutSeconds: Double = 0.8) async -> (success: Bool, host: String) {
-        // 1. Kiểm tra trực tiếp Network Interface LocalDevVPN từ hệ thống iOS (như app LocalDevVPN hiển thị)
-        let vpn = detectVPNInterface()
-        if vpn.active {
-            return (true, "\(vpn.deviceIP) (Tunnel: \(vpn.tunnelIP))")
+    /// Kiểm tra kết nối tới LocalDevVPN tunnel thực tế (10.7.0.1)
+    /// Trả về success: true NẾU VÀ CHỈ NẾU giao diện utun đang UP và có IP 10.7.0.1
+    static func testConnection() async -> (success: Bool, host: String, interfaceName: String) {
+        guard isBridgeSupportedOS else {
+            return (false, "Không hỗ trợ phiên bản iOS này", "")
         }
 
-        // 2. Thử socket probe
-        return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                for candidate in [defaultHost, tunnelHost, loopbackHost] {
-                    if probeSocket(host: candidate, port: defaultPort, timeoutSeconds: timeoutSeconds) {
-                        continuation.resume(returning: (true, "\(candidate):\(defaultPort)"))
-                        return
-                    }
-                }
-                continuation.resume(returning: (false, "\(defaultHost) / \(tunnelHost)"))
-            }
+        let vpn = detectVPNInterface()
+        if vpn.active {
+            return (true, "\(vpn.deviceIP) (Tunnel: \(vpn.tunnelIP))", vpn.interfaceName)
+        } else {
+            return (false, "\(defaultHost) (Chưa kích hoạt)", "")
         }
     }
 }
@@ -353,40 +325,77 @@ final class LocalDevVPNManager: ObservableObject {
 
     @Published var isConnected: Bool = false
     @Published var isConnecting: Bool = false
-    @Published var statusMessage: String = "Chưa kết nối"
+    @Published var statusMessage: String = "Chưa kết nối (LocalDevVPN đang Tắt)"
     @Published var lastConnectedHost: String = "\(LocalDevVPNBridge.defaultHost) (Tunnel: \(LocalDevVPNBridge.tunnelHost))"
+    @Published var detectedInterfaceName: String = ""
     @Published var lastCheckDate: Date?
 
     private init() {
-        Task {
-            let res = await LocalDevVPNBridge.testConnection(timeoutSeconds: 0.3)
-            if res.success {
-                self.isConnected = true
-                self.statusMessage = "Đã kết nối (\(res.host))"
-                self.lastConnectedHost = res.host
-            }
+        refreshStatus()
+    }
+
+    /// Đồng bộ trạng thái thực tế từ interface kernel
+    func refreshStatus() {
+        let vpn = LocalDevVPNBridge.detectVPNInterface()
+        if vpn.active {
+            self.isConnected = true
+            self.detectedInterfaceName = vpn.interfaceName
+            self.statusMessage = "Đã kết nối (\(vpn.interfaceName): \(vpn.deviceIP))"
+            self.lastConnectedHost = "\(vpn.deviceIP) (Tunnel: \(vpn.tunnelIP))"
+        } else {
+            self.isConnected = false
+            self.detectedInterfaceName = ""
+            self.statusMessage = "Chưa kết nối (LocalDevVPN đang Tắt)"
+            self.lastConnectedHost = "\(LocalDevVPNBridge.defaultHost) (Chưa kích hoạt)"
         }
     }
 
-    /// Kích hoạt kết nối thủ công từ Cài đặt hoặc Màn hình chính
+    /// Kích hoạt kiểm tra kết nối thủ công từ Cài đặt hoặc Màn hình chính
     func connect() async -> (success: Bool, message: String) {
         isConnecting = true
         defer { isConnecting = false }
 
-        let res = await LocalDevVPNBridge.testConnection(timeoutSeconds: 1.0)
+        // Delay 0.25s để hiển thị spinner phản hồi thao tác người dùng
+        try? await Task.sleep(nanoseconds: 250_000_000)
+
+        let res = await LocalDevVPNBridge.testConnection()
         lastCheckDate = Date()
         let osName = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
+
         if res.success {
             isConnected = true
-            statusMessage = "Đã kết nối (\(res.host))"
+            detectedInterfaceName = res.interfaceName
+            statusMessage = "Đã kết nối (\(res.interfaceName): \(res.host))"
             lastConnectedHost = res.host
             _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireTH.rawValue)
             _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireMAX.rawValue)
-            return (true, "Đã kết nối thành công tới \(osName) LocalDevVPN (\(res.host))!")
+
+            let msg = """
+            ✅ PHÁT HIỆN LOCALDEVVPN HOẠT ĐỘNG THẬT!
+            • Giao diện mạng: \(res.interfaceName)
+            • IP thiết bị: \(res.host)
+
+            📱 BƯỚC TIẾP THEO (NHÀ PHÁT TRIỂN):
+            1. Mở Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển: Đảm bảo công tắc đã BẬT.
+            2. Nếu đây là lần đầu kết nối, mở Cài đặt > Nhà phát triển và xác nhận Ghép đôi thiết bị (Pairing).
+            3. Quay lại đây và nhấn 'NẠP CHEAT' để nạp menu vào game!
+            """
+            return (true, msg)
         } else {
             isConnected = false
-            statusMessage = "Chưa kết nối"
-            return (false, "Không tìm thấy LocalDevVPN (\(res.host)). Vui lòng đảm bảo app LocalDevVPN đang ở trạng thái Connected!")
+            detectedInterfaceName = ""
+            statusMessage = "Chưa kết nối (LocalDevVPN đang Tắt)"
+            lastConnectedHost = "\(LocalDevVPNBridge.defaultHost) (Chưa kích hoạt)"
+
+            let msg = """
+            ❌ KHÔNG TÌM THẤY LOCALDEVVPN: Giao diện utun (10.7.0.1) hiện đang TẮT!
+
+            👉 CÁCH XỬ LÝ (2 BƯỚC):
+            1. Thoát ra màn hình chính, mở ứng dụng 'LocalDevVPN'.
+            2. Gạt công tắc sang trạng thái 'Connected' (hiển thị Tunnel IP: 10.7.1.1, Device IP: 10.7.0.1).
+            3. Quay lại ứng dụng này và bấm nút 'KẾT NỐI \(osName.uppercased())' lại.
+            """
+            return (false, msg)
         }
     }
 }

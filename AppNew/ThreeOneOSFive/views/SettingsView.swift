@@ -56,7 +56,12 @@ struct SettingsView: View {
         .clipped()
         .preferredColorScheme(.dark)
         .alert(vpnAlertTitle, isPresented: $showVPNAlert) {
-            Button(language.text("common.ok")) {}
+            Button("Mở Cài Đặt iPhone") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button(language.text("common.ok"), role: .cancel) {}
         } message: {
             Text(vpnAlertMessage)
         }
@@ -239,16 +244,17 @@ struct SettingsView: View {
                 if success {
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.success)
-                    vpnAlertTitle = "⚡ \(os) LocalDevVPN / Pair"
+                    vpnAlertTitle = "⚡ \(os) LocalDevVPN"
                     vpnAlertMessage = message
                     showVPNAlert = true
-                    appState.exploitStatus = .success(method: "LocalDevVPN / Pair (10.7.0.1)")
+                    appState.exploitStatus = .success(method: "LocalDevVPN (\(vpnManager.detectedInterfaceName))")
                 } else {
                     let notif = UINotificationFeedbackGenerator()
                     notif.notificationOccurred(.error)
-                    vpnAlertTitle = "❌ Chưa kết nối"
+                    vpnAlertTitle = "❌ Chưa Bật LocalDevVPN"
                     vpnAlertMessage = message
                     showVPNAlert = true
+                    appState.exploitStatus = .notStarted
                 }
             }
         }

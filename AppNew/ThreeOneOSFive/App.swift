@@ -134,9 +134,14 @@ class AppState: ObservableObject {
             return
         }
 
-        // Đối với iOS 27: Sử dụng LocalDevVPN tunnel, không chạy kexploit_opa334
-        if v.major == 27 {
-            exploitStatus = .success(method: "LocalDevVPN")
+        // Đối với iOS 27 và iOS 18.7.2 - 18.7.10: Sử dụng LocalDevVPN tunnel, không chạy kexploit_opa334
+        if LocalDevVPNBridge.isBridgeSupportedOS {
+            let vpn = LocalDevVPNBridge.detectVPNInterface()
+            if vpn.active {
+                exploitStatus = .success(method: "LocalDevVPN (\(vpn.interfaceName))")
+            } else {
+                exploitStatus = .notStarted
+            }
             return
         }
 
