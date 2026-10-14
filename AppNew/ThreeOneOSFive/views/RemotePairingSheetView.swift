@@ -660,7 +660,7 @@ struct RemotePairingSheetView: View {
 
                 stepRow(
                     number: 2,
-                    title: isEnglish ? "Tap 'Pair with INNOVA CHEAT'" : "Nhấn 'Pair with INNOVA CHEAT'",
+                    title: isEnglish ? "Tap 'Pair with DELTA PROXY'" : "Nhấn 'Ghép đôi với DELTA PROXY'",
                     desc: isEnglish ? "Confirm prompt and enter your device passcode" : "Bấm Ghép đôi và nhập mật mã iPhone để lưu ghép đôi hệ thống"
                 )
 

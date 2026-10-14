@@ -1898,16 +1898,15 @@ struct ContentView: View {
                 startPairingFlow()
             }
         } message: {
-            let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "INNOVA CHEAT"
             Text(isEnglish
-                ? "On iPhone: Settings -> Privacy & Security -> Developer Mode -> 'Pair with \(appName)'.\n\nA PIN code will appear — enter it on device."
-                : "Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với \(appName)'.\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
+                ? "On iPhone: Settings -> Privacy & Security -> Developer Mode -> 'Pair with DELTA PROXY'.\n\nA PIN code will appear — enter it on device."
+                : "Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục \"Ghép với DELTA PROXY\".\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
         }
         .sheet(isPresented: $showPairingProgressSheet) {
             RemotePairingSheetView()
         }
         .sheet(isPresented: $showSettingsSheet) {
-            settingsSheetView
+            SettingsView()
         }
         .sheet(isPresented: $showLogModal) {
             LogTerminalModalView(isPresented: $showLogModal)
@@ -4506,10 +4505,10 @@ struct ContentView: View {
 
     private func startPairingFlow() {
         // 1. Bắt đầu phát sóng dịch vụ Bonjour _remotepairing-pairable-host._tcp.
-        pairingAdvertiser.startAdvertising()
+        pairingAdvertiser.startAdvertising(customName: "DELTA PROXY")
 
-        // 2. Mở Sheet hướng dẫn và theo dõi trạng thái ghép đôi
-        showPairingProgressSheet = true
+        // 2. Mở Cài Đặt để người dùng thấy trạng thái "Đang chờ thiết bị kết nối..."
+        showSettingsSheet = true
 
         // 3. Kiểm tra kết nối LocalDevVPN ngầm
         Task {
@@ -4518,7 +4517,6 @@ struct ContentView: View {
                 if success {
                     appState.exploitStatus = .success(method: "LocalDevVPN (\(vpnManager.detectedInterfaceName))")
                 } else {
-                    // Nếu chưa bật VPN, vẫn duy trì phát Bonjour để người dùng ghép đôi
                     print("[LocalDevVPN] Status check: \(message)")
                 }
             }

@@ -20,8 +20,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     @Published var isPaired: Bool = false
     @Published var clientConnected: Bool = false
     @Published var pinCode: String = ""
-    @Published var statusMessage: String = "Sẵn sàng ghép đôi"
-    @Published var advertisedName: String = "INNOVA CHEAT"
+    @Published var statusMessage: String = "Nhấn để sinh PIN & ghép đôi"
+    @Published var advertisedName: String = "DELTA PROXY"
     @Published var listeningPort: UInt16 = 51820
     @Published var isWiFiConnected: Bool = false
 
@@ -51,7 +51,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         super.init()
         if hasExistingPairing {
             self.isPaired = true
-            self.statusMessage = "Đã ghép đôi với thiết bị"
+            self.statusMessage = "Đã có pairing file · nhấn để test"
         }
 
         // Giám sát kết nối Wi-Fi liên tục
@@ -71,7 +71,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             guard let self = self else { return }
 
             DispatchQueue.main.async {
-                self.statusMessage = "Đang khởi động dịch vụ ghép đôi..."
+                self.isAdvertising = true
+                self.statusMessage = "Đang chờ thiết bị kết nối..."
             }
 
             // 1. Duy trì chạy ngầm
@@ -83,8 +84,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             // 3. Mở TCP Listener Socket (cổng động ephemeral)
             let port = self.openListenerSocket(preferredPort: 0)
 
-            // 4. Tên dịch vụ Bonjour: "INNOVA CHEAT" (iOS sẽ hiển thị "Pair with INNOVA CHEAT")
-            let name = customName ?? "INNOVA CHEAT"
+            // 4. Tên dịch vụ Bonjour: "DELTA PROXY" (iOS Developer Mode sẽ hiển thị "Ghép đôi với 'DELTA PROXY'?")
+            let name = customName ?? "DELTA PROXY"
 
             // 5. Phát sóng Bonjour
             DispatchQueue.main.async {
@@ -283,7 +284,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             close(clientFD)
             DispatchQueue.main.async {
                 self.isPaired = true
-                self.statusMessage = "✅ Ghép đôi thành công! Thiết bị đã sẵn sàng."
+                self.isAdvertising = false
+                self.statusMessage = "Đã có pairing file · nhấn để test"
             }
         }
     }
@@ -400,8 +402,9 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         }
         DispatchQueue.main.async {
             self.isPaired = false
+            self.isAdvertising = false
             self.pinCode = ""
-            self.statusMessage = "Đã xoá file Pairing"
+            self.statusMessage = "Nhấn để sinh PIN & ghép đôi"
         }
     }
 
@@ -518,7 +521,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             params.includePeerToPeer = true
 
             let listener = try? NWListener(using: params)
-            listener?.service = NWListener.Service(name: "INNOVA CHEAT", type: "_remotepairing._tcp")
+            listener?.service = NWListener.Service(name: "DELTA PROXY", type: "_remotepairing._tcp")
             listener?.newConnectionHandler = { $0.cancel() }
             self.probeListener = listener
 

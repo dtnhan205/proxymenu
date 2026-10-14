@@ -104,7 +104,7 @@
         <string>_remotepairing._tcp</string>
     </array>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>INNOVA CHEAT tạo dịch vụ ghép đôi cục bộ để iPhone tự ghép với chính nó và kết nối tới dịch vụ hệ thống nhằm áp dụng mod (chỉ trên iOS 27+).</string>
+    <string>DELTA PROXY tạo dịch vụ ghép đôi cục bộ để iPhone tự ghép với chính nó và kết nối tới dịch vụ hệ thống nhằm áp dụng mod (chỉ trên iOS 27+).</string>
     <key>UIBackgroundModes</key>
     <array>
         <string>audio</string>
