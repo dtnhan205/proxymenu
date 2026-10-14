@@ -251,6 +251,14 @@
 "settings.developer_beta_build" = "Developer Beta %lld · %@";
 "settings.developer_public_beta_build" = "Developer Beta %lld / Public Beta %lld · %@";
 "settings.supported_range_summary" = "Verified: iOS 16.0–16.7.x, iOS 17.0–17.7.x, iOS 18.0–18.7.1, iOS 26.0–26.6.1, iOS 27.0 Developer Beta 1–4 and Public Beta 1–2.";
+"settings.vpn_card_title" = "LocalDevVPN (iOS 27)";
+"settings.vpn_connect_button" = "Connect iOS 27";
+"settings.vpn_reconnect_button" = "Reconnect iOS 27";
+"settings.vpn_connecting" = "Connecting...";
+"settings.vpn_status_connected" = "Connected";
+"settings.vpn_status_disconnected" = "Disconnected";
+"settings.vpn_help_guide" = "After turning on connection in the LocalDevVPN app (10.7.0.1:49152), tap the Connect button below to activate game access on iOS 27.";
+"settings.vpn_open_settings" = "Open Settings";
 
 "kernel.section_title" = "Kernel Exploit";
 "kernel.run_exploit" = "Run Kernel Exploit";

@@ -5,6 +5,10 @@ struct SettingsView: View {
     @Environment(\.appLanguage) private var language
     @EnvironmentObject private var appState: AppState
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
+    @ObservedObject private var vpnManager = LocalDevVPNManager.shared
+    @State private var showVPNAlert = false
+    @State private var vpnAlertTitle = ""
+    @State private var vpnAlertMessage = ""
 
     var body: some View {
         ZStack {
@@ -16,6 +20,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         profileCard
+                        localDevVPNCard
                         languageCard
                         deviceCard
                         compatibilityCard
@@ -50,6 +55,11 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .preferredColorScheme(.dark)
+        .alert(vpnAlertTitle, isPresented: $showVPNAlert) {
+            Button(language.text("common.ok")) {}
+        } message: {
+            Text(vpnAlertMessage)
+        }
     }
 
     // MARK: - Cards
@@ -87,6 +97,160 @@ struct SettingsView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .techCard(glow: AppTheme.neonCyan, opacity: 0.18)
+    }
+
+    private var localDevVPNCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "network")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.neonCyan)
+                NeonReadout(text: language.text("settings.vpn_card_title"), tint: AppTheme.neonCyan)
+
+                Spacer()
+
+                HStack(spacing: 5) {
+                    PulsingDot(
+                        color: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta,
+                        size: 6
+                    )
+                    Text(language.text(vpnManager.isConnected ? "settings.vpn_status_connected" : "settings.vpn_status_disconnected"))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    (vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta).opacity(0.12),
+                    in: Capsule()
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            (vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta).opacity(0.4),
+                            lineWidth: 1
+                        )
+                )
+            }
+
+            Text(language.text("settings.vpn_help_guide"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+
+            VStack(spacing: 0) {
+                deviceInfoRow(
+                    icon: "server.rack",
+                    iconColor: AppTheme.neonCyan,
+                    label: "Endpoint Tunnel",
+                    value: vpnManager.lastConnectedHost
+                )
+                divider
+                deviceInfoRow(
+                    icon: "shield.checkered",
+                    iconColor: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta,
+                    label: language.text("settings.exploit_status"),
+                    value: vpnManager.statusMessage,
+                    valueColor: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta
+                )
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    handleConnectLocalDevVPN()
+                } label: {
+                    HStack(spacing: 8) {
+                        if vpnManager.isConnecting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                .scaleEffect(0.85)
+                            Text(language.text("settings.vpn_connecting"))
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.black)
+                        } else {
+                            Image(systemName: vpnManager.isConnected ? "arrow.clockwise.circle.fill" : "cable.connector")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.black)
+                            Text(language.text(vpnManager.isConnected ? "settings.vpn_reconnect_button" : "settings.vpn_connect_button"))
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.black)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(
+                            colors: vpnManager.isConnected
+                                ? [AppTheme.neonLime, AppTheme.neonCyan]
+                                : [AppTheme.neonCyan, AppTheme.neonLime],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+                    .shadow(
+                        color: (vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.55),
+                        radius: 8,
+                        y: 2
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(vpnManager.isConnecting)
+
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AppTheme.neonCyan)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            AppTheme.neonCyan.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(AppTheme.neonCyan.opacity(0.4), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 4)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .techCard(glow: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonCyan, opacity: 0.15)
+    }
+
+    private func handleConnectLocalDevVPN() {
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+
+        Task {
+            let (success, message) = await vpnManager.connect()
+            await MainActor.run {
+                if success {
+                    let notif = UINotificationFeedbackGenerator()
+                    notif.notificationOccurred(.success)
+                    vpnAlertTitle = "⚡ iOS 27 LocalDevVPN"
+                    vpnAlertMessage = message
+                    showVPNAlert = true
+                    appState.exploitStatus = .success(method: "LocalDevVPN (10.7.0.1)")
+                } else {
+                    let notif = UINotificationFeedbackGenerator()
+                    notif.notificationOccurred(.error)
+                    vpnAlertTitle = "❌ Chưa kết nối"
+                    vpnAlertMessage = message
+                    showVPNAlert = true
+                }
+            }
+        }
     }
 
     private var languageCard: some View {

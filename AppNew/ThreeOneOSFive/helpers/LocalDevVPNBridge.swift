@@ -257,4 +257,67 @@ enum LocalDevVPNBridge {
             return "LocalDevVPN — Sẵn sàng kết nối"
         }
     }
+
+    /// Thử nghiệm kết nối tới LocalDevVPN tunnel (10.7.0.1:49152 hoặc 127.0.0.1:49152)
+    static func testConnection(timeoutSeconds: Double = 0.8) async -> (success: Bool, host: String) {
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                if probeSocket(host: defaultHost, port: defaultPort, timeoutSeconds: timeoutSeconds) {
+                    continuation.resume(returning: (true, "\(defaultHost):\(defaultPort)"))
+                    return
+                }
+                if probeSocket(host: loopbackHost, port: defaultPort, timeoutSeconds: timeoutSeconds) {
+                    continuation.resume(returning: (true, "\(loopbackHost):\(defaultPort)"))
+                    return
+                }
+                continuation.resume(returning: (false, "\(defaultHost):\(defaultPort)"))
+            }
+        }
+    }
 }
+
+// MARK: - Observable Manager for SwiftUI
+
+@MainActor
+final class LocalDevVPNManager: ObservableObject {
+    static let shared = LocalDevVPNManager()
+
+    @Published var isConnected: Bool = false
+    @Published var isConnecting: Bool = false
+    @Published var statusMessage: String = "Chưa kết nối"
+    @Published var lastConnectedHost: String = "\(LocalDevVPNBridge.defaultHost):\(LocalDevVPNBridge.defaultPort)"
+    @Published var lastCheckDate: Date?
+
+    private init() {
+        Task {
+            let res = await LocalDevVPNBridge.testConnection(timeoutSeconds: 0.3)
+            if res.success {
+                self.isConnected = true
+                self.statusMessage = "Đã kết nối (\(res.host))"
+                self.lastConnectedHost = res.host
+            }
+        }
+    }
+
+    /// Kích hoạt kết nối thủ công từ Cài đặt
+    func connect() async -> (success: Bool, message: String) {
+        isConnecting = true
+        defer { isConnecting = false }
+
+        let res = await LocalDevVPNBridge.testConnection(timeoutSeconds: 1.0)
+        lastCheckDate = Date()
+        if res.success {
+            isConnected = true
+            statusMessage = "Đã kết nối (\(res.host))"
+            lastConnectedHost = res.host
+            _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireTH.rawValue)
+            _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireMAX.rawValue)
+            return (true, "Đã kết nối thành công tới LocalDevVPN (\(res.host))!")
+        } else {
+            isConnected = false
+            statusMessage = "Chưa kết nối"
+            return (false, "Không tìm thấy LocalDevVPN (\(res.host)). Vui lòng đảm bảo app LocalDevVPN đang BẬT!")
+        }
+    }
+}
+
