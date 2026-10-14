@@ -1650,6 +1650,7 @@ struct ContentView: View {
     @State private var selectedColorTarget: ESPColorTarget = .all
     @State private var showColorPickerPopup: Bool = false
     @State private var showSettingsSheet: Bool = false
+    @State private var showHowToInstallVideo: Bool = false
     @State private var isCleaningAntiban: Bool = false
     @State private var antibanProgress: Double = 0.0
     @State private var isAntibanReady: Bool = false
@@ -1781,12 +1782,10 @@ struct ContentView: View {
             .frame(maxWidth: 414)
             .frame(maxWidth: .infinity, alignment: .center)
 
-            // Floating Action HUD (Visible across all tabs - Bị khóa khi không có key)
+            // Floating Action HUD (Visible across all tabs)
             VStack {
                 Spacer()
                 bottomActionBar
-                    .disabled(!isLicenseValid)
-                    .opacity(isLicenseValid ? 1.0 : 0.45)
             }
             .frame(maxWidth: .infinity)
             .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -1870,6 +1869,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showLogModal) {
             LogTerminalModalView(isPresented: $showLogModal)
+        }
+        .fullScreenCover(isPresented: $showHowToInstallVideo) {
+            HowToInstallVideoView(isPresented: $showHowToInstallVideo, isEnglish: isEnglish)
         }
     }
 
@@ -3469,10 +3471,13 @@ struct ContentView: View {
     // MARK: - Floating Futuristic Action HUD (Bottom Bar)
     private var bottomActionBar: some View {
         VStack(spacing: 4) {
-            // Quick Language Selector Row (Above inject button, right-aligned over lightning button)
-            HStack {
+            // Utility Row: Nút Cách Cài : How to install & Nút Ngôn ngữ (Ở trên nút Inject, góc phải)
+            HStack(alignment: .bottom) {
                 Spacer()
-                languageSelectorButton
+                VStack(spacing: 6) {
+                    howToInstallButton
+                    languageSelectorButton
+                }
             }
             .padding(.horizontal, 20)
 
@@ -3655,6 +3660,8 @@ struct ContentView: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 20)
             .padding(.top, 8)
+            .disabled(!isLicenseValid)
+            .opacity(isLicenseValid ? 1.0 : 0.45)
 
             // Sleek Footer with Red Neon Lines
             HStack(spacing: 12) {
@@ -3703,6 +3710,52 @@ struct ContentView: View {
                 endPoint: .bottom
             )
         )
+    }
+
+    // MARK: - How to Install Video Guide Button (Cách Cài : How to install)
+    private var howToInstallButton: some View {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .medium)
+            impact.impactOccurred()
+            showHowToInstallVideo = true
+        } label: {
+            VStack(spacing: 2) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.28, green: 0.20, blue: 0.08),
+                                    Color(red: 0.16, green: 0.10, blue: 0.04)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 32, height: 32)
+                        .overlay(
+                            Circle().strokeBorder(CyberTheme.mechaGold.opacity(0.85), lineWidth: 1)
+                        )
+                        .shadow(color: CyberTheme.mechaGold.opacity(0.4), radius: 4)
+
+                    Image(systemName: "play.rectangle.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(CyberTheme.mechaGold)
+                }
+
+                VStack(spacing: 1) {
+                    Text(isEnglish ? "How to install" : "Cách Cài")
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .foregroundColor(CyberTheme.mechaGold)
+                    Text(isEnglish ? "Cách Cài" : "How to install")
+                        .font(.system(size: 6.8, weight: .medium, design: .monospaced))
+                        .foregroundColor(Color.white.opacity(0.8))
+                }
+                .shadow(color: Color.black.opacity(0.8), radius: 2)
+            }
+            .frame(width: 65)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Language Selector Quick Action

@@ -90,7 +90,9 @@
 		FF000001 /* FreeFirePatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000002; };
 		FF000009 /* DylibInjectionGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF00000A; };
 		3105N219 /* IntroVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N119; };
+		3105N220 /* HowToInstallVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N120; };
 		3105A212 /* intro.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105A032; };
+		3105A214 /* cach_cai.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105A034; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -195,7 +197,9 @@
 		FF000002 /* FreeFirePatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeFirePatchService.swift; sourceTree = "<group>"; };
 		FF00000A /* DylibInjectionGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DylibInjectionGuard.swift; sourceTree = "<group>"; };
 		3105N119 /* IntroVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroVideoView.swift; sourceTree = "<group>"; };
+		3105N120 /* HowToInstallVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToInstallVideoView.swift; sourceTree = "<group>"; };
 		3105A032 /* intro.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = intro.mp4; sourceTree = "<group>"; };
+		3105A034 /* cach_cai.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = cach_cai.mp4; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,6 +235,7 @@
 				3105A120 /* Localizable.strings */,
 				3105A031 /* Assets.xcassets */,
 				3105A032 /* intro.mp4 */,
+				3105A034 /* cach_cai.mp4 */,
 			);
 			path = ThreeOneOSFive;
 			sourceTree = "<group>";
@@ -282,6 +287,7 @@
 				3105N107 /* BuildBlockedOverlay.swift */,
 				3105N108 /* AppCompat.swift */,
 				3105N119 /* IntroVideoView.swift */,
+				3105N120 /* HowToInstallVideoView.swift */,
 			);
 			path = views;
 			sourceTree = "<group>";
@@ -421,6 +427,7 @@
 				3105A211,
 				3105A228,
 				3105A212,
+				3105A214,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -501,6 +508,7 @@
 				3105N217,
 				3105N218,
 				3105N219,
+				3105N220,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
