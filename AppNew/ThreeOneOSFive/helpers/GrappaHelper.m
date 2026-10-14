@@ -32,10 +32,14 @@ static const char *kAuthenticGrappaTokens[] = {
     "01015c5fcc103d0460f5bbfd48c387806e8e0340e3323ed780fbeccc2908c059d9a81e75976bf058b411f62a9a6e1df7ba307f69226942373f484690799b230bc60e99036f40eae25229aff6bb31ab74820e68a9",
     "0101f3f542aaa17252a8f81b3dc5b007adc304408d2496cee3af54113ffa9fba392b4143d4c38e4d79680e8e9feb554e450c1f89220c02375a9063b3a62bf61f62bd073991ebf215c6c2e28938d1aa53ed580c02",
     "0101fc26f7e89d1635d86b5c886df69f526a0040038b6c33049f6bd5cc526b4ee7ccce614135d2c73f8326d9af6d28399a231510917493d4fdaa395b4d1c1e1b09bdf3fe6fb7e16ad6d5f5cc18b93730874e6f4e",
-    NULL
-};
+// Constructor to guarantee symbol retention at runtime load
+__attribute__((constructor))
+static void ALGrappaConstructor(void) {
+    volatile void *p = (void *)&ALGetGrappaToken;
+    (void)p;
+}
 
-__attribute__((visibility("default"), used))
+__attribute__((visibility("default"), used, noinline))
 int ALGetGrappaToken(
     uint32_t in_version,
     uint32_t in_device_type,

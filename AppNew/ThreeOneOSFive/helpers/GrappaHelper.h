@@ -10,7 +10,7 @@ extern "C" {
 
 /// Generates an authentic Grappa client token for AirTraffic sync.
 /// Returns 0 on success, or a negative error code on failure.
-__attribute__((visibility("default"), used))
+__attribute__((visibility("default"), used, noinline))
 int ALGetGrappaToken(
     uint32_t in_version,
     uint32_t in_device_type,

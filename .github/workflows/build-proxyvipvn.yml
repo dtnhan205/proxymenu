@@ -72,6 +72,11 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
+            DEAD_CODE_STRIPPING=NO \
+            STRIP_INSTALLED_PRODUCT=NO \
+            STRIP_STYLE=non-global \
+            GCC_SYMBOLS_PRIVATE_EXTERN=NO \
+            DEPLOYMENT_POSTPROCESSING=NO \
             archive
 
       # Đóng gói IPA từ .app trong xcarchive

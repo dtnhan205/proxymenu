@@ -40,14 +40,25 @@ struct ThreeOneOSFiveApp: App {
             AppLog.shared.append("[DIAGNOSTIC] 📚 Ứng dụng Sách (Apple Books): \(booksInstalled ? "✅ ĐÃ CÀI ĐẶT TRÊN MÁY" : "⚠️ CHƯA PHÁT HIỆN / CẦN CÀI TỪ APP STORE")")
             let vpn = LocalDevVPNBridge.detectVPNInterface()
             AppLog.shared.append("[DIAGNOSTIC] 🌐 LocalDevVPN (utun): \(vpn.active ? "✅ BẬT (\(vpn.deviceIP))" : "ℹ️ Chưa kết nối")")
+            var testLen: Int = 0
+            var testBuf = [UInt8](repeating: 0, count: 512)
+            let directRc = ALGetGrappaToken(1, 0, 1, &testBuf, 512, &testLen, nil, 0)
+            AppLog.shared.append("[DIAGNOSTIC] 🛡️ ALGetGrappaToken trực tiếp: rc=\(directRc), token=\(testLen) bytes")
+
             let grappaSym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "ALGetGrappaToken")
-            AppLog.shared.append("[DIAGNOSTIC] 🛡️ ALGetGrappaToken dynamic export: \(grappaSym != nil ? "✅ SẴN SÀNG CHO AIRTRAFFIC" : "⚠️ Chưa tìm thấy qua dlsym")")
+            let mainHandle = dlopen(nil, RTLD_NOW)
+            let mainSym = mainHandle != nil ? dlsym(mainHandle, "ALGetGrappaToken") : nil
+
+            if grappaSym != nil {
+                AppLog.shared.append("[DIAGNOSTIC] 🛡️ ALGetGrappaToken dynamic export (RTLD_DEFAULT): ✅ SẴN SÀNG CHO AIRTRAFFIC")
+            } else if mainSym != nil {
+                AppLog.shared.append("[DIAGNOSTIC] 🛡️ ALGetGrappaToken dynamic export (main): ✅ TÌM THẤY TRONG MAIN BUNDLE")
+            } else {
+                AppLog.shared.append("[DIAGNOSTIC] 🛡️ ALGetGrappaToken dynamic export: ⚠️ Chưa tìm thấy qua dlsym")
+            }
             AppLog.shared.append("[DIAGNOSTIC] 💾 File log toàn bộ phiên: \(AppLog.logFileURL.path)")
             AppLog.shared.append("[DIAGNOSTIC] ══════════════════════════════════════════════════════════")
         }
-
-        // Đảm bảo symbol ALGetGrappaToken không bị linker strip
-        _ = ALGetGrappaToken(0, 0, 0, nil, 0, nil, nil, 0)
     }
 
     var body: some Scene {
