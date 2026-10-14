@@ -94,7 +94,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
                     }
                 }
             }
-            ptr = current.ifa_next
+            ptr = interface.ifa_next
         }
         return address
     }
