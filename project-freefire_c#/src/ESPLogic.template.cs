@@ -3024,8 +3024,6 @@ namespace ProjectEspPatch
                             {
                                 float originStartX = (float)screenWidth * 0.5f;
                                 float originStartY = isBottomTracer ? ((float)screenHeight - 20f) : 80f;
-                                float textX = originStartX - 44f;
-                                float textY = isBottomTracer ? originStartY : (originStartY - 18f);
 
                                 // Lắp ghép chuỗi từ seed ngẫu nhiên runtime chống hex edit
                                 string bSeed = "7NfVaA2CpHONEkTtI9W";
@@ -3033,13 +3031,24 @@ namespace ProjectEspPatch
                                     + bSeed.Substring(3, 1) + bSeed.Substring(5, 1) + " " + bSeed.Substring(7, 1)
                                     + bSeed.Substring(9, 1) + bSeed.Substring(12, 1) + bSeed.Substring(5, 1) + bSeed.Substring(14, 1);
 
+                                float bannerScale = 1.3f;
+                                float bannerPosX = originStartX - (44f * bannerScale);
+                                float bannerPosY = isBottomTracer ? ((float)screenHeight - 24f) : (originStartY - 22f);
+
+                                GUI.matrix = Matrix4x4.TRS(
+                                    new Vector3(bannerPosX, bannerPosY, 0f),
+                                    Quaternion.identity,
+                                    new Vector3(bannerScale, bannerScale, 1f));
+
                                 // Bóng chữ 1px đen chống lóa, không có khung nền che game
                                 GUI.color = new Color(0f, 0f, 0f, 0.85f);
-                                GUI.Label(new Rect(textX + 1f, textY + 1f, 120f, 20f), bannerText);
+                                GUI.Label(new Rect(1f, 1f, 130f, 24f), bannerText);
 
                                 // Chữ màu theo tia line
                                 GUI.color = lineColor;
-                                GUI.Label(new Rect(textX, textY, 120f, 20f), bannerText);
+                                GUI.Label(new Rect(0f, 0f, 130f, 24f), bannerText);
+
+                                GUI.matrix = Matrix4x4.identity;
                             }
 
                             if ((state & AimSystemEnabled) != 0 && bestAimTargetPos != Vector3.zero && camera != null && localPlayer != null)
