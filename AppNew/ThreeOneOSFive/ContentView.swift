@@ -1652,6 +1652,9 @@ struct ContentView: View {
     @State private var showSettingsSheet: Bool = false
     @State private var showHowToInstallVideo: Bool = false
     @ObservedObject private var vpnManager = LocalDevVPNManager.shared
+    @ObservedObject private var pairingAdvertiser = RemotePairingAdvertiser.shared
+    @State private var showPairingPromptAlert: Bool = false
+    @State private var showPairingProgressSheet: Bool = false
     @State private var showVPNAlert: Bool = false
     @State private var vpnAlertTitle: String = ""
     @State private var vpnAlertMessage: String = ""
@@ -1888,6 +1891,20 @@ struct ContentView: View {
             Button(isEnglish ? "Close" : "Đóng", role: .cancel) {}
         } message: {
             Text(vpnAlertMessage)
+        }
+        .alert(isEnglish ? "Pairing iOS 27" : "Ghép đôi iOS 27", isPresented: $showPairingPromptAlert) {
+            Button(isEnglish ? "Cancel" : "Huỷ", role: .cancel) {}
+            Button(isEnglish ? "Start" : "Bắt đầu") {
+                startPairingFlow()
+            }
+        } message: {
+            let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "INNOVA PROXY"
+            Text(isEnglish
+                ? "On iPhone: Settings -> Privacy & Security -> Developer Mode -> 'Pair with \(appName)'.\n\nA PIN code will appear — enter it on device."
+                : "Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với \(appName)'.\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
+        }
+        .sheet(isPresented: $showPairingProgressSheet) {
+            RemotePairingSheetView()
         }
         .sheet(isPresented: $showSettingsSheet) {
             settingsSheetView
@@ -4483,25 +4500,27 @@ struct ContentView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
 
+        // Hiển thị hộp thoại Ghép đôi iOS 27 đúng theo giao diện chuẩn
+        showPairingPromptAlert = true
+    }
+
+    private func startPairingFlow() {
+        // 1. Bắt đầu phát sóng dịch vụ Bonjour _remotepairing-pairable-host._tcp.
+        pairingAdvertiser.startAdvertising()
+
+        // 2. Mở Sheet hướng dẫn và theo dõi trạng thái ghép đôi
+        showPairingProgressSheet = true
+
+        // 3. Kiểm tra kết nối LocalDevVPN ngầm
         Task {
             let (success, message) = await vpnManager.connect()
             await MainActor.run {
                 let os = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
                 if success {
-                    let notif = UINotificationFeedbackGenerator()
-                    notif.notificationOccurred(.success)
-                    vpnAlertTitle = "⚡ \(os) LocalDevVPN"
-                    vpnAlertMessage = message
-                    showVPNAlert = true
                     appState.exploitStatus = .success(method: "LocalDevVPN (\(vpnManager.detectedInterfaceName))")
-                    showToast(isEnglish ? "⚡ Connected to \(os) LocalDevVPN!" : "⚡ Đã kết nối \(os) LocalDevVPN!")
                 } else {
-                    let notif = UINotificationFeedbackGenerator()
-                    notif.notificationOccurred(.error)
-                    vpnAlertTitle = isEnglish ? "❌ LocalDevVPN Disconnected" : "❌ Chưa Bật LocalDevVPN"
-                    vpnAlertMessage = message
-                    showVPNAlert = true
-                    appState.exploitStatus = .notStarted
+                    // Nếu chưa bật VPN, vẫn duy trì phát Bonjour để người dùng ghép đôi
+                    print("[LocalDevVPN] Status check: \(message)")
                 }
             }
         }

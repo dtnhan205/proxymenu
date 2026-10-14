@@ -465,10 +465,10 @@ final class LocalDevVPNManager: ObservableObject {
             • Giao diện mạng: \(res.interfaceName)
             • Tunnel: \(res.host)
 
-            👉 BẠN ĐÃ CÓ THỂ NẠP CHEAT NGAY BÂY GIỜ:
-            1. Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển: Chỉ cần đảm bảo công tắc này đã BẬT.
-            2. Trong mục 'Nhà phát triển' của iOS không có nút ghép đôi thủ công (không cần tìm nút ghép đôi).
-            3. Quay lại màn hình chính của app và bấm 'INJECT (NẠP CHEAT)' để bắt đầu!
+            👉 BƯỚC GHÉP ĐÔI THIẾT BỊ (iOS 27+):
+            1. Vào Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển.
+            2. Trong mục 'Các thiết bị khác', chọn 'Pair with INNOVA PROXY'.
+            3. Xác nhận ghép đôi để kết nối dịch vụ hệ thống và nạp mod!
             """
             return (true, msg)
         } else {

@@ -2,3 +2,5 @@
 *.zip
 .DS_Store
 Thumbs.db
+delta_src/
+delta_extracted/

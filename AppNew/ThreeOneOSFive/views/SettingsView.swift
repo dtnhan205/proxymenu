@@ -6,6 +6,9 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @AppStorage(AppLanguage.storageKey) private var languageCode = AppLanguage.english.rawValue
     @ObservedObject private var vpnManager = LocalDevVPNManager.shared
+    @ObservedObject private var pairingAdvertiser = RemotePairingAdvertiser.shared
+    @State private var showPairingPromptAlert = false
+    @State private var showPairingSheet = false
     @State private var showVPNAlert = false
     @State private var vpnAlertTitle = ""
     @State private var vpnAlertMessage = ""
@@ -64,6 +67,20 @@ struct SettingsView: View {
             Button(language.text("common.ok"), role: .cancel) {}
         } message: {
             Text(vpnAlertMessage)
+        }
+        .alert("Ghép đôi iOS 27", isPresented: $showPairingPromptAlert) {
+            Button("Huỷ", role: .cancel) {}
+            Button("Bắt đầu") {
+                pairingAdvertiser.startAdvertising()
+                showPairingSheet = true
+                Task { _ = await vpnManager.connect() }
+            }
+        } message: {
+            let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "INNOVA PROXY"
+            Text("Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với \(appName)'.\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
+        }
+        .sheet(isPresented: $showPairingSheet) {
+            RemotePairingSheetView()
         }
     }
 
@@ -237,27 +254,7 @@ struct SettingsView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
 
-        Task {
-            let (success, message) = await vpnManager.connect()
-            await MainActor.run {
-                let os = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
-                if success {
-                    let notif = UINotificationFeedbackGenerator()
-                    notif.notificationOccurred(.success)
-                    vpnAlertTitle = "⚡ \(os) LocalDevVPN"
-                    vpnAlertMessage = message
-                    showVPNAlert = true
-                    appState.exploitStatus = .success(method: "LocalDevVPN (\(vpnManager.detectedInterfaceName))")
-                } else {
-                    let notif = UINotificationFeedbackGenerator()
-                    notif.notificationOccurred(.error)
-                    vpnAlertTitle = "❌ Chưa Bật LocalDevVPN"
-                    vpnAlertMessage = message
-                    showVPNAlert = true
-                    appState.exploitStatus = .notStarted
-                }
-            }
-        }
+        showPairingPromptAlert = true
     }
 
     private var vpnCardTitle: String {
