@@ -23,8 +23,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         profileCard
-                        localDevVPNCard
-                        pairingCard
+                        ios27PairingCard
                         languageCard
                         deviceCard
                         compatibilityCard
@@ -121,219 +120,242 @@ struct SettingsView: View {
         .techCard(glow: AppTheme.neonCyan, opacity: 0.18)
     }
 
-    private var localDevVPNCard: some View {
+    // MARK: - iOS 27 Pairing & Tunnel Card (Gọn gàng & Trực quan)
+    private var ios27PairingCard: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Header: Icon + Tiêu đề + Trạng thái tổng thể
             HStack(spacing: 8) {
-                Image(systemName: "network")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(AppTheme.neonCyan)
-                NeonReadout(text: vpnCardTitle, tint: AppTheme.neonCyan)
-
-                Spacer()
-
-                HStack(spacing: 5) {
-                    PulsingDot(
-                        color: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta,
-                        size: 6
-                    )
-                    Text(language.text(vpnManager.isConnected ? "settings.vpn_status_connected" : "settings.vpn_status_disconnected"))
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    (vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta).opacity(0.12),
-                    in: Capsule()
-                )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            (vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta).opacity(0.4),
-                            lineWidth: 1
-                        )
-                )
-            }
-
-            Text(language.text("settings.vpn_help_guide"))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineSpacing(2)
-
-            VStack(spacing: 0) {
-                deviceInfoRow(
-                    icon: "server.rack",
-                    iconColor: AppTheme.neonCyan,
-                    label: "Endpoint Tunnel",
-                    value: vpnManager.lastConnectedHost
-                )
-                divider
-                deviceInfoRow(
-                    icon: "shield.checkered",
-                    iconColor: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta,
-                    label: language.text("settings.exploit_status"),
-                    value: vpnManager.statusMessage,
-                    valueColor: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta
-                )
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    handleConnectLocalDevVPN()
-                } label: {
-                    HStack(spacing: 8) {
-                        if vpnManager.isConnecting {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
-                                .scaleEffect(0.85)
-                            Text(language.text("settings.vpn_connecting"))
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.black)
-                        } else {
-                            Image(systemName: vpnManager.isConnected ? "arrow.clockwise.circle.fill" : "cable.connector")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.black)
-                            Text(vpnConnectButtonText)
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(.black)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        LinearGradient(
-                            colors: vpnManager.isConnected
-                                ? [AppTheme.neonLime, AppTheme.neonCyan]
-                                : [AppTheme.neonCyan, AppTheme.neonLime],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
-                    )
-                    .shadow(
-                        color: (vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.55),
-                        radius: 8,
-                        y: 2
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(vpnManager.isConnecting)
-
-                Button {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(AppTheme.neonCyan)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            AppTheme.neonCyan.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(AppTheme.neonCyan.opacity(0.4), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, 4)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .techCard(glow: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonCyan, opacity: 0.15)
-    }
-
-    private var pairingCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "link.badge.plus")
+                Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(AppTheme.neonLime)
-                NeonReadout(text: "Ghép Đôi iOS 27 (RemotePairing)", tint: AppTheme.neonLime)
+                NeonReadout(text: "Ghép Đôi & Tunnel (iOS 27)", tint: AppTheme.neonLime)
 
                 Spacer()
 
-                HStack(spacing: 5) {
-                    PulsingDot(
-                        color: pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber,
-                        size: 6
-                    )
-                    Text(pairingAdvertiser.hasExistingPairing ? "ĐÃ GHÉP ĐÔI" : (pairingAdvertiser.isAdvertising ? "ĐANG PHÁT" : "CHƯA GHÉP ĐÔI"))
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    (pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber).opacity(0.12),
-                    in: Capsule()
+                overallStatusPill
+            }
+
+            // Grid trạng thái 2 cột: [Ghép Đôi] và [LocalDevVPN]
+            HStack(spacing: 10) {
+                // Ô 1: Trạng thái ghép đôi (Pairing)
+                statusBox(
+                    icon: pairingAdvertiser.hasExistingPairing ? "checkmark.seal.fill" : "link.badge.plus",
+                    iconColor: pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber,
+                    title: "GHÉP ĐÔI",
+                    subtitle: pairingAdvertiser.hasExistingPairing ? "Đã có Pairing File" : (pairingAdvertiser.isAdvertising ? "Đang phát sóng..." : "Chưa ghép đôi"),
+                    isPositive: pairingAdvertiser.hasExistingPairing
                 )
-                .overlay(
-                    Capsule()
-                        .strokeBorder(
-                            (pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber).opacity(0.4),
-                            lineWidth: 1
-                        )
+
+                // Ô 2: Trạng thái LocalDevVPN
+                statusBox(
+                    icon: vpnManager.isConnected ? "network" : "network.slash",
+                    iconColor: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonMagenta,
+                    title: "LOCALDEV VPN",
+                    subtitle: vpnManager.isConnected ? "10.7.0.1 (Đã bật)" : "Chưa kết nối VPN",
+                    isPositive: vpnManager.isConnected
                 )
             }
 
+            // Nút bấm chính mở Trung Tâm Ghép Đôi / Test Inject
             Button {
                 handlePairingTap()
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(
-                                (pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.15)
-                            )
-                            .frame(width: 44, height: 44)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder((pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.4), lineWidth: 1)
-                            )
+                            .fill(Color.black.opacity(0.2))
+                            .frame(width: 36, height: 36)
 
-                        Image(systemName: pairingAdvertiser.hasExistingPairing ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan)
+                        Image(systemName: pairingAdvertiser.hasExistingPairing ? "slider.horizontal.3" : "bolt.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.black)
                     }
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Ghép Đôi iOS 27")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.primary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pairingAdvertiser.hasExistingPairing
+                            ? "TRUNG TÂM GHÉP ĐÔI & TEST MOD"
+                            : "KÍCH HOẠT GHÉP ĐÔI iOS 27")
+                            .font(.footnote.weight(.bold))
+                            .foregroundStyle(.black)
 
                         Text(pairingAdvertiser.hasExistingPairing
-                            ? "Đã có pairing file · Nhấn để test"
-                            : "Nhấn để sinh PIN & ghép đôi")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            ? "Xem nhật ký live, test inject hoặc sửa lỗi kết nối"
+                            : "Bấm để phát sóng mã PIN hoặc tạo file trực tiếp")
+                            .font(.caption2)
+                            .foregroundStyle(Color.black.opacity(0.8))
                     }
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.black.opacity(0.6))
                 }
-                .padding(12)
-                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    LinearGradient(
+                        colors: pairingAdvertiser.hasExistingPairing
+                            ? [AppTheme.neonLime, AppTheme.neonCyan]
+                            : [AppTheme.neonCyan, AppTheme.neonLime],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+                .shadow(
+                    color: (pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.4),
+                    radius: 8,
+                    y: 2
                 )
             }
             .buttonStyle(.plain)
+
+            // Hàng 3 nút phím tắt tiện ích nhanh
+            HStack(spacing: 8) {
+                // Phím tắt 1: Mở LocalDevVPN
+                quickShortcutButton(
+                    icon: "network",
+                    label: "Mở VPN",
+                    tint: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonCyan
+                ) {
+                    if let url = URL(string: "localdevvpn://"), UIApplication.shared.canOpenURL(url) {
+                        UIApplication.shared.open(url)
+                    } else if let store = URL(string: "https://apps.apple.com/app/id6738344641") {
+                        UIApplication.shared.open(store)
+                    }
+                }
+
+                // Phím tắt 2: Mở Apple Books (Sách)
+                quickShortcutButton(
+                    icon: "book.closed.fill",
+                    label: "Mở Sách",
+                    tint: Color.orange
+                ) {
+                    if let url = URL(string: "ibooks://"), UIApplication.shared.canOpenURL(url) {
+                        UIApplication.shared.open(url)
+                    } else if let storeURL = URL(string: "https://apps.apple.com/app/apple-books/id364709193") {
+                        UIApplication.shared.open(storeURL)
+                    }
+                }
+
+                // Phím tắt 3: Mở Cài Đặt iPhone
+                quickShortcutButton(
+                    icon: "gearshape.fill",
+                    label: "Cài Đặt",
+                    tint: .secondary
+                ) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .techCard(glow: pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan, opacity: 0.15)
+        .techCard(
+            glow: (pairingAdvertiser.hasExistingPairing && vpnManager.isConnected) ? AppTheme.neonLime : AppTheme.neonCyan,
+            opacity: 0.15
+        )
+    }
+
+    private var overallStatusPill: some View {
+        HStack(spacing: 5) {
+            PulsingDot(
+                color: (pairingAdvertiser.hasExistingPairing && vpnManager.isConnected)
+                    ? AppTheme.neonLime
+                    : (pairingAdvertiser.hasExistingPairing ? AppTheme.neonCyan : AppTheme.neonAmber),
+                size: 6
+            )
+            Text((pairingAdvertiser.hasExistingPairing && vpnManager.isConnected)
+                ? "SẴN SÀNG"
+                : (pairingAdvertiser.hasExistingPairing ? "ĐÃ GHÉP ĐÔI" : "CHƯA SẴN SÀNG"))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle((pairingAdvertiser.hasExistingPairing && vpnManager.isConnected)
+                    ? AppTheme.neonLime
+                    : (pairingAdvertiser.hasExistingPairing ? AppTheme.neonCyan : AppTheme.neonAmber))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            ((pairingAdvertiser.hasExistingPairing && vpnManager.isConnected)
+                ? AppTheme.neonLime
+                : (pairingAdvertiser.hasExistingPairing ? AppTheme.neonCyan : AppTheme.neonAmber)).opacity(0.12),
+            in: Capsule()
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(
+                    ((pairingAdvertiser.hasExistingPairing && vpnManager.isConnected)
+                        ? AppTheme.neonLime
+                        : (pairingAdvertiser.hasExistingPairing ? AppTheme.neonCyan : AppTheme.neonAmber)).opacity(0.4),
+                    lineWidth: 1
+                )
+        )
+    }
+
+    private func statusBox(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String,
+        isPositive: Bool
+    ) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(iconColor)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.65))
+
+                Text(subtitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isPositive ? AppTheme.neonLime : Color.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(iconColor.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private func quickShortcutButton(
+        icon: String,
+        label: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(tint)
+
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.primary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(tint.opacity(0.35), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func handlePairingTap() {
@@ -341,32 +363,6 @@ struct SettingsView: View {
         impact.impactOccurred()
 
         showPairingSheet = true
-    }
-
-    private func handleConnectLocalDevVPN() {
-        let impact = UIImpactFeedbackGenerator(style: .medium)
-        impact.impactOccurred()
-
-        showPairingSheet = true
-    }
-
-    private var vpnCardTitle: String {
-        if LocalDevVPNBridge.isIOS18_7_x {
-            return "LocalDevVPN & Pair (iOS 18.7.x)"
-        } else if LocalDevVPNBridge.isIOS27 {
-            return "LocalDevVPN (iOS 27)"
-        } else {
-            return "LocalDevVPN & Pair (iOS 18.7.x / 27)"
-        }
-    }
-
-    private var vpnConnectButtonText: String {
-        let os = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
-        if vpnManager.isConnected {
-            return "Kết Nối Lại \(os)"
-        } else {
-            return "Kết Nối \(os)"
-        }
     }
 
     private var languageCard: some View {
