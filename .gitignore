@@ -5,3 +5,5 @@ Thumbs.db
 delta_src/
 delta_extracted/
 /*.mp4
+log.txt
+*.log

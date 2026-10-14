@@ -19,6 +19,7 @@ struct RemotePairingSheetView: View {
     @State private var isTestingInject: Bool = false
     @State private var showTestInjectAlert: Bool = false
     @State private var testInjectAlertText: String = ""
+    @State private var showShareSheet: Bool = false
 
     private var isEnglish: Bool {
         languageCode == AppLanguage.english.rawValue
@@ -150,6 +151,9 @@ struct RemotePairingSheetView: View {
         } message: {
             Text(testInjectAlertText)
         }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(activityItems: [AppLog.shared.exportLogURL()])
+        }
         .onAppear {
             isPulsing = true
             if !pairing.isAdvertising {
@@ -279,13 +283,31 @@ struct RemotePairingSheetView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 9.5))
-                        Text(isEnglish ? "Copy Pairing Logs" : "Sao chép nhật ký phát sóng")
+                        Text(isEnglish ? "Copy Logs" : "Sao chép")
                             .font(.system(size: 10, weight: .bold))
                     }
                     .foregroundColor(.white.opacity(0.75))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    AppLog.shared.flush()
+                    showShareSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 9.5))
+                        Text(isEnglish ? "Export log.txt" : "Xuất log.txt")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(AppTheme.neonLime)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.neonLime.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -393,13 +415,31 @@ struct RemotePairingSheetView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "doc.on.doc")
                             .font(.system(size: 9.5))
-                        Text(isEnglish ? "Copy Logs" : "Sao chép nhật ký")
+                        Text(isEnglish ? "Copy Logs" : "Sao chép")
                             .font(.system(size: 10, weight: .bold))
                     }
                     .foregroundColor(.white.opacity(0.75))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    AppLog.shared.flush()
+                    showShareSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 9.5))
+                        Text(isEnglish ? "Export log.txt" : "Xuất log.txt")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(AppTheme.neonCyan)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.neonCyan.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -1064,10 +1104,27 @@ struct RemotePairingSheetView: View {
                 .buttonStyle(.plain)
 
                 Button {
+                    AppLog.shared.flush()
+                    showShareSheet = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "square.and.arrow.up")
+                        Text(isEnglish ? "Export log.txt" : "Xuất log.txt")
+                    }
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundColor(AppTheme.neonLime)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .background(AppTheme.neonLime.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button {
                     pairing.stopAdvertising()
                     presentationMode.wrappedValue.dismiss()
                 } label: {
-                    Text(isEnglish ? "Close" : "Đóng cửa sổ")
+                    Text(isEnglish ? "Close" : "Đóng")
                         .font(.system(size: 11.5, weight: .bold))
                         .foregroundColor(.white.opacity(0.7))
                         .frame(maxWidth: .infinity)

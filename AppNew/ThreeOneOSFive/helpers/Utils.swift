@@ -11,10 +11,10 @@ import Combine
 // ═══════════════════════════════════════════════════════
 private let IS_LOGGING_DISABLED: Bool = false
 
-// MARK: - Global logger (High-performance, throttled, deduplicated, capped to 150 items)
+// MARK: - Global logger (High-performance, persistent file-backed, throttled, deduplicated)
 class AppLog: ObservableObject {
     static let shared = AppLog()
-    static let maxCapacity: Int = 150
+    static let maxCapacity: Int = 500
 
     @Published var entries: [String] = []
 
@@ -22,14 +22,74 @@ class AppLog: ObservableObject {
     private var lastMessage: String = ""
     private var repeatCount: Int = 1
 
+    // Persistent file logging path: Documents/log.txt (Accessible in Files app)
+    static var logFileURL: URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return docs.appendingPathComponent("log.txt")
+    }
+
+    private let fileQueue = DispatchQueue(label: "com.innova.logger.file", qos: .utility)
+    private var fileHandle: FileHandle?
+    private let timeFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm:ss.SSS"
+        return df
+    }()
+
+    private init() {
+        setupFile()
+        writeSessionHeader()
+    }
+
+    private func setupFile() {
+        let url = Self.logFileURL
+        if !FileManager.default.fileExists(atPath: url.path) {
+            FileManager.default.createFile(atPath: url.path, contents: nil, attributes: nil)
+        }
+        self.fileHandle = try? FileHandle(forWritingTo: url)
+        self.fileHandle?.seekToEndOfFile()
+    }
+
+    private func writeSessionHeader() {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let dateStr = df.string(from: Date())
+        let header = """
+        \n══════════════════════════════════════════════════════════════════════
+        🚀 INNOVA CHEAT · PHIÊN LÀM VIỆC BẮT ĐẦU: \(dateStr)
+        📱 Thiết bị: \(AppInfo.displayMachineName) · iOS \(AppInfo.osVersion) (\(AppInfo.osBuild))
+        📦 Ứng dụng: INNOVA CHEAT
+        📁 Vị trí log: \(Self.logFileURL.path)
+        ══════════════════════════════════════════════════════════════════════\n
+        """
+        appendRawToFile(header)
+    }
+
+    private func appendRawToFile(_ text: String) {
+        fileQueue.async { [weak self] in
+            guard let self = self else { return }
+            if self.fileHandle == nil {
+                self.setupFile()
+            }
+            guard let handle = self.fileHandle else { return }
+            if let data = text.data(using: .utf8) {
+                try? handle.write(contentsOf: data)
+            }
+        }
+    }
+
     func append(_ msg: String) {
         if IS_LOGGING_DISABLED { return }
 
         let trimmed = msg.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        let timestamp = timeFormatter.string(from: Date())
+        let formattedForFile = "[\(timestamp)] \(trimmed)\n"
+        appendRawToFile(formattedForFile)
+
         lock.lock()
-        // Deduplicate consecutive identical messages to prevent flood
+        // Deduplicate consecutive identical messages in memory to prevent UI flood
         if trimmed == lastMessage {
             repeatCount += 1
             let repeatedText = "\(trimmed) (x\(repeatCount))"
@@ -56,6 +116,12 @@ class AppLog: ObservableObject {
         }
     }
 
+    func flush() {
+        fileQueue.sync {
+            try? self.fileHandle?.synchronize()
+        }
+    }
+
     func clear() {
         lock.lock()
         lastMessage = ""
@@ -64,6 +130,19 @@ class AppLog: ObservableObject {
         DispatchQueue.main.async {
             self.entries.removeAll()
         }
+        fileQueue.async { [weak self] in
+            guard let self = self else { return }
+            try? self.fileHandle?.close()
+            self.fileHandle = nil
+            try? FileManager.default.removeItem(at: Self.logFileURL)
+            self.setupFile()
+            self.writeSessionHeader()
+        }
+    }
+
+    func exportLogURL() -> URL {
+        flush()
+        return Self.logFileURL
     }
 }
 
@@ -107,15 +186,36 @@ func setupLogCapture() {
                              line.hasPrefix("[CONFIG]") || line.hasPrefix("[INJECT]") || line.hasPrefix("[UNINJECT]") ||
                              line.hasPrefix("[AIM]") || line.hasPrefix("[ESP]") || line.hasPrefix("[COMBAT]") ||
                              line.hasPrefix("[license]") || line.hasPrefix("[token]") ||
+                             line.hasPrefix("[PAIRING]") || line.hasPrefix("[AIRLIFT]") || line.hasPrefix("[VPN]") ||
                              line.localizedCaseInsensitiveContains("kernel") ||
                              line.localizedCaseInsensitiveContains("exploit") ||
-                             line.localizedCaseInsensitiveContains("krw")
+                             line.localizedCaseInsensitiveContains("krw") ||
+                             line.localizedCaseInsensitiveContains("airlift") ||
+                             line.localizedCaseInsensitiveContains("rppairing") ||
+                             line.localizedCaseInsensitiveContains("tunnel") ||
+                             line.localizedCaseInsensitiveContains("idevice") ||
+                             line.localizedCaseInsensitiveContains("atc") ||
+                             line.localizedCaseInsensitiveContains("remotexpc") ||
+                             line.localizedCaseInsensitiveContains("pairing") ||
+                             line.localizedCaseInsensitiveContains("books")
 
             if isRelevant {
                 AppLog.shared.append(line)
             }
         }
     }
+}
+
+// MARK: - Global Share Sheet
+struct ShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    var applicationActivities: [UIActivity]? = nil
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: applicationActivities)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - App Info

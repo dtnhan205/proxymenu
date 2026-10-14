@@ -25,6 +25,25 @@ struct ThreeOneOSFiveApp: App {
             RemotePairingAdvertiser.shared.log(line)
         }, nil)
 
+        // Ghi lại thông số chẩn đoán chi tiết vào log.txt để phân tích
+        Task { @MainActor in
+            AppLog.shared.append("[DIAGNOSTIC] ══════════════════════════════════════════════════════════")
+            AppLog.shared.append("[DIAGNOSTIC] 📱 Thiết bị: \(AppInfo.displayMachineName) (\(AppInfo.rawMachineName))")
+            AppLog.shared.append("[DIAGNOSTIC] 🍎 iOS: \(AppInfo.osVersion) · Build: \(AppInfo.osBuild)")
+            let wifi = RemotePairingAdvertiser.getWiFiAddress() ?? "Không có (Đang tắt Wi-Fi / Dùng 4G)"
+            AppLog.shared.append("[DIAGNOSTIC] 📶 Wi-Fi IP en0: \(wifi)")
+            let hasPairing = RemotePairingAdvertiser.shared.hasExistingPairing
+            let pairingPath = RemotePairingAdvertiser.shared.pairingFilePath
+            let pairingSize = (try? FileManager.default.attributesOfItem(atPath: pairingPath)[.size] as? Int) ?? 0
+            AppLog.shared.append("[DIAGNOSTIC] 📁 File Pairing: \(hasPairing ? "✅ CÓ SẴN (\(pairingSize) bytes) tại \(pairingPath)" : "⚠️ Chưa có file pairing")")
+            let booksInstalled = UIApplication.shared.canOpenURL(URL(string: "ibooks://")!)
+            AppLog.shared.append("[DIAGNOSTIC] 📚 Ứng dụng Sách (Apple Books): \(booksInstalled ? "✅ ĐÃ CÀI ĐẶT TRÊN MÁY" : "⚠️ CHƯA PHÁT HIỆN / CẦN CÀI TỪ APP STORE")")
+            let vpn = LocalDevVPNBridge.detectVPNInterface()
+            AppLog.shared.append("[DIAGNOSTIC] 🌐 LocalDevVPN (utun): \(vpn.active ? "✅ BẬT (\(vpn.deviceIP))" : "ℹ️ Chưa kết nối")")
+            AppLog.shared.append("[DIAGNOSTIC] 💾 File log toàn bộ phiên: \(AppLog.logFileURL.path)")
+            AppLog.shared.append("[DIAGNOSTIC] ══════════════════════════════════════════════════════════")
+        }
+
         // Đảm bảo symbol ALGetGrappaToken không bị linker strip
         _ = ALGetGrappaToken(0, 0, 0, nil, 0, nil, nil, 0)
     }

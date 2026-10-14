@@ -237,36 +237,34 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
         DispatchQueue.main.async {
             self.logs.append(formatted)
-            if self.logs.count > 150 {
-                self.logs.removeFirst(self.logs.count - 150)
+            if self.logs.count > 500 {
+                self.logs.removeFirst(self.logs.count - 500)
             }
         }
     }
 
     func clearLogs() {
+        AppLog.shared.clear()
         DispatchQueue.main.async {
             self.logs.removeAll()
-            self.log("🗑️ Đã xóa sạch nhật ký phát sóng.")
+            self.log("🗑️ Đã xóa sạch nhật ký phát sóng và reset file log.txt.")
         }
     }
 
     func copyLogsToClipboard() {
-        let full = logs.joined(separator: "\n")
-        UIPasteboard.general.string = full
-        log("📋 Đã sao chép \(logs.count) dòng nhật ký vào bộ nhớ tạm.")
+        AppLog.shared.flush()
+        if let text = try? String(contentsOf: AppLog.logFileURL, encoding: .utf8), !text.isEmpty {
+            UIPasteboard.general.string = text
+            log("📋 Đã sao chép toàn bộ file log.txt (\(text.count) ký tự) vào bộ nhớ tạm.")
+        } else {
+            let full = logs.joined(separator: "\n")
+            UIPasteboard.general.string = full
+            log("📋 Đã sao chép \(logs.count) dòng nhật ký vào bộ nhớ tạm.")
+        }
     }
 
     func exportLogs() -> URL? {
-        let full = logs.joined(separator: "\n")
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileURL = tempDir.appendingPathComponent("Pairing_Logs_\(Int(Date().timeIntervalSince1970)).txt")
-        do {
-            try full.write(to: fileURL, atomically: true, encoding: .utf8)
-            return fileURL
-        } catch {
-            log("❌ Không thể xuất file nhật ký: \(error.localizedDescription)")
-            return nil
-        }
+        return AppLog.shared.exportLogURL()
     }
 
     // MARK: - Wi-Fi IP

@@ -565,11 +565,13 @@ enum FreeFirePatchService {
         let pairingSize = (try? FileManager.default.attributesOfItem(atPath: pairingPath)[.size] as? Int) ?? 0
         let vpn = LocalDevVPNBridge.detectVPNInterface()
         let wifiIP = RemotePairingAdvertiser.getWiFiAddress() ?? "Không có"
+        let booksInstalled = UIApplication.shared.canOpenURL(URL(string: "ibooks://")!)
 
         AppLog.shared.append("[INJECT] 📁 Pairing Record: \(hasPairing ? "✅ CÓ SẴN (\(pairingSize) bytes)" : "⚠️ Chưa có file pairing")")
+        AppLog.shared.append("[INJECT] 📚 Apple Books: \(booksInstalled ? "✅ Đã cài đặt" : "⚠️ CHƯA CÀI ĐẶT (AirTraffic yêu cầu có app Sách)")")
         AppLog.shared.append("[INJECT] 🌐 LocalDevVPN: \(vpn.active ? "✅ ĐANG BẬT (\(vpn.deviceIP))" : "ℹ️ Chưa bật (Khuyên bật)")")
         AppLog.shared.append("[INJECT] 📶 Wi-Fi IP: \(wifiIP)")
-        RemotePairingAdvertiser.shared.log("📁 [INJECT] Pairing: \(hasPairing ? "OK (\(pairingSize)B)" : "Chưa có") · VPN: \(vpn.active ? "BẬT" : "TẮT")")
+        RemotePairingAdvertiser.shared.log("📁 [INJECT] Pairing: \(hasPairing ? "OK (\(pairingSize)B)" : "Chưa có") · Books: \(booksInstalled ? "OK" : "Thiếu") · VPN: \(vpn.active ? "BẬT" : "TẮT")")
 
         if hasPairing && !vpn.active {
             AppLog.shared.append("[INJECT] 💡 MẸO: Nếu RSD tunnel bị lỗi kết nối, hãy mở app LocalDevVPN và bấm Connect để mở cổng 49152!")
@@ -760,6 +762,18 @@ enum FreeFirePatchService {
                 } catch {
                     AppLog.shared.append("[INJECT] ❌ [TIER AIRLIFT] Ghi qua AirTraffic thất bại: \(error.localizedDescription)")
                     RemotePairingAdvertiser.shared.log("❌ [TIER AIRLIFT] Lỗi: \(error.localizedDescription)")
+
+                    let errStr = error.localizedDescription
+                    if errStr.contains("ReadyForSync") || errStr.contains("Books") || errStr.contains("iBooks") {
+                        AppLog.shared.append("[INJECT] 💡 GIẢI PHÁP LỖI READYFORSYNC / AIRTRAFFIC:")
+                        AppLog.shared.append("[INJECT] 1️⃣ Mở App Store, tìm và cài đặt app 'Apple Books' (Sách) nếu chưa có.")
+                        AppLog.shared.append("[INJECT] 2️⃣ Mở app 'Sách' lên ít nhất 1 lần để hệ thống kích hoạt ReadyForSync daemon.")
+                        AppLog.shared.append("[INJECT] 3️⃣ Quay lại INNOVA CHEAT và thực hiện nạp lại.")
+                    } else if errStr.contains("Connection refused") || errStr.contains("timeout") || errStr.contains("49152") {
+                        AppLog.shared.append("[INJECT] 💡 GIẢI PHÁP LỖI CỔNG 49152 / TIMEOUT:")
+                        AppLog.shared.append("[INJECT] 1️⃣ Mở app LocalDevVPN và bấm CONNECT (đảm bảo hiển thị Connected 10.7.0.1).")
+                        AppLog.shared.append("[INJECT] 2️⃣ Đảm bảo thiết bị đang kết nối cùng mạng Wi-Fi.")
+                    }
                 }
             } else {
                 AppLog.shared.append("[INJECT] ⚠️ [TIER AIRLIFT] Bỏ qua vì chưa tìm thấy đường dẫn container của \(target.displayName)")

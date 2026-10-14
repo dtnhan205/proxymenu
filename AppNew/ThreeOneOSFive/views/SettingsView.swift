@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showVPNAlert = false
     @State private var vpnAlertTitle = ""
     @State private var vpnAlertMessage = ""
+    @State private var showShareLogSheet = false
 
     var body: some View {
         ZStack {
@@ -80,6 +81,9 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showPairingSheet) {
             RemotePairingSheetView()
+        }
+        .sheet(isPresented: $showShareLogSheet) {
+            ShareSheet(activityItems: [AppLog.shared.exportLogURL()])
         }
     }
 
@@ -250,6 +254,33 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            // Nút Xuất file log.txt để chia sẻ hoặc gửi phân tích
+            Button {
+                AppLog.shared.flush()
+                showShareLogSheet = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.arrow.up.circle.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(AppTheme.neonLime)
+                    Text("Xuất file log.txt (Gửi phân tích)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(AppTheme.neonLime.opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
