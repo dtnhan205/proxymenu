@@ -119,68 +119,9 @@ struct RemotePairingSheetView: View {
     // MARK: - Broadcasting Card
     private var broadcastingCard: some View {
         VStack(spacing: 12) {
-            ZStack {
-                // Radar Pulse Rings
-                ForEach(0..<3) { i in
-                    Circle()
-                        .strokeBorder(AppTheme.neonCyan.opacity(0.25 - Double(i) * 0.07), lineWidth: 1.5)
-                        .frame(width: CGFloat(64 + i * 28), height: CGFloat(64 + i * 28))
-                        .scaleEffect(isPulsing ? 1.08 : 0.95)
-                        .animation(
-                            Animation.easeInOut(duration: 1.5)
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(i) * 0.2),
-                            value: isPulsing
-                        )
-                }
-
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [AppTheme.neonCyan, AppTheme.neonBlue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 58, height: 58)
-                    .shadow(color: AppTheme.neonCyan.opacity(0.6), radius: 10)
-
-                Image(systemName: pairing.isPaired ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.black)
-            }
-            .padding(.top, 10)
-
-            VStack(spacing: 4) {
-                Text(pairing.advertisedName)
-                    .font(.system(size: 17, weight: .heavy, design: .monospaced))
-                    .foregroundColor(.white)
-
-                Text(pairing.statusMessage)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(pairing.isPaired ? AppTheme.neonLime : AppTheme.neonAmber)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 10)
-            }
-
-            HStack(spacing: 12) {
-                statusPill(
-                    icon: "network",
-                    label: "PORT",
-                    value: "\(pairing.listeningPort)"
-                )
-                statusPill(
-                    icon: "dot.radiowaves.left.and.right",
-                    label: "BONJOUR",
-                    value: "_remotepairing"
-                )
-                statusPill(
-                    icon: "lock.shield.fill",
-                    label: "STATUS",
-                    value: pairing.isPaired ? "PAIRED" : "READY"
-                )
-            }
-            .padding(.top, 4)
+            radarAnimationView
+            broadcastingInfoSection
+            broadcastingPillsSection
         }
         .padding(.vertical, 16)
         .padding(.horizontal, 14)
@@ -194,6 +135,81 @@ struct RemotePairingSheetView: View {
                     lineWidth: 1
                 )
         )
+    }
+
+    private var radarAnimationView: some View {
+        ZStack {
+            radarRingsView
+
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [AppTheme.neonCyan, AppTheme.neonBlue],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 58, height: 58)
+                .shadow(color: AppTheme.neonCyan.opacity(0.6), radius: 10)
+
+            Image(systemName: pairing.isPaired ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.black)
+        }
+        .padding(.top, 10)
+    }
+
+    private var radarRingsView: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(AppTheme.neonCyan.opacity(0.25), lineWidth: 1.5)
+                .frame(width: 64, height: 64)
+
+            Circle()
+                .strokeBorder(AppTheme.neonCyan.opacity(0.18), lineWidth: 1.5)
+                .frame(width: 92, height: 92)
+
+            Circle()
+                .strokeBorder(AppTheme.neonCyan.opacity(0.11), lineWidth: 1.5)
+                .frame(width: 120, height: 120)
+        }
+        .scaleEffect(isPulsing ? 1.08 : 0.95)
+        .animation(Animation.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isPulsing)
+    }
+
+    private var broadcastingInfoSection: some View {
+        VStack(spacing: 4) {
+            Text(pairing.advertisedName)
+                .font(.system(size: 17, weight: .heavy, design: .monospaced))
+                .foregroundColor(.white)
+
+            Text(pairing.statusMessage)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(pairing.isPaired ? AppTheme.neonLime : AppTheme.neonAmber)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 10)
+        }
+    }
+
+    private var broadcastingPillsSection: some View {
+        HStack(spacing: 12) {
+            statusPill(
+                icon: "network",
+                label: "PORT",
+                value: "\(pairing.listeningPort)"
+            )
+            statusPill(
+                icon: "dot.radiowaves.left.and.right",
+                label: "BONJOUR",
+                value: "_remotepairing"
+            )
+            statusPill(
+                icon: "lock.shield.fill",
+                label: "STATUS",
+                value: pairing.isPaired ? "PAIRED" : "READY"
+            )
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - PIN Code Card

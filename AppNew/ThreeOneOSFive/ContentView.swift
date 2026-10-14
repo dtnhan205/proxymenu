@@ -4515,7 +4515,6 @@ struct ContentView: View {
         Task {
             let (success, message) = await vpnManager.connect()
             await MainActor.run {
-                let os = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
                 if success {
                     appState.exploitStatus = .success(method: "LocalDevVPN (\(vpnManager.detectedInterfaceName))")
                 } else {

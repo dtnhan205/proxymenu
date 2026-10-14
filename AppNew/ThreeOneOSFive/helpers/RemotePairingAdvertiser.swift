@@ -157,7 +157,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
             var actualAddr = sockaddr_in()
             var len = socklen_t(MemoryLayout<sockaddr_in>.size)
-            withUnsafeMutablePointer(to: &actualAddr) {
+            _ = withUnsafeMutablePointer(to: &actualAddr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                     getsockname(fd, $0, &len)
                 }
