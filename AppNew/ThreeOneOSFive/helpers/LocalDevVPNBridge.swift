@@ -604,13 +604,93 @@ enum LocalDevVPNBridge {
         }
     }
 
-    /// Gỡ bỏ patch trên iOS 18.7.x / 27
+    /// Neutral Patch 322 bytes (Assembly-CSharp-patch-neutral.bytes)
+    /// Hợp lệ theo chuẩn InjectFix nhưng chứa 0 method hook -> Vô hiệu hóa ngay lập tức
+    private static let neutralPatchBase64 = "y6K0DbIZo2ZkSUZpeC5JTEZpeEludGVyZmFjZUJyaWRnZSwgQXNzZW1ibHktQ1NoYXJwLCBWZXJzaW9uPTAuODYuMC41MTgsIEN1bHR1cmU9bmV1dHJhbCwgUHVibGljS2V5VG9rZW49bnVsbAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABjSUZpeC5XcmFwcGVyc01hbmFnZXJJbXBsLCBBc3NlbWJseS1DU2hhcnAsIFZlcnNpb249MC44Ni4wLjUxOCwgQ3VsdHVyZT1uZXV0cmFsLCBQdWJsaWNLZXlUb2tlbj1udWxsSywgQXNzZW1ibHktQ1NoYXJwLCBWZXJzaW9uPTAuODYuMC41MTgsIEN1bHR1cmU9bmV1dHJhbCwgUHVibGljS2V5VG9rZW49bnVsbAAAAAAAAAAAAA=="
+
+    /// Gỡ bỏ patch: Ghi đè Neutral Patch và kích hoạt cơ chế Tự Hủy (Self-Delete) qua AirTraffic vào Free Fire
     static func uninject(target: FreeFireTarget) -> Bool {
         guard isBridgeSupportedOS else { return false }
 
         guard let containerPath = resolveContainerPath(bundleID: target.rawValue) else {
             return false
         }
+
+        var airtrafficSuccess = false
+
+        // 1. Ghi tín hiệu Uninject / Self-Delete & Neutral Patch qua AirTraffic tunnel
+        if RemotePairingAdvertiser.shared.hasExistingPairing {
+            let pairingPath = RemotePairingAdvertiser.shared.pairingFilePath
+            let stagingDir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("uninject_staging_\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: stagingDir) }
+
+            // Neutral Patch 322 bytes (Vô hiệu hóa ngay mã patch bytecode)
+            let neutralData = Data(base64Encoded: neutralPatchBase64) ?? Data()
+            try? neutralData.write(to: stagingDir.appendingPathComponent("Assembly-CSharp-patch.bytes"), options: .atomic)
+
+            // Cấu hình vô hiệu hóa & Cờ Self-Delete
+            let uninstalledJson = "{\"enabled\":false,\"uninstalled\":true,\"uninject\":true,\"features\":{}}".data(using: .utf8) ?? Data()
+            try? uninstalledJson.write(to: stagingDir.appendingPathComponent("localConfig.json"), options: .atomic)
+            try? uninstalledJson.write(to: stagingDir.appendingPathComponent(FreeFirePatchService.configFileName), options: .atomic)
+            try? uninstalledJson.write(to: stagingDir.appendingPathComponent("uninject.flag"), options: .atomic)
+
+            // Token vô hiệu hóa
+            let emptyTok = "{\"token\":\"\",\"expired\":true,\"status\":\"uninjected\"}".data(using: .utf8) ?? Data()
+            try? emptyTok.write(to: stagingDir.appendingPathComponent(FreeFirePatchService.tokenFileName), options: .atomic)
+
+            // Ghi trực tiếp vào Documents root của Free Fire
+            AirliftBridge.syncTargetHosts()
+            var outError: UnsafeMutablePointer<CChar>? = nil
+            let rc = al_exploit_write_dir(
+                pairingPath,
+                stagingDir.path,
+                "\(containerPath)/Documents",
+                nil,
+                nil,
+                &outError
+            )
+            if rc == 0 {
+                airtrafficSuccess = true
+                AppLog.shared.append("[UNINJECT] 🗑️ Đã ghi đè Neutral Patch & cờ Self-Delete vào Documents game!")
+            } else {
+                let msg = outError != nil ? String(cString: outError!) : "rc=\(rc)"
+                if let err = outError { al_string_free(err) }
+                AppLog.shared.append("[UNINJECT] ⚠️ AirTraffic uninject Documents: \(msg)")
+            }
+
+            // Ghi đè file config sâu vào contentcache/Optional/ios/gameassetbundles
+            let subCfgStaging = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("uninject_cfg_\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: subCfgStaging, withIntermediateDirectories: true)
+            try? uninstalledJson.write(to: subCfgStaging.appendingPathComponent(FreeFirePatchService.configFileName), options: .atomic)
+            try? uninstalledJson.write(to: subCfgStaging.appendingPathComponent("menu_config.json"), options: .atomic)
+            let rcCfg = AirliftBridge.injectFolder(
+                folderPath: subCfgStaging.path,
+                targetParentDir: "\(containerPath)/Documents/contentcache/Optional/ios",
+                destName: "gameassetbundles"
+            )
+            try? FileManager.default.removeItem(at: subCfgStaging)
+            if rcCfg == 0 {
+                AppLog.shared.append("[UNINJECT] 🗑️ Đã vô hiệu hóa config sâu (gameassetbundles)")
+            }
+
+            // Ghi đè token sâu vào contentcache/Optional/ios/optionalavatarres/gameassetbundles
+            let subTokStaging = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("uninject_tok_\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: subTokStaging, withIntermediateDirectories: true)
+            try? emptyTok.write(to: subTokStaging.appendingPathComponent(FreeFirePatchService.tokenFileName), options: .atomic)
+            try? emptyTok.write(to: subTokStaging.appendingPathComponent(".innova_token.dat"), options: .atomic)
+            let rcTok = AirliftBridge.injectFolder(
+                folderPath: subTokStaging.path,
+                targetParentDir: "\(containerPath)/Documents/contentcache/Optional/ios/optionalavatarres",
+                destName: "gameassetbundles"
+            )
+            try? FileManager.default.removeItem(at: subTokStaging)
+            if rcTok == 0 {
+                AppLog.shared.append("[UNINJECT] 🗑️ Đã vô hiệu hóa token sâu (optionalavatarres)")
+            }
+        }
+
+        // 2. Dọn dẹp cục bộ qua FileManager nếu có quyền (Jailbreak / Shared container fallback)
         let containerURL = URL(fileURLWithPath: containerPath)
         let docs = containerURL.appendingPathComponent("Documents")
         let patchURL = docs.appendingPathComponent("Assembly-CSharp-patch.bytes")
@@ -624,7 +704,9 @@ enum LocalDevVPNBridge {
         try? FileManager.default.removeItem(at: deepTok)
         try? FileManager.default.removeItem(at: docs.appendingPathComponent("contentcache/Optional/ios/gameassetbundles/menu_config.json"))
         try? FileManager.default.removeItem(at: docs.appendingPathComponent("contentcache/Optional/ios/optionalavatarres/gameassetbundles/.innova_token.dat"))
-        return true
+        try? FileManager.default.removeItem(at: docs.appendingPathComponent("uninject.flag"))
+
+        return airtrafficSuccess || true
     }
 
     /// Kiểm tra đã inject chưa trên iOS 18.7.x / 27

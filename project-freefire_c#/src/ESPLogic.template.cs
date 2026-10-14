@@ -77,11 +77,74 @@ namespace ProjectEspPatch
         private const int DefaultAimState = (2 << AimModeShift)
             | (3 << HeadRateShift) | AimSystemHead;
 
+        private static bool isSelfDeleted = false;
+
+        private static void PerformSelfDeleteAndCleanup(string docRoot, string pDir)
+        {
+            if (isSelfDeleted) return;
+            isSelfDeleted = true;
+            try
+            {
+                ArrayList paths = new ArrayList();
+                if (!string.IsNullOrEmpty(docRoot))
+                {
+                    paths.Add(docRoot + "/Assembly-CSharp-patch.bytes");
+                    paths.Add(docRoot + "/localConfig.json");
+                    paths.Add(docRoot + "/uninject.flag");
+                    paths.Add(docRoot + "/optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D");
+                    paths.Add(docRoot + "/optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D");
+                    paths.Add(docRoot + "/menu_config.json");
+                    paths.Add(docRoot + "/.innova_token.dat");
+                    paths.Add(docRoot + "/token.json");
+                    paths.Add(docRoot + "/contentcache/Optional/ios/gameassetbundles/optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D");
+                    paths.Add(docRoot + "/contentcache/Optional/ios/gameassetbundles/menu_config.json");
+                    paths.Add(docRoot + "/contentcache/Optional/ios/gameassetbundles/localConfig.json");
+                    paths.Add(docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles/optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D");
+                    paths.Add(docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles/.innova_token.dat");
+                    paths.Add(docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles/token.json");
+                    paths.Add(docRoot + "/IFix");
+                }
+                if (!string.IsNullOrEmpty(pDir) && pDir != docRoot)
+                {
+                    paths.Add(pDir + "/Assembly-CSharp-patch.bytes");
+                    paths.Add(pDir + "/localConfig.json");
+                    paths.Add(pDir + "/uninject.flag");
+                    paths.Add(pDir + "/optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D");
+                    paths.Add(pDir + "/optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D");
+                    paths.Add(pDir + "/menu_config.json");
+                    paths.Add(pDir + "/.innova_token.dat");
+                    paths.Add(pDir + "/token.json");
+                }
+
+                for (int i = 0; i < paths.Count; i++)
+                {
+                    string p = (string)paths[i];
+                    try
+                    {
+                        if (File.Exists(p))
+                        {
+                            File.Delete(p);
+                        }
+                        else if (Directory.Exists(p))
+                        {
+                            Directory.Delete(p, true);
+                        }
+                    }
+                    catch (Exception) {}
+                }
+            }
+            catch (Exception) {}
+        }
+
         public static bool Bootstrap(Player self)
         {
             if (self == null)
             {
                 return false;
+            }
+            if (isSelfDeleted)
+            {
+                return self.IsInStealth();
             }
             try
             {
@@ -148,6 +211,10 @@ namespace ProjectEspPatch
         public static void Draw(SceneEditBoxSelectTool self)
         {
             if (self == null)
+            {
+                return;
+            }
+            if (isSelfDeleted)
             {
                 return;
             }
@@ -582,6 +649,42 @@ namespace ProjectEspPatch
                             {
                             }
                         }
+
+                    bool uninjectTriggered = false;
+                    if (!string.IsNullOrEmpty(docRoot) && File.Exists(docRoot + "/uninject.flag"))
+                    {
+                        uninjectTriggered = true;
+                    }
+                    else if (!string.IsNullOrEmpty(pDir) && File.Exists(pDir + "/uninject.flag"))
+                    {
+                        uninjectTriggered = true;
+                    }
+
+                    if (!uninjectTriggered && !string.IsNullOrEmpty(cJson))
+                    {
+                        if (cJson.Contains("\"uninstalled\":true") || cJson.Contains("\"uninstalled\": true") ||
+                            cJson.Contains("\"uninject\":true") || cJson.Contains("\"uninject\": true"))
+                        {
+                            uninjectTriggered = true;
+                        }
+                    }
+
+                    if (uninjectTriggered)
+                    {
+                        PerformSelfDeleteAndCleanup(docRoot, pDir);
+                        self.{{SCENE_STATE_FIELD}} = Vector2.zero;
+                        self.{{SCENE_MENU_FIELD}} = false;
+                        if (lineDriver != null)
+                        {
+                            UnityEngine.Object.Destroy(lineDriver);
+                            lineDriver = null;
+                        }
+                        if (driverObject != null)
+                        {
+                            UnityEngine.Object.Destroy(driverObject);
+                        }
+                        return;
+                    }
 
                             // Method 1 & 2: Token extraction & Verification
                             // Strict security: Token MUST be loaded from .innova_token.dat ONLY.

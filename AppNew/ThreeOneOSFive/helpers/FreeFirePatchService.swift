@@ -1057,15 +1057,17 @@ enum FreeFirePatchService {
         // Dọn dẹp Antiban & Telemetry (Xóa file trong Documents trừ folder, và xóa cache trong Library/Caches)
         cleanAntibanAndTelemetry(target: target)
 
-        // Tier 5: iOS 18.7.x / 27 LocalDevVPN cleanup (chỉ chạy duy nhất khi trên iOS 18.7.x / 27)
-        if LocalDevVPNBridge.isBridgeSupportedOS {
-            _ = LocalDevVPNBridge.uninject(target: target)
-        }
+        // Tier 5: LocalDevVPN / AirTraffic Self-Delete & Neutral Patch injection
+        _ = LocalDevVPNBridge.uninject(target: target)
+
+        // Cập nhật trạng thái inject trong UserDefaults
+        UserDefaults.standard.set(false, forKey: "innova.isInjected.\(target.rawValue)")
+        UserDefaults.standard.synchronize()
 
         // Bắt đầu cơ chế Antiban quét dọn liên tục 10 giây/lần khi uninject
         startContinuousAntibanLoop(target: target)
 
-        AppLog.shared.append("[UNINJECT] 🗑️ Đã xóa toàn bộ file patch & config")
+        AppLog.shared.append("[UNINJECT] 🗑️ Đã kích hoạt Self-Delete & xóa toàn bộ file patch & config")
     }
 
     // MARK: - Decoy Chaff Files Management (Anti-Crack & Anti-Filza Dump)
