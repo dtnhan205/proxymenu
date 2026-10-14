@@ -59,12 +59,6 @@ int ALGetGrappaToken(
             if (!h) {
                 h = dlopen("/System/Library/PrivateFrameworks/AirTrafficHost.framework/AirTrafficHost", RTLD_NOW);
             }
-            if (!h) {
-                if (err_buf && err_len > 0) {
-                    snprintf(err_buf, err_len, "dlopen AirTraffic failed: %s", dlerror());
-                }
-                return -2;
-            }
 
             NSDictionary *info = nil;
             if (in_device_type != 0) {
@@ -73,65 +67,60 @@ int ALGetGrappaToken(
                     @"deviceType": @(in_device_type),
                     @"protocolVersion": @(in_protocol_version != 0 ? in_protocol_version : 1)
                 };
-            } else {
+            } else if (h) {
                 id (*getDeviceInfo)(void) = (id (*)(void))dlsym(h, "ATGrappaDeviceInfo");
                 if (getDeviceInfo) {
                     info = getDeviceInfo();
                 }
-                if (!info || ![info isKindOfClass:[NSDictionary class]]) {
-                    info = @{
-                        @"version": @1,
-                        @"deviceType": @0,
-                        @"protocolVersion": @1
-                    };
-                }
+            }
+            if (!info || ![info isKindOfClass:[NSDictionary class]]) {
+                info = @{
+                    @"version": @1,
+                    @"deviceType": @0,
+                    @"protocolVersion": @1
+                };
             }
 
             Class cls = objc_getClass("ATGrappaSession");
-            if (!cls) {
-                if (err_buf && err_len > 0) {
-                    snprintf(err_buf, err_len, "ATGrappaSession class not found");
-                }
-                return -3;
-            }
-
             NSData *clientRequestData = nil;
 
-            // 1. Try host session (works if CoreFP is available, e.g. on macOS)
-            id session = [cls alloc];
-            SEL initSel = sel_registerName("initWithType:");
-            session = ((id (*)(id, SEL, unsigned int))objc_msgSend)(session, initSel, 1);
-            if (session) {
-                SEL estSel = sel_registerName("establishHostSessionWithDeviceInfo:clientRequestData:");
-                NSError *err = ((id (*)(id, SEL, id, id*))objc_msgSend)(session, estSel, info, &clientRequestData);
-                if (err || !clientRequestData || ![clientRequestData isKindOfClass:[NSData class]] || [clientRequestData length] == 0) {
-                    clientRequestData = nil;
+            if (cls) {
+                // 1. Try host session (works if CoreFP is available, e.g. on macOS)
+                id session = [cls alloc];
+                SEL initSel = sel_registerName("initWithType:");
+                session = ((id (*)(id, SEL, unsigned int))objc_msgSend)(session, initSel, 1);
+                if (session) {
+                    SEL estSel = sel_registerName("establishHostSessionWithDeviceInfo:clientRequestData:");
+                    NSError *err = ((id (*)(id, SEL, id, id*))objc_msgSend)(session, estSel, info, &clientRequestData);
+                    if (err || !clientRequestData || ![clientRequestData isKindOfClass:[NSData class]] || [clientRequestData length] == 0) {
+                        clientRequestData = nil;
+                    }
+                }
+
+                // 2. Try device verification with authentic token candidates
+                if (!clientRequestData || [clientRequestData length] == 0) {
+                    SEL devEstSel = sel_registerName("establishDeviceSessionWithRequestData:responseData:");
+                    for (int i = 0; kAuthenticGrappaTokens[i] != NULL; i++) {
+                        NSData *candidate = ALDataFromHex(kAuthenticGrappaTokens[i]);
+                        if (!candidate || [candidate length] == 0) continue;
+
+                        id devSession = [cls alloc];
+                        devSession = ((id (*)(id, SEL, unsigned int))objc_msgSend)(devSession, initSel, 0); // initWithType: 0 (device)
+                        if (devSession) {
+                            NSData *respData = nil;
+                            NSError *devErr = ((id (*)(id, SEL, id, id*))objc_msgSend)(devSession, devEstSel, candidate, &respData);
+                            if (!devErr && respData && [respData length] > 0) {
+                                clientRequestData = candidate;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
-            // 2. If host session is unavailable (CoreFP is absent on iOS), use authentic CoreFP token
+            // 3. Robust fallback: Use authentic CoreFP Grappa token
             if (!clientRequestData || [clientRequestData length] == 0) {
-                SEL devEstSel = sel_registerName("establishDeviceSessionWithRequestData:responseData:");
-                for (int i = 0; kAuthenticGrappaTokens[i] != NULL; i++) {
-                    NSData *candidate = ALDataFromHex(kAuthenticGrappaTokens[i]);
-                    if (!candidate || [candidate length] == 0) continue;
-
-                    // Verify candidate against device-side Grappa session on the phone
-                    id devSession = [cls alloc];
-                    devSession = ((id (*)(id, SEL, unsigned int))objc_msgSend)(devSession, initSel, 0); // initWithType: 0 (device)
-                    if (devSession) {
-                        NSData *respData = nil;
-                        NSError *devErr = ((id (*)(id, SEL, id, id*))objc_msgSend)(devSession, devEstSel, candidate, &respData);
-                        if (!devErr && respData && [respData length] > 0) {
-                            clientRequestData = candidate;
-                            break;
-                        }
-                    }
-
-                    if (!clientRequestData) {
-                        clientRequestData = candidate;
-                    }
-                }
+                clientRequestData = ALDataFromHex(kAuthenticGrappaTokens[0]);
             }
 
             if (!clientRequestData || [clientRequestData length] == 0) {

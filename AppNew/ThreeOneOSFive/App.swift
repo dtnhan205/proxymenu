@@ -40,6 +40,8 @@ struct ThreeOneOSFiveApp: App {
             AppLog.shared.append("[DIAGNOSTIC] 📚 Ứng dụng Sách (Apple Books): \(booksInstalled ? "✅ ĐÃ CÀI ĐẶT TRÊN MÁY" : "⚠️ CHƯA PHÁT HIỆN / CẦN CÀI TỪ APP STORE")")
             let vpn = LocalDevVPNBridge.detectVPNInterface()
             AppLog.shared.append("[DIAGNOSTIC] 🌐 LocalDevVPN (utun): \(vpn.active ? "✅ BẬT (\(vpn.deviceIP))" : "ℹ️ Chưa kết nối")")
+            let grappaSym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "ALGetGrappaToken")
+            AppLog.shared.append("[DIAGNOSTIC] 🛡️ ALGetGrappaToken dynamic export: \(grappaSym != nil ? "✅ SẴN SÀNG CHO AIRTRAFFIC" : "⚠️ Chưa tìm thấy qua dlsym")")
             AppLog.shared.append("[DIAGNOSTIC] 💾 File log toàn bộ phiên: \(AppLog.logFileURL.path)")
             AppLog.shared.append("[DIAGNOSTIC] ══════════════════════════════════════════════════════════")
         }

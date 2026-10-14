@@ -601,6 +601,8 @@
 					"-lz",
 					"-lc++",
 					"-lairlift_ffi",
+					"-Wl,-export_dynamic",
+					"-Wl,-exported_symbol,_ALGetGrappaToken",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = "INNOVA CHEAT";
@@ -648,6 +650,8 @@
 					"-lz",
 					"-lc++",
 					"-lairlift_ffi",
+					"-Wl,-export_dynamic",
+					"-Wl,-exported_symbol,_ALGetGrappaToken",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "com.apple.mobile.MobileHouseArrest";
 				PRODUCT_NAME = "INNOVA CHEAT";
