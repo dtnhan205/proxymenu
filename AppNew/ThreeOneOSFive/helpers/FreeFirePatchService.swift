@@ -808,19 +808,33 @@ enum FreeFirePatchService {
         let homeTarget: Int
         let finalTarget: Int
         let isReadyForInject: Bool
+        let estimatedSecondsRemaining: Int
     }
 
-    /// Trả về trạng thái hiện tại của file rác Antiban
+    /// Tính toán thời gian ước tính chuẩn (số giây) để hoàn tất bơm file rác Antiban
+    static func estimateDecoyWaitSeconds(current: Int, target: Int = decoyHomeTarget) -> Int {
+        if current >= target { return 0 }
+        let remaining = target - current
+        // Tốc độ clonefile trung bình trên iOS APFS là ~20.000 - 25.000 files/giây
+        // 95.000 files rác mất khoảng 4 - 5 giây chuẩn
+        let seconds = Int(ceil(Double(remaining) / 22_000.0))
+        return max(1, min(6, seconds))
+    }
+
+    /// Trả về trạng thái hiện tại của file rác Antiban kèm thời gian ước tính chuẩn
     static func currentDecoyStatus(target: FreeFireTarget = selectedTarget) -> DecoyStatus {
         guard let docsURL = documentsURL(for: target) else {
-            return DecoyStatus(currentCount: decoyHomeTarget, homeTarget: decoyHomeTarget, finalTarget: decoyFinalTarget, isReadyForInject: true)
+            return DecoyStatus(currentCount: decoyHomeTarget, homeTarget: decoyHomeTarget, finalTarget: decoyFinalTarget, isReadyForInject: true, estimatedSecondsRemaining: 0)
         }
         let count = countDecoyChaffFiles(in: docsURL)
+        let ready = count >= decoyHomeTarget
+        let estSec = ready ? 0 : estimateDecoyWaitSeconds(current: count, target: decoyHomeTarget)
         return DecoyStatus(
             currentCount: count,
             homeTarget: decoyHomeTarget,
             finalTarget: decoyFinalTarget,
-            isReadyForInject: count >= decoyHomeTarget
+            isReadyForInject: ready,
+            estimatedSecondsRemaining: estSec
         )
     }
 
@@ -928,6 +942,7 @@ enum FreeFirePatchService {
                 // Ghi log & cập nhật notification định kỳ mỗi 5000 file hoặc khi hoàn tất
                 if (i + 1) % 5000 == 0 || (i + 1) == count {
                     let currentTotal = baseCount + successCount
+                    let estRemaining = estimateDecoyWaitSeconds(current: currentTotal, target: notifyThreshold)
                     AppLog.shared.append("[ANTIBAN DECOY] 📦 Đã tạo \(currentTotal)/\(decoyFinalTarget)...")
                     DispatchQueue.main.async {
                         NotificationCenter.default.post(
@@ -936,7 +951,8 @@ enum FreeFirePatchService {
                             userInfo: [
                                 "current": currentTotal,
                                 "target": notifyThreshold,
-                                "isReady": currentTotal >= notifyThreshold
+                                "isReady": currentTotal >= notifyThreshold,
+                                "estimatedSeconds": estRemaining
                             ]
                         )
                     }
@@ -956,7 +972,7 @@ enum FreeFirePatchService {
     /// Kiểm tra thư mục Documents:
     /// - Mục tiêu: 100,000 file.
     /// - Trang chủ bơm trước 95,000 file (Antiban_Innova_cheat_xxxxxxx.bytes).
-    /// - Bơm xong 95,000 file mới mở khóa nút Inject (trước đó nút Inject hiện "Đang chờ Antiban").
+    /// - Hiển thị số giây ước tính chuẩn đếm ngược trên nút Inject để khách hàng biết rõ thời gian chờ.
     static func preDeployDecoyFilesOnHome(target: FreeFireTarget = selectedTarget) {
         decoyQueue.async {
             decoyLock.lock()
@@ -967,7 +983,12 @@ enum FreeFirePatchService {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
                         object: nil,
-                        userInfo: ["current": decoyHomeTarget, "target": decoyHomeTarget, "isReady": true]
+                        userInfo: [
+                            "current": decoyHomeTarget,
+                            "target": decoyHomeTarget,
+                            "isReady": true,
+                            "estimatedSeconds": 0
+                        ]
                     )
                 }
                 return
@@ -980,7 +1001,12 @@ enum FreeFirePatchService {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
                         object: nil,
-                        userInfo: ["current": currentCount, "target": decoyFinalTarget, "isReady": true]
+                        userInfo: [
+                            "current": currentCount,
+                            "target": decoyFinalTarget,
+                            "isReady": true,
+                            "estimatedSeconds": 0
+                        ]
                     )
                 }
                 return
@@ -988,24 +1014,36 @@ enum FreeFirePatchService {
 
             if currentCount < decoyHomeTarget {
                 let needToGenerate = decoyHomeTarget - currentCount
+                let initialEst = estimateDecoyWaitSeconds(current: currentCount, target: decoyHomeTarget)
                 AppLog.shared.append("[ANTIBAN] ⏳ Bắt đầu bơm trước...")
 
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
                         object: nil,
-                        userInfo: ["current": currentCount, "target": decoyHomeTarget, "isReady": false]
+                        userInfo: [
+                            "current": currentCount,
+                            "target": decoyHomeTarget,
+                            "isReady": false,
+                            "estimatedSeconds": initialEst
+                        ]
                     )
                 }
 
                 let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyHomeTarget)
                 let totalNow = currentCount + created
+                let finalEst = estimateDecoyWaitSeconds(current: totalNow, target: decoyHomeTarget)
                 AppLog.shared.append("[ANTIBAN] ✅ Đã bơm trước xong. Đủ điều kiện mở khóa Inject!")
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
                         object: nil,
-                        userInfo: ["current": totalNow, "target": decoyHomeTarget, "isReady": totalNow >= decoyHomeTarget]
+                        userInfo: [
+                            "current": totalNow,
+                            "target": decoyHomeTarget,
+                            "isReady": totalNow >= decoyHomeTarget,
+                            "estimatedSeconds": finalEst
+                        ]
                     )
                 }
             } else {
@@ -1014,7 +1052,12 @@ enum FreeFirePatchService {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
                         object: nil,
-                        userInfo: ["current": currentCount, "target": decoyHomeTarget, "isReady": true]
+                        userInfo: [
+                            "current": currentCount,
+                            "target": decoyHomeTarget,
+                            "isReady": true,
+                            "estimatedSeconds": 0
+                        ]
                     )
                 }
             }

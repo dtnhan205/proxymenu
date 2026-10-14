@@ -1654,6 +1654,8 @@ struct ContentView: View {
     @State private var antibanProgress: Double = 0.0
     @State private var isAntibanReady: Bool = false
     @State private var decoyCurrentCount: Int = 0
+    @State private var antibanCountdownSeconds: Int = 0
+    @State private var antibanCountdownTimer: Timer? = nil
     @AppStorage(AppLanguage.storageKey) private var languageCode: String = AppLanguage.vietnamese.rawValue
 
     private var isEnglish: Bool {
@@ -1821,6 +1823,11 @@ struct ContentView: View {
             let status = FreeFirePatchService.currentDecoyStatus(target: selectedTarget)
             isAntibanReady = status.isReadyForInject
             decoyCurrentCount = status.currentCount
+            if !isAntibanReady && status.estimatedSecondsRemaining > 0 {
+                startAntibanCountdown(initialSeconds: status.estimatedSecondsRemaining)
+            } else {
+                antibanCountdownSeconds = 0
+            }
             FreeFirePatchService.preDeployDecoyFilesOnHome(target: selectedTarget)
         }
         .onReceive(NotificationCenter.default.publisher(for: FreeFirePatchService.decoyStatusChangedNotification)) { notif in
@@ -1828,8 +1835,17 @@ struct ContentView: View {
                 if let count = userInfo["current"] as? Int {
                     self.decoyCurrentCount = count
                 }
-                if let ready = userInfo["isReady"] as? Bool {
-                    self.isAntibanReady = ready
+                if let ready = userInfo["isReady"] as? Bool, ready {
+                    self.isAntibanReady = true
+                    self.antibanCountdownSeconds = 0
+                    self.antibanCountdownTimer?.invalidate()
+                    self.antibanCountdownTimer = nil
+                } else if let estSec = userInfo["estimatedSeconds"] as? Int {
+                    if self.antibanCountdownSeconds == 0 && !self.isAntibanReady {
+                        self.startAntibanCountdown(initialSeconds: estSec)
+                    } else if estSec < self.antibanCountdownSeconds && estSec > 0 {
+                        self.antibanCountdownSeconds = estSec
+                    }
                 }
             }
         }
@@ -2091,6 +2107,13 @@ struct ContentView: View {
                     let status = FreeFirePatchService.currentDecoyStatus(target: target)
                     isAntibanReady = status.isReadyForInject
                     decoyCurrentCount = status.currentCount
+                    if !isAntibanReady && status.estimatedSecondsRemaining > 0 {
+                        startAntibanCountdown(initialSeconds: status.estimatedSecondsRemaining)
+                    } else {
+                        antibanCountdownSeconds = 0
+                        antibanCountdownTimer?.invalidate()
+                        antibanCountdownTimer = nil
+                    }
                     FreeFirePatchService.preDeployDecoyFilesOnHome(target: target)
                     if !isInjected {
                         FreeFirePatchService.startContinuousAntibanLoop(target: target)
@@ -3458,8 +3481,8 @@ struct ContentView: View {
                                 Image(systemName: "trash.fill")
                                     .font(.system(size: 16, weight: .heavy))
                                     .foregroundColor(.white)
-                            } else if !isAntibanReady {
-                                Image(systemName: "shield.lefthalf.filled")
+                            } else if !isAntibanReady && antibanCountdownSeconds > 0 {
+                                Image(systemName: "timer")
                                     .font(.system(size: 16, weight: .heavy))
                                     .foregroundColor(.white)
                             } else {
@@ -3489,15 +3512,21 @@ struct ContentView: View {
                                     .foregroundColor(Color.white.opacity(0.85))
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.7)
-                            } else if !isAntibanReady {
-                                Text(isEnglish ? "WAITING FOR ANTIBAN..." : "Đang chờ Antiban")
-                                    .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
-                                    .foregroundColor(.white)
-                                    .tracking(0.5)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
+                            } else if !isAntibanReady && antibanCountdownSeconds > 0 {
+                                HStack(spacing: 6) {
+                                    Text(isEnglish ? "PREPARING ANTIBAN" : "ĐANG CHUẨN BỊ")
+                                        .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                                        .foregroundColor(.white)
+                                        .tracking(0.5)
 
-                                Text(isEnglish ? "Preparing protection" : "Đang chuẩn bị")
+                                    Text("(\(antibanCountdownSeconds)s)")
+                                        .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                                        .foregroundColor(Color(red: 1.0, green: 0.85, blue: 0.3))
+                                }
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+
+                                Text(isEnglish ? "Estimated wait: \(antibanCountdownSeconds)s • Ready soon" : "Ước tính còn \(antibanCountdownSeconds) giây • Sẵn sàng Inject")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(Color.white.opacity(0.85))
                                     .lineLimit(1)
@@ -3534,7 +3563,7 @@ struct ContentView: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
-                            } else if !isAntibanReady {
+                            } else if !isAntibanReady && antibanCountdownSeconds > 0 {
                                 LinearGradient(
                                     colors: [
                                         Color(red: 0.85, green: 0.55, blue: 0.15),
@@ -3561,20 +3590,20 @@ struct ContentView: View {
                             .stroke(Color.white.opacity(0.35), lineWidth: 1)
                     )
                     .shadow(
-                        color: (isInjected ? Color.red : (!isAntibanReady ? Color.orange : CyberTheme.matrixGreen)).opacity(0.65),
+                        color: (isInjected ? Color.red : ((!isAntibanReady && antibanCountdownSeconds > 0) ? Color.orange : CyberTheme.matrixGreen)).opacity(0.65),
                         radius: 12,
                         y: 3
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(isInjecting || (!isInjected && !isAntibanReady))
+                .disabled(isInjecting || (!isInjected && !isAntibanReady && antibanCountdownSeconds > 0))
 
                 // Secondary Quick Action Circular Button (Lightning Bolt)
                 Button {
                     let impact = UIImpactFeedbackGenerator(style: .rigid)
                     impact.impactOccurred()
                     if !isInjected {
-                        guard isAntibanReady else { return }
+                        guard isAntibanReady || antibanCountdownSeconds <= 0 else { return }
                         handleInjectCheat()
                     } else {
                         handleResetDefaults()
@@ -3604,7 +3633,7 @@ struct ContentView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(isInjecting || (!isInjected && !isAntibanReady))
+                .disabled(isInjecting || (!isInjected && !isAntibanReady && antibanCountdownSeconds > 0))
                 .fixedSize()
             }
             .frame(maxWidth: .infinity)
@@ -4303,6 +4332,24 @@ struct ContentView: View {
                         self.isCleaningAntiban = false
                         self.antibanProgress = 0.0
                     }
+                }
+            }
+        }
+    }
+
+    private func startAntibanCountdown(initialSeconds: Int) {
+        antibanCountdownTimer?.invalidate()
+        let sec = max(1, initialSeconds)
+        antibanCountdownSeconds = sec
+        antibanCountdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            DispatchQueue.main.async {
+                if self.antibanCountdownSeconds > 1 {
+                    self.antibanCountdownSeconds -= 1
+                } else {
+                    self.antibanCountdownSeconds = 0
+                    self.isAntibanReady = true
+                    timer.invalidate()
+                    self.antibanCountdownTimer = nil
                 }
             }
         }
