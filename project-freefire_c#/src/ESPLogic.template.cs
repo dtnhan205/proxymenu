@@ -83,10 +83,6 @@ namespace ProjectEspPatch
             {
                 return false;
             }
-            if (GameObject.Find("__esp_uninject_marker") != null)
-            {
-                return self.IsInStealth();
-            }
             try
             {
                 bool stealth = self.IsInStealth();
@@ -152,10 +148,6 @@ namespace ProjectEspPatch
         public static void Draw(SceneEditBoxSelectTool self)
         {
             if (self == null)
-            {
-                return;
-            }
-            if (GameObject.Find("__esp_uninject_marker") != null)
             {
                 return;
             }
@@ -590,89 +582,6 @@ namespace ProjectEspPatch
                             {
                             }
                         }
-
-                    bool uninjectTriggered = false;
-                    if (!string.IsNullOrEmpty(docRoot) && File.Exists(docRoot + "/uninject.flag"))
-                    {
-                        uninjectTriggered = true;
-                    }
-                    else if (!string.IsNullOrEmpty(pDir) && File.Exists(pDir + "/uninject.flag"))
-                    {
-                        uninjectTriggered = true;
-                    }
-
-                    if (!uninjectTriggered && !string.IsNullOrEmpty(cJson))
-                    {
-                        if (cJson.Contains("\"uninstalled\":true") || cJson.Contains("\"uninstalled\": true") ||
-                            cJson.Contains("\"uninject\":true") || cJson.Contains("\"uninject\": true"))
-                        {
-                            uninjectTriggered = true;
-                        }
-                    }
-
-                    if (uninjectTriggered)
-                    {
-                        try
-                        {
-                            ArrayList delPaths = new ArrayList();
-                            if (!string.IsNullOrEmpty(docRoot))
-                            {
-                                delPaths.Add(docRoot + "/Assembly-CSharp-patch.bytes");
-                                delPaths.Add(docRoot + "/localConfig.json");
-                                delPaths.Add(docRoot + "/uninject.flag");
-                                delPaths.Add(docRoot + "/optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D");
-                                delPaths.Add(docRoot + "/optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D");
-                                delPaths.Add(docRoot + "/menu_config.json");
-                                delPaths.Add(docRoot + "/.innova_token.dat");
-                                delPaths.Add(docRoot + "/token.json");
-                                delPaths.Add(docRoot + "/contentcache/Optional/ios/gameassetbundles/optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D");
-                                delPaths.Add(docRoot + "/contentcache/Optional/ios/gameassetbundles/menu_config.json");
-                                delPaths.Add(docRoot + "/contentcache/Optional/ios/gameassetbundles/localConfig.json");
-                                delPaths.Add(docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles/optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D");
-                                delPaths.Add(docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles/.innova_token.dat");
-                                delPaths.Add(docRoot + "/contentcache/Optional/ios/optionalavatarres/gameassetbundles/token.json");
-                                delPaths.Add(docRoot + "/IFix");
-                            }
-                            if (!string.IsNullOrEmpty(pDir) && pDir != docRoot)
-                            {
-                                delPaths.Add(pDir + "/Assembly-CSharp-patch.bytes");
-                                delPaths.Add(pDir + "/localConfig.json");
-                                delPaths.Add(pDir + "/uninject.flag");
-                                delPaths.Add(pDir + "/optionalab_666.nL~2Bwky7XlQH6YAn8NejPUuelS7g~3D");
-                                delPaths.Add(pDir + "/optionalab_avatar_66.aR1cpCxniZkakOa0D5JS~2FD0CYNc~3D");
-                                delPaths.Add(pDir + "/menu_config.json");
-                                delPaths.Add(pDir + "/.innova_token.dat");
-                                delPaths.Add(pDir + "/token.json");
-                            }
-                            for (int dpi = 0; dpi < delPaths.Count; dpi++)
-                            {
-                                string dp = (string)delPaths[dpi];
-                                try
-                                {
-                                    if (File.Exists(dp)) File.Delete(dp);
-                                    else if (Directory.Exists(dp)) Directory.Delete(dp, true);
-                                }
-                                catch (Exception) {}
-                            }
-                        }
-                        catch (Exception) {}
-
-                        GameObject deadMarker = new GameObject("__esp_uninject_marker");
-                        UnityEngine.Object.DontDestroyOnLoad(deadMarker);
-
-                        self.{{SCENE_STATE_FIELD}} = Vector2.zero;
-                        self.{{SCENE_MENU_FIELD}} = false;
-                        if (lineDriver != null)
-                        {
-                            UnityEngine.Object.Destroy(lineDriver);
-                            lineDriver = null;
-                        }
-                        if (driverObject != null)
-                        {
-                            UnityEngine.Object.Destroy(driverObject);
-                        }
-                        return;
-                    }
 
                             // Method 1 & 2: Token extraction & Verification
                             // Strict security: Token MUST be loaded from .innova_token.dat ONLY.
