@@ -2060,6 +2060,25 @@ struct ContentView: View {
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8))
             .fixedSize()
 
+            // Terminal Log Console Button (Opens System Logs with 1 tap)
+            Button {
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
+                showLogModal = true
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: 28, height: 28)
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8))
+
+                    Image(systemName: "terminal.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(CyberTheme.matrixGreen)
+                }
+            }
+            .buttonStyle(.plain)
+
             // Settings Gear Button (Opens Settings Sheet)
             Button {
                 let impact = UIImpactFeedbackGenerator(style: .light)

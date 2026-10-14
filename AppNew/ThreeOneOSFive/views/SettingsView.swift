@@ -104,6 +104,12 @@ struct SettingsView: View {
             Button(isEnglish ? "View Detailed Live Logs" : "Xem Nhật Ký Ghép Đôi Chi Tiết") {
                 showPairingSheet = true
             }
+            Button(isEnglish ? "Copy Logs Now" : "Sao Chép Nhật Ký Ngay") {
+                let logs = pairingAdvertiser.logs.joined(separator: "\n")
+                UIPasteboard.general.string = logs.isEmpty ? "Chưa có log phát sóng" : logs
+                let feedback = UINotificationFeedbackGenerator()
+                feedback.notificationOccurred(.success)
+            }
             Button(isEnglish ? "Instant Pairing (No Dev Mode Needed)" : "Tạo File Trực Tiếp (Không Cần Nhà Phát Triển)") {
                 pairingAdvertiser.generateLocalPairingFile()
             }
@@ -254,6 +260,21 @@ struct SettingsView: View {
                     title: pairingRowTitle,
                     subtitle: pairingRowSubtitle,
                     subtitleColor: pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : (pairingAdvertiser.isAdvertising ? AppTheme.neonAmber : .secondary),
+                    hasChevron: true
+                )
+            }
+            deltaDivider
+
+            // Row 3.5: Nhật Ký Ghép Đôi & Hệ Thống (Xem & Sao Chép Log)
+            Button {
+                showPairingSheet = true
+            } label: {
+                deltaRow(
+                    icon: "terminal.fill",
+                    iconTint: AppTheme.neonLime,
+                    iconBg: Color.green.opacity(0.30),
+                    title: isEnglish ? "Pairing & System Logs" : "Nhật Ký Ghép Đôi & Hệ Thống",
+                    subtitle: isEnglish ? "View live mDNS & Copy logs" : "Xem chi tiết mDNS & Sao chép log",
                     hasChevron: true
                 )
             }
