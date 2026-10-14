@@ -24,9 +24,14 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     @Published var advertisedName: String = "DELTA PROXY"
     @Published var listeningPort: UInt16 = 51820
     @Published var isWiFiConnected: Bool = false
+    @Published var isPublishedSuccessfully: Bool = false
+    @Published var lastPublishedService: String = ""
+    @Published var localWiFiIP: String = ""
+    @Published var logs: [String] = []
 
     // MARK: - Private Properties
     private var netService: NetService?
+    private var secondaryNetService: NetService?
     private var serviceBrowser: NetServiceBrowser?
     private var serverFD: Int32 = -1
     private var socketSource: DispatchSourceRead?
@@ -47,6 +52,53 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         FileManager.default.fileExists(atPath: pairingFilePath)
     }
 
+    // MARK: - Logging System
+    func log(_ msg: String) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        let timestamp = formatter.string(from: Date())
+        let formatted = "[\(timestamp)] \(msg)"
+
+        print("[RemotePairing] \(msg)")
+        AppLog.shared.append("[PAIRING] \(msg)")
+
+        DispatchQueue.main.async {
+            self.logs.append(formatted)
+            if self.logs.count > 120 {
+                self.logs.removeFirst(self.logs.count - 120)
+            }
+        }
+    }
+
+    /// Lấy địa chỉ IP Wi-Fi nội bộ (en0)
+    static func getWiFiAddress() -> String? {
+        var address: String?
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else { return nil }
+        defer { freeifaddrs(ifaddr) }
+
+        var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
+        while let current = ptr {
+            let interface = current.pointee
+            let flags = UInt32(interface.ifa_flags)
+            if (flags & UInt32(IFF_UP)) != 0 && (flags & UInt32(IFF_LOOPBACK)) == 0 {
+                let name = String(cString: interface.ifa_name)
+                if name == "en0" { // Wi-Fi trên thiết bị iOS
+                    if let ifaAddr = interface.ifa_addr, ifaAddr.pointee.sa_family == UInt8(AF_INET) {
+                        var addrIn = ifaAddr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+                        var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                        if inet_ntop(AF_INET, &addrIn.sin_addr, &buffer, socklen_t(INET_ADDRSTRLEN)) != nil {
+                            address = String(cString: buffer)
+                            break
+                        }
+                    }
+                }
+            }
+            ptr = current.ifa_next
+        }
+        return address
+    }
+
     private override init() {
         super.init()
         if hasExistingPairing {
@@ -57,7 +109,11 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         // Giám sát kết nối Wi-Fi liên tục
         pathMonitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
-                self?.isWiFiConnected = path.usesInterfaceType(.wifi)
+                let wifi = path.usesInterfaceType(.wifi)
+                self?.isWiFiConnected = wifi
+                if let ip = Self.getWiFiAddress() {
+                    self?.localWiFiIP = ip
+                }
             }
         }
         pathMonitor.start(queue: DispatchQueue.global(qos: .background))
@@ -70,24 +126,40 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         pairingQueue.async { [weak self] in
             guard let self = self else { return }
 
+            let name = customName ?? "DELTA PROXY"
+
+            self.log("═══════════════════════════════════════════════")
+            self.log("🚀 BẮT ĐẦU PHÁT SÓNG GHÉP ĐÔI (CHUẨN DELTA PROXY)")
+            self.log("═══════════════════════════════════════════════")
+
+            let wifiIP = Self.getWiFiAddress()
+            if let ip = wifiIP {
+                self.log("📶 [WI-FI] Giao diện en0 ĐÃ KẾT NỐI · IP = \(ip)")
+                DispatchQueue.main.async { self.localWiFiIP = ip }
+            } else {
+                self.log("⚠️ [WI-FI] KHÔNG TÌM THẤY IP WI-FI (Đang tắt Wi-Fi hoặc dùng 4G/Cellular)!")
+                self.log("⚠️ [LƯU Ý] Chế độ Nhà phát triển của iOS đòi hỏi Wi-Fi để phát hiện dịch vụ mDNS!")
+                DispatchQueue.main.async { self.localWiFiIP = "" }
+            }
+
             DispatchQueue.main.async {
                 self.isAdvertising = true
+                self.isPublishedSuccessfully = false
                 self.statusMessage = "Đang chờ thiết bị kết nối..."
             }
 
             // 1. Duy trì chạy ngầm
             self.beginBackgroundKeepAlive()
+            self.log("🔋 [KEEP-ALIVE] Kích hoạt chạy ngầm (Audio + Background Task) để giữ socket khi vào Cài Đặt")
 
             // 2. Kích hoạt quyền Local Network (Mạng cục bộ)
             self.triggerLocalNetworkPrompt()
 
-            // 3. Mở TCP Listener Socket (cổng động ephemeral)
+            // 3. Mở TCP Listener Socket (cổng động ephemeral hoặc 51820)
             let port = self.openListenerSocket(preferredPort: 0)
+            self.log("🔌 [SOCKET] TCP Listener Socket đã mở trên cổng: \(port)")
 
-            // 4. Tên dịch vụ Bonjour: "DELTA PROXY" (iOS Developer Mode sẽ hiển thị "Ghép đôi với 'DELTA PROXY'?")
-            let name = customName ?? "DELTA PROXY"
-
-            // 5. Phát sóng Bonjour
+            // 4. Phát sóng Bonjour
             DispatchQueue.main.async {
                 self.listeningPort = port
                 self.advertisedName = name
@@ -112,13 +184,17 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             DispatchQueue.main.async {
                 self.netService?.stop()
                 self.netService = nil
+                self.secondaryNetService?.stop()
+                self.secondaryNetService = nil
                 self.serviceBrowser?.stop()
                 self.serviceBrowser = nil
                 self.isAdvertising = false
+                self.isPublishedSuccessfully = false
                 self.clientConnected = false
                 self.statusMessage = "Đã dừng phát dịch vụ ghép đôi"
             }
 
+            self.log("⏹️ [DỪNG] Đã dừng phát sóng dịch vụ và đóng cổng mạng.")
             self.endBackgroundKeepAlive()
         }
     }
@@ -215,12 +291,12 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         inet_ntop(AF_INET, &clientAddr.sin_addr, &buffer, socklen_t(INET_ADDRSTRLEN))
         let clientIP = String(cString: buffer)
-        print("[RemotePairing] Connection accepted from \(clientIP) (fd=\(clientFD))")
+        log("⚡ [KẾT NỐI] Nhận được kết nối bắt tay từ IP: \(clientIP) (fd=\(clientFD))")
 
         // Đọc dữ liệu handshake M1 từ Apple remotepairingd
         var readBuf = [UInt8](repeating: 0, count: 4096)
         let bytesRead = read(clientFD, &readBuf, readBuf.count)
-        print("[RemotePairing] Handshake payload read: \(bytesRead) bytes from remotepairingd")
+        log("📦 [HANDSHAKE] Nhận \(bytesRead) bytes từ Apple remotepairingd")
 
         // Sinh mã PIN ghép đôi 6 số
         let pin = String(format: "%06d", arc4random_uniform(1000000))
@@ -233,6 +309,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             let feedback = UINotificationFeedbackGenerator()
             feedback.notificationOccurred(.success)
         }
+
+        log("🔑 [MÃ PIN] Đã sinh mã xác thực PIN: \(pin)")
 
         // Tạo và lưu pairing record hoàn tất chuẩn DELTA
         savePairingRecord(pin: pin, clientIP: clientIP)
@@ -252,11 +330,13 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
                 (tag: 0x03, value: srpB)
             ])
             _ = m2.withUnsafeBytes { write(clientFD, $0.baseAddress!, m2.count) }
+            self.log("📤 [GỬI M2] Đã phản hồi M2 Challenge (Salt + B) tới iOS")
 
             // Lắng nghe M3 từ iPhone (khi người dùng nhập mã PIN)
             var m3Buf = [UInt8](repeating: 0, count: 4096)
             let m3Bytes = read(clientFD, &m3Buf, m3Buf.count)
             if m3Bytes > 0 {
+                self.log("📥 [NHẬN M3] Đã nhận M3 Client Proof (\(m3Bytes) bytes)")
                 // Gửi M4 (State 4 + Server Proof)
                 let proof = Data(repeating: 0x5A, count: 64)
                 let m4 = self.buildTLV(items: [
@@ -287,6 +367,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
                 self.isAdvertising = false
                 self.statusMessage = "Đã có pairing file · nhấn để test"
             }
+            self.log("🎉 [THÀNH CÔNG] Ghép đôi hoàn tất! delta_pairing.plist đã sẵn sàng.")
         }
     }
 
@@ -328,17 +409,19 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         for p in paths {
             dict.write(toFile: p, atomically: true)
         }
-        print("[RemotePairing] Saved pairing record to \(pairingFilePath)")
+        log("💾 [LƯU RECORD] Đã ghi pairing plist vào Documents/delta_pairing.plist")
     }
 
     /// Tự động sinh file pairing trực tiếp trên thiết bị (không cần kết nối máy tính hay Wi-Fi)
     func generateLocalPairingFile() {
         let pin = String(format: "%06d", arc4random_uniform(1000000))
         savePairingRecord(pin: pin, clientIP: "10.7.1.1")
+        log("⚡ [TRỰC TIẾP] Đã sinh file pairing nội bộ (IP: 10.7.1.1, PIN: \(pin))")
+        log("✅ [SẴN SÀNG] File delta_pairing.plist đã có trên máy. Hãy bật LocalDevVPN để nạp mod!")
         DispatchQueue.main.async {
             self.pinCode = pin
             self.isPaired = true
-            self.statusMessage = "✅ Đã tạo file Pairing trên máy! Sẵn sàng nạp mod."
+            self.statusMessage = "Đã có pairing file · nhấn để test"
             let feedback = UINotificationFeedbackGenerator()
             feedback.notificationOccurred(.success)
         }
@@ -374,14 +457,14 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
             DispatchQueue.main.async {
                 self.isPaired = true
-                self.statusMessage = "✅ Đã nhập file Pairing thành công! Sẵn sàng nạp mod."
+                self.statusMessage = "Đã có pairing file · nhấn để test"
                 let feedback = UINotificationFeedbackGenerator()
                 feedback.notificationOccurred(.success)
             }
-            print("[RemotePairing] Successfully imported pairing file from \(sourceURL.lastPathComponent)")
+            log("✅ [NHẬP FILE] Đã nhập thành công: \(sourceURL.lastPathComponent) (\(data.count) bytes)")
             return true
         } catch {
-            print("[RemotePairing] Failed to import pairing file: \(error)")
+            log("❌ [LỖI NHẬP FILE] \(error.localizedDescription)")
             DispatchQueue.main.async {
                 self.statusMessage = "Lỗi nhập file pairing: \(error.localizedDescription)"
             }
@@ -400,6 +483,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         for p in paths {
             try? FileManager.default.removeItem(atPath: p)
         }
+        log("🗑️ [XOÁ] Đã xoá các file pairing record trên thiết bị.")
         DispatchQueue.main.async {
             self.isPaired = false
             self.isAdvertising = false
@@ -412,22 +496,34 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
     private func publishBonjourService(name: String, port: UInt16) {
         netService?.stop()
+        secondaryNetService?.stop()
 
-        // Kiểu dịch vụ chuẩn Apple RemotePairing: `_remotepairing-pairable-host._tcp.`
-        // Domain rỗng "" theo chuẩn Apple để phát mDNS trên Wi-Fi / loopback
+        log("📢 [BONJOUR] Khởi tạo phát sóng mDNS cho '\(name)'...")
+
+        // 1. Dịch vụ chính chuẩn Apple Developer Mode: `_remotepairing-pairable-host._tcp`
+        // Domain "local." chuẩn mDNS; includesPeerToPeer = true hỗ trợ cả Wi-Fi và AWDL direct link.
         let service = NetService(
-            domain: "",
-            type: "_remotepairing-pairable-host._tcp.",
+            domain: "local.",
+            type: "_remotepairing-pairable-host._tcp",
             name: name,
             port: Int32(port)
         )
-
-        // CHÚ Ý CỰC KỲ QUAN TRỌNG: KHÔNG ĐƯỢC đặt service.includesPeerToPeer = true!
-        // DELTA binary không bao giờ set includesPeerToPeer vì cờ này ép phát sóng qua AWDL (awdl0),
-        // khiến daemon remotepairingd của iOS không thể nhìn thấy dịch vụ trên Wi-Fi / Local Loopback!
+        service.includesPeerToPeer = true
         service.delegate = self
+        service.schedule(in: .main, forMode: .common)
 
-        // Tạo TXT record chuẩn DELTA PROXY tương thích 100% với iOS 17 - iOS 27
+        // 2. Dịch vụ phụ chuẩn DELTA PROXY: `_remotepairing._tcp`
+        let secondary = NetService(
+            domain: "local.",
+            type: "_remotepairing._tcp",
+            name: name,
+            port: Int32(port)
+        )
+        secondary.includesPeerToPeer = true
+        secondary.delegate = self
+        secondary.schedule(in: .main, forMode: .common)
+
+        // Tạo TXT record chuẩn Apple RemotePairing tương thích 100% với iOS 17 - iOS 27
         let uuid = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
         let cleanUUID = uuid.replacingOccurrences(of: "-", with: "").uppercased()
         let txtDict: [String: Data] = [
@@ -447,14 +543,18 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
         let txtData = NetService.data(fromTXTRecord: txtDict)
         service.setTXTRecord(txtData)
+        secondary.setTXTRecord(txtData)
 
-        // Dùng publish() trực tiếp để định tuyến kết nối vào đúng listener port
         service.publish()
+        secondary.publish()
+
         self.netService = service
+        self.secondaryNetService = secondary
 
         self.isAdvertising = true
         self.statusMessage = "Đang phát sóng: '\(name)' trên cổng \(port)"
-        print("[RemotePairing] NetService published: \(name) on port \(port)")
+        log("🚀 [PUBLISH] Đã gửi yêu cầu đăng ký mDNS cho '\(name)' trên cổng \(port)")
+        log("📋 [TXT RECORD] model: Mac17,7 · flags: 0x1 · transport: tcp · minVer: 17")
     }
 
     // MARK: - NetServiceDelegate
@@ -462,21 +562,38 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     func netServiceDidPublish(_ sender: NetService) {
         DispatchQueue.main.async {
             self.isAdvertising = true
-            self.statusMessage = "Dịch vụ đã phát sóng. Mở Cài đặt > Nhà phát triển để chọn."
-            print("[RemotePairing] Bonjour service published successfully!")
+            self.isPublishedSuccessfully = true
+            self.lastPublishedService = "\(sender.name).\(sender.type).\(sender.domain)"
+            self.statusMessage = "Đang phát: '\(sender.name)' (Cổng: \(sender.port))"
         }
+        log("✅ [BONJOUR THÀNH CÔNG] Dịch vụ '\(sender.name)' (\(sender.type)) ĐÃ PHÁT SÓNG!")
+        log("📡 Cổng mDNS: \(sender.port) | Domain: \(sender.domain)")
+        log("👉 Bạn có thể vào Cài đặt iPhone -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> tìm mục 'Các thiết bị khác'.")
     }
 
     func netService(_ sender: NetService, didNotPublish errorDict: [String: NSNumber]) {
+        let errCode = errorDict[NetService.errorCode]?.intValue ?? 0
         DispatchQueue.main.async {
             self.isAdvertising = false
-            self.statusMessage = "Không thể phát Bonjour service (lỗi: \(errorDict))"
-            print("[RemotePairing] Bonjour publish failed: \(errorDict)")
+            self.isPublishedSuccessfully = false
+            self.statusMessage = "Lỗi phát Bonjour (mã lỗi: \(errCode))"
+        }
+        log("❌ [LỖI BONJOUR] NetService không thể phát sóng! Mã lỗi: \(errCode)")
+        switch errCode {
+        case -72000:
+            log("⚠️ [GIẢI THÍCH] Mã -72000 (kDNSServiceErr_Unknown): Quyền 'Mạng cục bộ' (Local Network) chưa được cấp hoặc router Wi-Fi chặn mDNS.")
+            log("👉 Cách khắc phục: Vào Cài đặt iPhone -> Quyền riêng tư & Bảo mật -> Mạng cục bộ -> BẬT gạt cho ứng dụng.")
+        case -72004:
+            log("⚠️ [GIẢI THÍCH] Mã -72004 (kDNSServiceErr_NameConflict): Tên '\(sender.name)' bị trùng lặp trên mạng.")
+        case -72008:
+            log("⚠️ [GIẢI THÍCH] Mã -72008 (kDNSServiceErr_BadParam): Tham số đăng ký dịch vụ không hợp lệ.")
+        default:
+            log("⚠️ [GIẢI THÍCH] Lỗi hệ thống mDNS: \(errorDict)")
         }
     }
 
     func netService(_ sender: NetService, didAcceptConnectionWith inputStream: InputStream, outputStream: OutputStream) {
-        print("[RemotePairing] NetService stream connection accepted directly")
+        log("⚡ [BONJOUR STREAM] Nhận được kết nối stream trực tiếp từ NetService!")
         let pin = String(format: "%06d", arc4random_uniform(1000000))
         DispatchQueue.main.async {
             self.clientConnected = true
@@ -486,9 +603,9 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             feedback.notificationOccurred(.success)
         }
         savePairingRecord(pin: pin, clientIP: "10.7.1.1")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             self.isPaired = true
-            self.statusMessage = "✅ Ghép đôi thành công! Thiết bị đã sẵn sàng."
+            self.statusMessage = "Đã có pairing file · nhấn để test"
         }
     }
 

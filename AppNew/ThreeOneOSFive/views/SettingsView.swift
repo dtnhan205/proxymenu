@@ -95,13 +95,16 @@ struct SettingsView: View {
                 : "Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục \"Ghép với DELTA PROXY\".\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
         }
         // ALERT 2: Khi đang phát sóng Bonjour chờ thiết bị kết nối
-        .alert(isEnglish ? "Waiting for device connection..." : "Đang chờ thiết bị kết nối...", isPresented: $showAdvertisingAlert) {
+        .alert(isEnglish ? "Broadcasting Pairing Signal..." : "Đang phát tín hiệu ghép đôi...", isPresented: $showAdvertisingAlert) {
             Button(isEnglish ? "Open iPhone Settings" : "Mở Cài Đặt iPhone") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }
-            Button(isEnglish ? "Create Local File Directly" : "Tạo File Trực Tiếp (Không Cần PC)") {
+            Button(isEnglish ? "View Detailed Live Logs" : "Xem Nhật Ký Ghép Đôi Chi Tiết") {
+                showPairingSheet = true
+            }
+            Button(isEnglish ? "Instant Pairing (No Dev Mode Needed)" : "Tạo File Trực Tiếp (Không Cần Nhà Phát Triển)") {
                 pairingAdvertiser.generateLocalPairingFile()
             }
             Button(isEnglish ? "Stop Advertising" : "Dừng Phát Sóng", role: .destructive) {
@@ -109,9 +112,11 @@ struct SettingsView: View {
             }
             Button(isEnglish ? "Close" : "Đóng", role: .cancel) {}
         } message: {
+            let wifiIP = RemotePairingAdvertiser.getWiFiAddress() ?? "⚠️ Chưa có (Đang tắt Wi-Fi hoặc dùng 4G)"
+            let mdnsStatus = pairingAdvertiser.isPublishedSuccessfully ? "✅ ĐÃ PHÁT SÓNG THÀNH CÔNG" : "⏳ ĐANG ĐĂNG KÝ mDNS..."
             Text(isEnglish
-                ? "Service 'DELTA PROXY' is broadcasting on local network (Port: \(pairingAdvertiser.listeningPort)).\n\n👉 Go to iPhone Settings -> Privacy & Security -> Developer Mode -> Tap 'Pair with DELTA PROXY' and enter passcode."
-                : "Dịch vụ 'DELTA PROXY' đang phát sóng trên mạng cục bộ (Cổng: \(pairingAdvertiser.listeningPort)).\n\n👉 Hãy vào: Cài đặt iPhone -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> chọn 'Ghép đôi với DELTA PROXY' và nhập mật mã thiết bị.")
+                ? "• Name: DELTA PROXY\n• Port: \(pairingAdvertiser.listeningPort)\n• Bonjour mDNS: \(mdnsStatus)\n• Wi-Fi IP: \(wifiIP)\n\n👉 On iPhone: Settings -> Privacy & Security -> Developer Mode -> Under 'Other Devices' tap 'Pair with DELTA PROXY'.\n\n⚠️ If 'Pair with DELTA PROXY' does not appear:\n1. Check if Wi-Fi is connected (iOS requires Wi-Fi for Bonjour scanning).\n2. Ensure Local Network permission is turned ON.\n3. Or tap 'Instant Pairing' button above to generate the file immediately!"
+                : "• Tên dịch vụ: DELTA PROXY\n• Cổng lắng nghe: \(pairingAdvertiser.listeningPort)\n• Trạng thái Bonjour: \(mdnsStatus)\n• Địa chỉ Wi-Fi: \(wifiIP)\n\n👉 Cách vào: Cài đặt iPhone -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Các thiết bị khác' -> bấm 'Pair with DELTA PROXY'.\n\n⚠️ NẾU KHÔNG THẤY 'Pair with DELTA PROXY':\n1. Kiểm tra đã BẬT WI-FI chưa (iOS không tìm qua 4G).\n2. Kiểm tra đã cấp quyền 'Mạng cục bộ' cho app chưa.\n3. Hoặc bấm 'Tạo File Trực Tiếp' ở trên để nạp mod ngay mà không cần vào Chế độ Nhà phát triển!")
         }
         // ALERT 3: Khi ĐÃ CÓ PAIRING FILE và người dùng bấm để test
         .alert(isEnglish ? "Pairing Status (iOS 27)" : "Ghép Đôi iOS 27", isPresented: $showPairedTestAlert) {
@@ -416,9 +421,13 @@ struct SettingsView: View {
 
     private var pairingRowSubtitle: String {
         if pairingAdvertiser.isAdvertising {
-            return "Đang chờ thiết bị kết nối..."
+            if pairingAdvertiser.isPublishedSuccessfully {
+                return "Đang phát 'DELTA PROXY' (Cổng \(pairingAdvertiser.listeningPort)) · Nhấn xem"
+            } else {
+                return "Đang đăng ký mDNS · Chờ kết nối..."
+            }
         } else if pairingAdvertiser.hasExistingPairing {
-            return "Đã có pairing file · nhấn để test"
+            return "Đã có pairing file · nhấn để test & xem log"
         } else {
             return "Nhấn để sinh PIN & ghép đôi"
         }

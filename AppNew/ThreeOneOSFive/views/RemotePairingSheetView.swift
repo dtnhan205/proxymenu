@@ -62,6 +62,9 @@ struct RemotePairingSheetView: View {
                         // Card Hành động ghép đôi nhanh (Tạo trực tiếp + Nhập file .plist)
                         quickActionsCard
 
+                        // Card Nhật ký phát tín hiệu ghép đôi Bonjour (Realtime)
+                        livePairingLogsCard
+
                         // Card Nhật ký kiểm tra thực tế File Pairing & Documents Free Fire
                         diagnosticConsoleCard
 
@@ -155,6 +158,109 @@ struct RemotePairingSheetView: View {
                 self.isRunningProbe = false
             }
         }
+    }
+
+    // MARK: - Live Pairing Broadcast Logs Card
+    private var livePairingLogsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "antenna.radiowaves.left.and.right")
+                    .foregroundColor(AppTheme.neonLime)
+                    .font(.system(size: 14))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(isEnglish ? "LIVE BONJOUR & BROADCAST LOGS" : "NHẬT KÝ PHÁT TÍN HIỆU GHÉP ĐÔI (REALTIME)")
+                        .font(.system(size: 11.5, weight: .heavy, design: .monospaced))
+                        .foregroundColor(AppTheme.neonLime)
+                    Text(isEnglish ? "Verifies mDNS broadcast, port binding, and handshake" : "Chi tiết socket, cổng kết nối, phát mDNS và bắt tay hệ thống")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(pairing.isPublishedSuccessfully ? AppTheme.neonLime : (pairing.isAdvertising ? AppTheme.neonAmber : Color.gray))
+                        .frame(width: 6, height: 6)
+                    Text(pairing.isPublishedSuccessfully ? "mDNS: OK" : (pairing.isAdvertising ? "WAITING" : "OFF"))
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .foregroundColor(pairing.isPublishedSuccessfully ? AppTheme.neonLime : (pairing.isAdvertising ? AppTheme.neonAmber : .gray))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
+            }
+
+            // Terminal View
+            VStack(alignment: .leading, spacing: 4) {
+                if pairing.logs.isEmpty {
+                    Text(isEnglish ? "No broadcast logs yet. Tap Start to begin broadcasting." : "Chưa có log phát sóng. Dịch vụ đang sẵn sàng.")
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.5))
+                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(alignment: .leading, spacing: 3) {
+                            ForEach(Array(pairing.logs.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundColor(colorForLogLine(line))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .frame(maxHeight: 180)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color(red: 0.02, green: 0.02, blue: 0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AppTheme.neonLime.opacity(0.25), lineWidth: 1)
+            )
+
+            // Footer bar
+            HStack {
+                Button {
+                    UIPasteboard.general.string = pairing.logs.joined(separator: "\n")
+                    showCopiedAlert = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 9.5))
+                        Text(isEnglish ? "Copy Pairing Logs" : "Sao chép nhật ký phát sóng")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(.white.opacity(0.75))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Text(pairing.isWiFiConnected
+                    ? "📶 Wi-Fi: \(RemotePairingAdvertiser.getWiFiAddress() ?? "OK")"
+                    : "⚠️ KHÔNG CÓ WI-FI (4G)")
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(pairing.isWiFiConnected ? AppTheme.neonCyan : AppTheme.neonAmber)
+            }
+        }
+        .padding(12)
+        .background(Color(red: 0.08, green: 0.08, blue: 0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppTheme.neonLime.opacity(0.3), lineWidth: 1)
+        )
     }
 
     // MARK: - Diagnostic Console Card (Log thực tế kiểm tra Pairing & Documents)
