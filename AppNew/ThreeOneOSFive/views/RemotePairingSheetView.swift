@@ -688,6 +688,32 @@ struct RemotePairingSheetView: View {
                 .buttonStyle(.plain)
             }
 
+            // Nút Mở / Cài Đặt Apple Books (Sách) - Bắt buộc cho tiến trình AirTraffic
+            Button {
+                if let url = URL(string: "ibooks://"), UIApplication.shared.canOpenURL(url) {
+                    UIApplication.shared.open(url)
+                } else if let storeURL = URL(string: "https://apps.apple.com/app/apple-books/id364709193") {
+                    UIApplication.shared.open(storeURL)
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "book.closed.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    Text(isEnglish ? "OPEN APPLE BOOKS (AIRTRAFFIC REQUIRED)" : "📚 MỞ / CÀI ỨNG DỤNG SÁCH (BẮT BUỘC ĐỂ NẠP)")
+                        .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                }
+                .foregroundColor(Color.orange)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(Color.orange.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+
             // Nút 1: Tự tạo file pairing trực tiếp trên máy
             Button {
                 pairing.generateLocalPairingFile()
@@ -851,18 +877,24 @@ struct RemotePairingSheetView: View {
             if pairing.hasExistingPairing {
                 stepRow(
                     number: 1,
+                    title: isEnglish ? "Install & Open Apple Books" : "Cài & Mở Ứng Dụng Sách (Apple Books)",
+                    desc: isEnglish ? "AirTraffic sync requires Books app active" : "Cài ứng dụng Sách từ App Store và mở 1 lần để kích hoạt AirTraffic"
+                )
+
+                stepRow(
+                    number: 2,
                     title: isEnglish ? "Turn ON LocalDevVPN" : "Bật LocalDevVPN",
                     desc: isEnglish ? "Activate the 10.7.0.1 tunnel interface" : "Bật ứng dụng LocalDevVPN để mở tunnel 10.7.0.1 / 10.7.1.1"
                 )
 
                 stepRow(
-                    number: 2,
+                    number: 3,
                     title: isEnglish ? "Launch Free Fire Game" : "Mở Game Free Fire",
                     desc: isEnglish ? "Open game so the container is active" : "Mở game lên để container ứng dụng sẵn sàng nhận tệp mod"
                 )
 
                 stepRow(
-                    number: 3,
+                    number: 4,
                     title: isEnglish ? "Tap Apply Mod / Anti-Ban" : "Bấm Nạp Mod / Anti-Ban",
                     desc: isEnglish ? "System conduit writes patches instantly" : "Cầu nối hệ thống sẽ ghi patch và áp dụng cheat thành công!"
                 )

@@ -884,6 +884,7 @@ enum FreeFirePatchService {
             AppLog.shared.append("  1. Hãy chắc chắn máy đã ghép đôi thành công trong Cài Đặt (pairing file: \(pairingSize) bytes)")
             AppLog.shared.append("  2. Hãy mở game \(target.displayName) ít nhất một lần để iOS tạo container")
             AppLog.shared.append("  3. Đảm bảo kết nối Wi-Fi cùng mạng hoặc bật LocalDevVPN (10.7.0.1)")
+            AppLog.shared.append("  4. CẦN THIẾT: Cài ứng dụng SÁCH (Apple Books) từ App Store và mở nó 1 lần để kích hoạt AirTraffic sync!")
             RemotePairingAdvertiser.shared.log("❌ [INJECT] Không thể nạp cheat vào \(target.displayName)")
             throw NSError(
                 domain: "FreeFirePatch",
