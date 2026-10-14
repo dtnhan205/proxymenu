@@ -130,6 +130,21 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             self.log("🚀 BẮT ĐẦU PHÁT SÓNG GHÉP ĐÔI (CHUẨN DELTA PROXY)")
             self.log("═══════════════════════════════════════════════")
 
+            // 0. Kiểm tra sandbox escape — bắt buộc để remotepairingd nhận dịch vụ
+            let hasSandbox = KernelExploit.hasSandboxAccess()
+            if hasSandbox {
+                self.log("🔓 [SANDBOX] Đã thoát sandbox — remotepairingd sẽ nhận dịch vụ Bonjour!")
+            } else {
+                self.log("🔒 [SANDBOX] App CHƯA thoát sandbox!")
+                self.log("⚠️ [QUAN TRỌNG] iOS remotepairingd sẽ BỎ QUA dịch vụ Bonjour từ app trong sandbox.")
+                self.log("⚠️ Mục 'Pair with DELTA PROXY' sẽ KHÔNG hiện trong Chế độ nhà phát triển.")
+                self.log("💡 [GIẢI PHÁP] Hãy chạy Kernel Exploit trước (Trang chủ → Kích Hoạt), HOẶC")
+                self.log("💡 bấm 'Tự Động Sinh Pairing' để tạo file pairing mà không cần ghép đôi!")
+                DispatchQueue.main.async {
+                    self.statusMessage = "⚠️ Cần Kernel Exploit trước khi ghép đôi"
+                }
+            }
+
             let wifiIP = Self.getWiFiAddress()
             if let ip = wifiIP {
                 self.log("📶 [WI-FI] Giao diện en0 ĐÃ KẾT NỐI · IP = \(ip)")
@@ -143,7 +158,9 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             DispatchQueue.main.async {
                 self.isAdvertising = true
                 self.isPublishedSuccessfully = false
-                self.statusMessage = "Đang chờ thiết bị kết nối..."
+                self.statusMessage = hasSandbox
+                    ? "Đang chờ thiết bị kết nối..."
+                    : "⚠️ Cần Kernel Exploit trước khi ghép đôi"
             }
 
             // 1. Duy trì chạy ngầm
@@ -157,7 +174,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             let port = self.openListenerSocket(preferredPort: 0)
             self.log("🔌 [SOCKET] TCP Listener Socket đã mở trên cổng: \(port)")
 
-            // 4. Phát sóng Bonjour
+            // 4. Phát sóng Bonjour (luôn phát, nhưng chỉ hiển thị trong Cài Đặt khi đã thoát sandbox)
             DispatchQueue.main.async {
                 self.listeningPort = port
                 self.advertisedName = name
