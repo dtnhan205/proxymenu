@@ -134,6 +134,12 @@ class AppState: ObservableObject {
             return
         }
 
+        // Đối với iOS 27: Sử dụng LocalDevVPN tunnel, không chạy kexploit_opa334
+        if v.major == 27 {
+            exploitStatus = .success(method: "LocalDevVPN")
+            return
+        }
+
         guard kernelExploitApplicable else { return }
 
         refreshKernelExploitStatus()

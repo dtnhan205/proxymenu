@@ -82,6 +82,15 @@ enum ContainerStore {
             log("patch: filesystem metadata scan resolved \(bundleID)")
             return scanned
         }
+
+        // Bổ sung cho iOS 27: Dùng LocalDevVPN Bridge (hoàn toàn không can thiệp iOS khác)
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+            if let vpnPath = LocalDevVPNBridge.resolveContainerPath(bundleID: bundleID) {
+                log("patch: LocalDevVPN bridge resolved \(bundleID) -> \(vpnPath)")
+                return vpnPath
+            }
+        }
+
         return nil
     }
 
@@ -610,6 +619,10 @@ enum ContainerStore {
     }
 
     static func grantContainerAccess(_ containerPath: String) -> Int64 {
+        // iOS 27: Quyền truy cập do LocalDevVPN tunnel đảm nhận, không chạy bad_query
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+            return 1
+        }
         guard shouldUseBadQuery else { return -1 }
         let clean = containerPath.hasSuffix("/") ? String(containerPath.dropLast()) : containerPath
         var pathC = clean.utf8CString.map { Int8($0) }

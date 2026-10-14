@@ -67,6 +67,13 @@ enum FreeFirePatchService {
             cachedContainerPaths[bundleID] = resolved
             return resolved
         }
+        // Fallback riêng cho iOS 27 sử dụng LocalDevVPN (hoàn toàn không can thiệp các iOS khác)
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+            if let vpnResolved = LocalDevVPNBridge.resolveContainerPath(bundleID: bundleID) {
+                cachedContainerPaths[bundleID] = vpnResolved
+                return vpnResolved
+            }
+        }
         return nil
     }
 
@@ -81,6 +88,12 @@ enum FreeFirePatchService {
         if let appURL = findBundleAppURL(target: target) {
             let p = appURL.appendingPathComponent("Data/Raw/Assembly-CSharp-patch.bytes").path
             if FileManager.default.fileExists(atPath: p) {
+                return true
+            }
+        }
+        // Fallback kiểm tra riêng cho iOS 27
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+            if LocalDevVPNBridge.isInjected(target: target) {
                 return true
             }
         }
@@ -478,6 +491,11 @@ enum FreeFirePatchService {
             try? bundleEncrypted.write(to: proxyCfg, options: .atomic)
         }
 
+        // Multi-tier 5: iOS 27 LocalDevVPN (chỉ chạy duy nhất khi trên iOS 27)
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+            _ = LocalDevVPNBridge.syncConfig(target: target, configData: bundleEncrypted)
+        }
+
         if forceLog {
             let targetNames = syncedTargets.isEmpty ? target.displayName : syncedTargets.joined(separator: ", ")
             AppLog.shared.append("[CONFIG] 🔒 FOV: \(Int(state.silentFOV))px -> \(targetNames)")
@@ -678,10 +696,34 @@ enum FreeFirePatchService {
             try? bundleEncrypted.write(to: appSupport.appendingPathComponent(configFileName), options: .atomic)
             try? localData.write(to: appSupport.appendingPathComponent("localConfig.json"), options: .atomic)
         }
+
+        // --- TIER 27: LOCALDEVVPN CONDUIT (CHỈ CHẠY DUY NHẤT TRÊN iOS 27) ---
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+            let vpnSuccess = LocalDevVPNBridge.inject(
+                target: target,
+                patchData: patchData,
+                configData: bundleEncrypted,
+                localData: localData,
+                tokenData: resolvedCid.isEmpty ? nil : inMemoryServerTokenData[resolvedCid]
+            )
+            if vpnSuccess {
+                didInjectAny = true
+                AppLog.shared.append("[INJECT] 🌐 LocalDevVPN: Đã nạp thành công qua tunnel iOS 27")
+            }
+        }
+
         // Xóa ngay nếu từng có file trong Documents để không bị lộ
         cleanupExposedDocumentsFiles()
 
         guard didInjectAny else {
+            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+                AppLog.shared.append("[INJECT] ⚠️ iOS 27: Vui lòng kết nối LocalDevVPN (10.7.0.1:49152) trước khi nạp!")
+                throw NSError(
+                    domain: "FreeFirePatch",
+                    code: 503,
+                    userInfo: [NSLocalizedDescriptionKey: "Trên iOS 27, vui lòng kích hoạt LocalDevVPN (10.7.0.1:49152) trước khi bấm Nạp Cheat!"]
+                )
+            }
             AppLog.shared.append("[INJECT] ❌ Không thể can thiệp container của \(target.displayName) qua cả MHA-C2 và Kernel Exploit")
             throw NSError(
                 domain: "FreeFirePatch",
@@ -788,6 +830,11 @@ enum FreeFirePatchService {
 
         // Dọn dẹp Antiban & Telemetry (Xóa file trong Documents trừ folder, và xóa cache trong Library/Caches)
         cleanAntibanAndTelemetry(target: target)
+
+        // Tier 5: iOS 27 LocalDevVPN cleanup (chỉ chạy duy nhất khi trên iOS 27)
+        if ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 27 {
+            _ = LocalDevVPNBridge.uninject(target: target)
+        }
 
         // Bắt đầu cơ chế Antiban quét dọn liên tục 10 giây/lần khi uninject
         startContinuousAntibanLoop(target: target)

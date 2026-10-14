@@ -10,7 +10,13 @@ enum ExploitSupportPolicy {
         (1, nil, "24A5355q"),
         (2, nil, "24A5370h"),
         (3, 1, "24A5380h"),
-        (4, 2, "24A5390f")
+        (4, 2, "24A5390f"),
+        (0, nil, "24A435"),
+        (0, nil, "24A437"),
+        (0, nil, "24B83"),
+        (0, nil, "24B5055e"),
+        (0, nil, "24C5061e"),
+        (0, nil, "24C5070e")
     ]
 
     static func iOS27BetaNumber(for build: String) -> Int? {
@@ -53,7 +59,11 @@ enum ExploitSupportPolicy {
             return minor < 6 || (minor == 6 && patch <= 1)
         }
 
-        guard major == 27, minor == 0, patch == 0 else { return false }
-        return iOS27BetaNumber(for: build) != nil
+        // iOS 27: Hỗ trợ thông qua LocalDevVPN tunnel hoặc các bản build đã kiểm thử
+        if major == 27 {
+            return true
+        }
+
+        return false
     }
 }

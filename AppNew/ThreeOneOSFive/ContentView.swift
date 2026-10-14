@@ -4307,8 +4307,8 @@ struct ContentView: View {
             return
         }
 
-        // Auto trigger Kernel Exploit if applicable and not yet tried
-        if appState.kernelExploitApplicable && !appState.exploitStatus.isSuccess && !appState.exploitStatus.isFailed {
+        // Auto trigger Kernel Exploit if applicable and not yet tried (iOS < 27 only)
+        if AppInfo.versionTuple.major != 27 && appState.kernelExploitApplicable && !appState.exploitStatus.isSuccess && !appState.exploitStatus.isFailed {
             appState.runKernelExploitIfNeeded()
             injectionAlertText = isEnglish ? "⚡ Activating system privileges (Kernel Exploit). Please retry in a few seconds..." : "⚡ Đang kích hoạt quyền hệ thống (Kernel Exploit). Vui lòng thử lại sau vài giây..."
             showInjectionAlert = true
@@ -4453,6 +4453,9 @@ struct ContentView: View {
     }
 
     private var kernelExploitStatusTitle: String {
+        if AppInfo.versionTuple.major == 27 {
+            return isEnglish ? "🌐 LocalDevVPN (10.7.0.1)" : "🌐 LocalDevVPN (10.7.0.1)"
+        }
         if appState.kernelExploitRunning {
             return isEnglish ? "Running in background..." : "Đang chạy ngầm..."
         } else if appState.exploitStatus.isSuccess {
@@ -4467,6 +4470,9 @@ struct ContentView: View {
     }
 
     private var kernelExploitStatusColor: Color {
+        if AppInfo.versionTuple.major == 27 {
+            return CyberTheme.cyberCyan
+        }
         if appState.kernelExploitRunning {
             return CyberTheme.mechaGold
         } else if appState.exploitStatus.isSuccess {

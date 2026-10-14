@@ -93,6 +93,7 @@
 		3105N220 /* HowToInstallVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3105N120; };
 		3105A212 /* intro.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105A032; };
 		3105A214 /* cach_cai.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 3105A034; };
+		FF000010 /* LocalDevVPNBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000011; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -200,6 +201,7 @@
 		3105N120 /* HowToInstallVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowToInstallVideoView.swift; sourceTree = "<group>"; };
 		3105A032 /* intro.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = intro.mp4; sourceTree = "<group>"; };
 		3105A034 /* cach_cai.mp4 */ = {isa = PBXFileReference; lastKnownFileType = video.mp4; path = cach_cai.mp4; sourceTree = "<group>"; };
+		FF000011 /* LocalDevVPNBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDevVPNBridge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -344,6 +346,7 @@
 				3105N118 /* SignedResponse.swift */,
 				FF000002 /* FreeFirePatchService.swift */,
 				FF00000A /* DylibInjectionGuard.swift */,
+				FF000011 /* LocalDevVPNBridge.swift */,
 			);
 			path = helpers;
 			sourceTree = "<group>";
@@ -509,6 +512,7 @@
 				3105N218,
 				3105N219,
 				3105N220,
+				FF000010,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
