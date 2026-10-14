@@ -955,6 +955,7 @@ struct RemotePairingSheetView: View {
                 }
                 .buttonStyle(.plain)
 
+                /*
                 Button {
                     AppLog.shared.flush()
                     showShareSheet = true
@@ -971,6 +972,7 @@ struct RemotePairingSheetView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                */
 
                 Button {
                     pairing.stopAdvertising()

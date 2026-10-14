@@ -242,6 +242,7 @@ struct SettingsView: View {
                 }
             }
 
+            /*
             // Nút Xuất file log.txt để chia sẻ hoặc gửi phân tích
             Button {
                 AppLog.shared.flush()
@@ -268,6 +269,7 @@ struct SettingsView: View {
                 )
             }
             .buttonStyle(.plain)
+            */
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)

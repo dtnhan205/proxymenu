@@ -2071,6 +2071,7 @@ struct ContentView: View {
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.8))
             .fixedSize()
 
+            /*
             // Terminal Log Console Button (Opens System Logs with 1 tap)
             Button {
                 let impact = UIImpactFeedbackGenerator(style: .light)
@@ -2089,6 +2090,7 @@ struct ContentView: View {
                 }
             }
             .buttonStyle(.plain)
+            */
 
             // Settings Gear Button (Opens Settings Sheet)
             Button {
@@ -4553,21 +4555,20 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Utilities & Log Terminal Action Card
+    // MARK: - Utilities Action Card
     private var utilitiesCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             CyberSectionHeader(
-                title: isEnglish ? "UTILITIES & LOGS" : "TIỆN ÍCH & NHẬT KÝ",
-                subtitle: isEnglish ? "Maintenance & console logs" : "Bảo trì & Xem console logs",
-                icon: "terminal.fill",
+                title: isEnglish ? "UTILITIES" : "TIỆN ÍCH HỆ THỐNG",
+                subtitle: isEnglish ? "Maintenance & configuration" : "Bảo trì & Cấu hình menu",
+                icon: "wrench.and.screwdriver.fill",
                 accentColor: CyberTheme.electricPurple
             )
 
             CyberCard(glowColor: CyberTheme.electricPurple.opacity(0.10)) {
-                // View Console Logs Button (Isolated observer: does not trigger ContentView redraw)
-                ConsoleLogSummaryRow(showLogModal: $showLogModal)
-
-                Divider().background(CyberTheme.divider)
+                // View Console Logs Button (Commented out to hide from customers)
+                // ConsoleLogSummaryRow(showLogModal: $showLogModal)
+                // Divider().background(CyberTheme.divider)
 
                 // Reset Menu Settings Button
                 Button(action: handleResetDefaults) {
