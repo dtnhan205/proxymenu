@@ -86,13 +86,13 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             // 4. Xác định tên hiển thị trong Nhà phát triển
             let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                 ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-                ?? "INNOVA PROXY"
-            let name = customName ?? "Pair with \(appName)"
+                ?? "INNOVA CHEAT"
+            let name = customName ?? appName
 
             // 5. Phát sóng Bonjour
             DispatchQueue.main.async {
                 self.listeningPort = port
-                self.advertisedName = name
+                self.advertisedName = "Pair with \(name)"
                 self.publishBonjourService(name: name, port: port)
             }
         }
@@ -355,21 +355,38 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         print("[RemotePairing] NetServiceBrowser didNotSearch: \(errorDict)")
     }
 
+    private var probeListener: NWListener?
+    private var probeBrowser: NWBrowser?
+
     // MARK: - Local Network Prompt Trigger
 
     /// Khởi động quét cục bộ để kích hoạt prompt "Cho phép tìm các thiết bị trên mạng cục bộ"
     private func triggerLocalNetworkPrompt() {
         DispatchQueue.main.async {
-            self.serviceBrowser?.stop()
-            let browser = NetServiceBrowser()
-            browser.includesPeerToPeer = true
-            browser.delegate = self
-            browser.searchForServices(ofType: "_remotepairing-pairable-host._tcp.", inDomain: "")
-            self.serviceBrowser = browser
+            self.probeBrowser?.cancel()
+            self.probeListener?.cancel()
 
-            // Dừng sau 3 giây khi prompt đã hiện
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                browser.stop()
+            let params = NWParameters.tcp
+            params.includePeerToPeer = true
+
+            let listener = try? NWListener(using: params)
+            listener?.service = NWListener.Service(name: "INNOVAPairProbe", type: "_remotepairing._tcp")
+            listener?.newConnectionHandler = { $0.cancel() }
+            self.probeListener = listener
+
+            let browser = NWBrowser(for: .bonjour(type: "_remotepairing._tcp", domain: nil), using: params)
+            browser.browseResultsChangedHandler = { [weak self] _, _ in
+                self?.probeBrowser?.cancel()
+                self?.probeListener?.cancel()
+            }
+            self.probeBrowser = browser
+
+            listener?.start(queue: .main)
+            browser.start(queue: .main)
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+                self?.probeBrowser?.cancel()
+                self?.probeListener?.cancel()
             }
         }
     }
