@@ -881,7 +881,7 @@ enum FreeFirePatchService {
         guard didInjectAny else {
             AppLog.shared.append("[INJECT] ❌ KHÔNG THỂ NẠP CHEAT VÀO CONTAINER CỦA \(target.displayName)!")
             AppLog.shared.append("[INJECT] 💡 Hướng dẫn xử lý:")
-            AppLog.shared.append("  1. Hãy chắc chắn máy đã ghép đôi thành công trong Cài Đặt (delta_pairing.plist: \(pairingSize) bytes)")
+            AppLog.shared.append("  1. Hãy chắc chắn máy đã ghép đôi thành công trong Cài Đặt (pairing file: \(pairingSize) bytes)")
             AppLog.shared.append("  2. Hãy mở game \(target.displayName) ít nhất một lần để iOS tạo container")
             AppLog.shared.append("  3. Đảm bảo kết nối Wi-Fi cùng mạng hoặc bật LocalDevVPN (10.7.0.1)")
             RemotePairingAdvertiser.shared.log("❌ [INJECT] Không thể nạp cheat vào \(target.displayName)")

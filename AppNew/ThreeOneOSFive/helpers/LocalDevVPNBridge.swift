@@ -310,6 +310,8 @@ enum LocalDevVPNBridge {
         // 1. KIỂM TRA FILE PAIRING
         let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
         let candidatePaths = [
+            ("innova_pairing.plist", (docs as NSString).appendingPathComponent("innova_pairing.plist")),
+            ("innova_pairing_import.plist", (docs as NSString).appendingPathComponent("innova_pairing_import.plist")),
             ("delta_pairing.plist", (docs as NSString).appendingPathComponent("delta_pairing.plist")),
             ("delta_pairing_import.plist", (docs as NSString).appendingPathComponent("delta_pairing_import.plist")),
             ("local_pairing.plist", (docs as NSString).appendingPathComponent("pairing_records/local_pairing.plist"))

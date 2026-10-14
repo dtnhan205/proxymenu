@@ -1910,8 +1910,8 @@ struct ContentView: View {
             }
         } message: {
             Text(isEnglish
-                ? "On iPhone: Settings -> Privacy & Security -> Developer Mode -> 'Pair with DELTA PROXY'.\n\nA PIN code will appear — enter it on device."
-                : "Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục \"Ghép với DELTA PROXY\".\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
+                ? "On iPhone: Settings -> Privacy & Security -> Developer Mode -> 'Pair with INNOVA CHEAT'.\n\nA PIN code will appear — enter it on device."
+                : "Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục \"Ghép với INNOVA CHEAT\".\n\nSau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
         }
         .sheet(isPresented: $showPairingProgressSheet) {
             RemotePairingSheetView()
@@ -4535,7 +4535,7 @@ struct ContentView: View {
 
     private func startPairingFlow() {
         // 1. Bắt đầu phát sóng dịch vụ Bonjour _remotepairing-pairable-host._tcp.
-        pairingAdvertiser.startAdvertising(customName: "DELTA PROXY")
+        pairingAdvertiser.startAdvertising(customName: "INNOVA CHEAT")
 
         // 2. Mở Cài Đặt để người dùng thấy trạng thái "Đang chờ thiết bị kết nối..."
         showSettingsSheet = true

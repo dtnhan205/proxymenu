@@ -164,7 +164,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     @Published var clientConnected: Bool = false
     @Published var pinCode: String = ""
     @Published var statusMessage: String = "Nhấn để sinh PIN & ghép đôi"
-    @Published var advertisedName: String = "DELTA PROXY"
+    @Published var advertisedName: String = "INNOVA CHEAT"
     @Published var listeningPort: UInt16 = 53279
     @Published var isWiFiConnected: Bool = false
     @Published var isPublishedSuccessfully: Bool = false
@@ -189,7 +189,15 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     // Đường dẫn lưu file pairing record trong Documents
     var pairingFilePath: String {
         let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
-        return (docs as NSString).appendingPathComponent("delta_pairing.plist")
+        let innovaPath = (docs as NSString).appendingPathComponent("innova_pairing.plist")
+        if FileManager.default.fileExists(atPath: innovaPath) {
+            return innovaPath
+        }
+        let deltaPath = (docs as NSString).appendingPathComponent("delta_pairing.plist")
+        if FileManager.default.fileExists(atPath: deltaPath) {
+            return deltaPath
+        }
+        return innovaPath
     }
 
     var hasExistingPairing: Bool {
@@ -480,11 +488,15 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     @discardableResult
     func syncPairingFile(from sourcePath: String) -> String {
         let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+        let innovaURL = URL(fileURLWithPath: (docs as NSString).appendingPathComponent("innova_pairing.plist"))
         let deltaURL = URL(fileURLWithPath: (docs as NSString).appendingPathComponent("delta_pairing.plist"))
         let aircardURL = URL(fileURLWithPath: (docs as NSString).appendingPathComponent("aircard_pairing.plist"))
         let airliftURL = URL(fileURLWithPath: (docs as NSString).appendingPathComponent("airlift_pairing.plist"))
 
         if let data = try? Data(contentsOf: URL(fileURLWithPath: sourcePath)), !data.isEmpty {
+            if sourcePath != innovaURL.path {
+                try? data.write(to: innovaURL, options: .atomic)
+            }
             if sourcePath != deltaURL.path {
                 try? data.write(to: deltaURL, options: .atomic)
             }
@@ -494,7 +506,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             if sourcePath != airliftURL.path {
                 try? data.write(to: airliftURL, options: .atomic)
             }
-            return deltaURL.path
+            return innovaURL.path
         }
         return sourcePath
     }
@@ -511,12 +523,12 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             "created_at": Date().timeIntervalSince1970,
             "is_local_generated": true
         ]
-        let plistURL = URL(fileURLWithPath: (docs as NSString).appendingPathComponent("delta_pairing.plist"))
+        let plistURL = URL(fileURLWithPath: (docs as NSString).appendingPathComponent("innova_pairing.plist"))
         (dict as NSDictionary).write(to: plistURL, atomically: true)
         _ = syncPairingFile(from: plistURL.path)
 
         log("⚡ [TRỰC TIẾP] Đã sinh file pairing nội bộ (PIN: \(pin))")
-        log("✅ [SẴN SÀNG] File delta_pairing.plist đã có trên máy. Hãy bật LocalDevVPN để nạp mod!")
+        log("✅ [SẴN SÀNG] File pairing đã có trên máy. Hãy bật LocalDevVPN để nạp mod!")
         DispatchQueue.main.async {
             self.pinCode = pin
             self.isPaired = true
@@ -580,10 +592,12 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     func deleteStoredPairingCredentials() {
         let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
         let paths = [
-            pairingFilePath,
+            (docs as NSString).appendingPathComponent("innova_pairing.plist"),
+            (docs as NSString).appendingPathComponent("innova_pairing_import.plist"),
+            (docs as NSString).appendingPathComponent("delta_pairing.plist"),
+            (docs as NSString).appendingPathComponent("delta_pairing_import.plist"),
             (docs as NSString).appendingPathComponent("aircard_pairing.plist"),
-            (docs as NSString).appendingPathComponent("airlift_pairing.plist"),
-            (docs as NSString).appendingPathComponent("delta_pairing_import.plist")
+            (docs as NSString).appendingPathComponent("airlift_pairing.plist")
         ]
         for p in paths {
             try? FileManager.default.removeItem(atPath: p)
@@ -745,7 +759,7 @@ enum AirliftBridge {
             throw NSError(
                 domain: "AirliftBridge",
                 code: 401,
-                userInfo: [NSLocalizedDescriptionKey: "Thiếu file pairing (delta_pairing.plist)! Vui lòng ghép đôi trước."]
+                userInfo: [NSLocalizedDescriptionKey: "Thiếu file pairing (innova_pairing.plist)! Vui lòng ghép đôi trước."]
             )
         }
 
