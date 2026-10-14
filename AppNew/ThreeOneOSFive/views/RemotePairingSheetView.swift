@@ -13,6 +13,9 @@ struct RemotePairingSheetView: View {
     @State private var isPulsing: Bool = false
     @State private var showFileImporter: Bool = false
     @State private var showClearAlert: Bool = false
+    @State private var diagnosticLogs: [String] = []
+    @State private var isRunningProbe: Bool = false
+    @State private var showCopiedAlert: Bool = false
 
     private var isEnglish: Bool {
         languageCode == AppLanguage.english.rawValue
@@ -59,6 +62,9 @@ struct RemotePairingSheetView: View {
                         // Card Hành động ghép đôi nhanh (Tạo trực tiếp + Nhập file .plist)
                         quickActionsCard
 
+                        // Card Nhật ký kiểm tra thực tế File Pairing & Documents Free Fire
+                        diagnosticConsoleCard
+
                         // Card Mã PIN (nếu có yêu cầu từ hệ thống)
                         if !pairing.pinCode.isEmpty {
                             pinCodeCard
@@ -101,7 +107,9 @@ struct RemotePairingSheetView: View {
         ) { result in
             switch result {
             case .success(let url):
-                pairing.importPairingFile(from: url)
+                if pairing.importPairingFile(from: url) {
+                    runProbe()
+                }
             case .failure(let error):
                 print("[RemotePairing] File picker error: \(error)")
             }
@@ -112,6 +120,7 @@ struct RemotePairingSheetView: View {
         ) {
             Button(isEnglish ? "Delete" : "Xoá", role: .destructive) {
                 pairing.clearPairing()
+                runProbe()
             }
             Button(isEnglish ? "Cancel" : "Huỷ", role: .cancel) {}
         } message: {
@@ -119,11 +128,162 @@ struct RemotePairingSheetView: View {
                 ? "This will delete the pairing credentials from the device."
                 : "Hành động này sẽ xoá file pairing hiện tại để bạn có thể tạo mới hoặc nhập file khác.")
         }
+        .alert(
+            isEnglish ? "Copied to Clipboard" : "Đã sao chép nhật ký",
+            isPresented: $showCopiedAlert
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(isEnglish ? "Diagnostic logs copied successfully." : "Toàn bộ nhật ký kiểm tra đã được sao chép vào bộ nhớ tạm.")
+        }
         .onAppear {
             isPulsing = true
             if !pairing.isAdvertising {
                 pairing.startAdvertising()
             }
+            runProbe()
+        }
+    }
+
+    // MARK: - Run Diagnostics Probe
+    private func runProbe() {
+        isRunningProbe = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let logs = LocalDevVPNBridge.runFullDiagnostics()
+            DispatchQueue.main.async {
+                self.diagnosticLogs = logs
+                self.isRunningProbe = false
+            }
+        }
+    }
+
+    // MARK: - Diagnostic Console Card (Log thực tế kiểm tra Pairing & Documents)
+    private var diagnosticConsoleCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "terminal.fill")
+                    .foregroundColor(AppTheme.neonCyan)
+                    .font(.system(size: 14))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(isEnglish ? "FILE & DOCUMENTS ACCESS LOGS" : "NHẬT KÝ KIỂM TRA TRUY CẬP THỰC TẾ")
+                        .font(.system(size: 11.5, weight: .heavy, design: .monospaced))
+                        .foregroundColor(AppTheme.neonCyan)
+                    Text(isEnglish ? "Verifies pairing record & Free Fire container access" : "Xác thực file pairing và quyền truy cập Documents của game")
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+
+                Spacer()
+
+                Button {
+                    runProbe()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isRunningProbe ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
+                            .rotationEffect(isRunningProbe ? .degrees(360) : .zero)
+                            .animation(isRunningProbe ? Animation.linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isRunningProbe)
+                        Text(isEnglish ? "Re-test" : "Quét lại")
+                    }
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(AppTheme.neonCyan)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(AppTheme.neonCyan.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(isRunningProbe)
+            }
+
+            // Terminal View
+            VStack(alignment: .leading, spacing: 4) {
+                if diagnosticLogs.isEmpty {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.neonCyan))
+                            .scaleEffect(0.7)
+                        Text(isEnglish ? "Running diagnostics probe..." : "Đang chạy kiểm tra truy cập...")
+                            .font(.system(size: 10.5, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        LazyVStack(alignment: .leading, spacing: 3) {
+                            ForEach(Array(diagnosticLogs.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundColor(colorForLogLine(line))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .frame(maxHeight: 180)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .background(Color(red: 0.02, green: 0.02, blue: 0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AppTheme.neonCyan.opacity(0.25), lineWidth: 1)
+            )
+
+            // Footer bar: Sao chép nhật ký & Giải thích kết quả
+            HStack {
+                Button {
+                    UIPasteboard.general.string = diagnosticLogs.joined(separator: "\n")
+                    showCopiedAlert = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 9.5))
+                        Text(isEnglish ? "Copy Logs" : "Sao chép nhật ký")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(.white.opacity(0.75))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Text(diagnosticLogs.contains(where: { $0.contains("100% ACCESS") || $0.contains("ĐÃ GHI & ĐỌC THÀNH CÔNG") })
+                    ? (isEnglish ? "✅ DOCUMENTS ACCESS: VERIFIED" : "✅ QUYỀN TRUY CẬP DOCUMENTS: OK")
+                    : (isEnglish ? "⚠️ PENDING GAME LAUNCH" : "⚠️ CẦN MỞ GAME 1 LẦN"))
+                    .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
+                    .foregroundColor(diagnosticLogs.contains(where: { $0.contains("100% ACCESS") || $0.contains("ĐÃ GHI & ĐỌC THÀNH CÔNG") }) ? AppTheme.neonLime : AppTheme.neonAmber)
+            }
+        }
+        .padding(12)
+        .background(Color(red: 0.08, green: 0.08, blue: 0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(AppTheme.neonCyan.opacity(0.3), lineWidth: 1)
+        )
+    }
+
+    private func colorForLogLine(_ line: String) -> Color {
+        if line.contains("✅") || line.contains("100% ACCESS") || line.contains("THÀNH CÔNG") {
+            return AppTheme.neonLime
+        } else if line.contains("❌") || line.contains("Lỗi") || line.contains("FAILED") {
+            return AppTheme.neonRed
+        } else if line.contains("⚠️") || line.contains("CHƯA CÓ") || line.contains("ĐANG TẮT") {
+            return AppTheme.neonAmber
+        } else if line.contains("🎮") || line.contains("🚀") || line.contains("🏁") {
+            return AppTheme.neonCyan
+        } else if line.contains("📂") || line.contains("📁") || line.contains("📄") {
+            return Color(red: 0.6, green: 0.85, blue: 1.0)
+        } else {
+            return Color.white.opacity(0.85)
         }
     }
 
@@ -316,6 +476,7 @@ struct RemotePairingSheetView: View {
             // Nút 1: Tự tạo file pairing trực tiếp trên máy
             Button {
                 pairing.generateLocalPairingFile()
+                runProbe()
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "bolt.badge.checkmark.fill")
@@ -577,6 +738,7 @@ struct RemotePairingSheetView: View {
                 // Nút chính khi CHƯA CÓ FILE: Tạo file pairing ngay
                 Button {
                     pairing.generateLocalPairingFile()
+                    runProbe()
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "bolt.badge.checkmark.fill")

@@ -255,7 +255,7 @@ struct SettingsView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
 
-        showPairingPromptAlert = true
+        showPairingSheet = true
     }
 
     private var vpnCardTitle: String {

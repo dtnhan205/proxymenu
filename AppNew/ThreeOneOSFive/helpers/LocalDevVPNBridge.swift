@@ -218,7 +218,14 @@ enum LocalDevVPNBridge {
             cachedContainerPaths.removeValue(forKey: bundleID)
         }
 
-        // 1. Quét qua appDataRoot /var/mobile/Containers/Data/Application
+        // 1. Kiểm tra qua LSApplicationProxy (nhanh & chính xác nhất nếu API khả dụng)
+        let info = appInfoForBundleID(bundleID as NSString)
+        if let container = info["container"] as? String, !container.isEmpty, FileManager.default.fileExists(atPath: container) {
+            cachedContainerPaths[bundleID] = container
+            return container
+        }
+
+        // 2. Quét qua appDataRoot /var/mobile/Containers/Data/Application
         let candidates = [
             "/var/mobile/Containers/Data/Application",
             "/private/var/mobile/Containers/Data/Application"
@@ -254,6 +261,146 @@ enum LocalDevVPNBridge {
         }
 
         return nil
+    }
+
+    // MARK: - Diagnostics & Real File Access Probe
+
+    /// Chạy kiểm tra toàn diện: File Pairing, VPN Tunnel, Free Fire Container & Documents R/W Probe
+    static func runFullDiagnostics() -> [String] {
+        var logs: [String] = []
+        func logEntry(_ tag: String, _ msg: String, icon: String = "ℹ️") {
+            let line = "[\(tag)] \(icon) \(msg)"
+            logs.append(line)
+            AppLog.shared.append(line)
+            print(line)
+        }
+
+        let timeStr = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+        logEntry("TEST", "BẮT ĐẦU KIỂM TRA TRUY CẬP THỰC TẾ (\(timeStr))", icon: "🚀")
+
+        // 1. KIỂM TRA FILE PAIRING
+        let docs = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0]
+        let candidatePaths = [
+            ("delta_pairing.plist", (docs as NSString).appendingPathComponent("delta_pairing.plist")),
+            ("delta_pairing_import.plist", (docs as NSString).appendingPathComponent("delta_pairing_import.plist")),
+            ("local_pairing.plist", (docs as NSString).appendingPathComponent("pairing_records/local_pairing.plist"))
+        ]
+
+        var foundPairing = false
+        for (name, path) in candidatePaths {
+            if FileManager.default.fileExists(atPath: path) {
+                foundPairing = true
+                if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+                   let size = attrs[.size] as? Int64 {
+                    if let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+                       let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
+                        let keys = plist.keys.joined(separator: ", ")
+                        logEntry("PAIRING", "Tìm thấy \(name): \(size) bytes (Keys: \(keys))", icon: "✅")
+                    } else {
+                        logEntry("PAIRING", "Tìm thấy \(name): \(size) bytes (Dữ liệu hợp lệ)", icon: "✅")
+                    }
+                } else {
+                    logEntry("PAIRING", "Tìm thấy \(name)", icon: "✅")
+                }
+            }
+        }
+        if !foundPairing {
+            logEntry("PAIRING", "CHƯA CÓ FILE PAIRING! Hãy bấm 'Tạo File Trực Tiếp' hoặc 'Nhập .plist'.", icon: "⚠️")
+        }
+
+        // 2. KIỂM TRA LOCALDEVVPN TUNNEL
+        let vpn = detectVPNInterface()
+        if vpn.active {
+            logEntry("VPN", "Giao diện \(vpn.interfaceName) ĐANG BẬT! (IP máy: \(vpn.deviceIP), Tunnel: \(vpn.tunnelIP))", icon: "✅")
+            let route = probeKernelRouteToTunnel()
+            if route.routed {
+                logEntry("VPN", "Bảng định tuyến Kernel: Đã route tới \(tunnelHost):\(defaultPort)", icon: "✅")
+            } else {
+                logEntry("VPN", "Định tuyến tới \(tunnelHost): Chờ kích hoạt routing", icon: "ℹ️")
+            }
+        } else {
+            logEntry("VPN", "LocalDevVPN ĐANG TẮT (Giao diện utun 10.7.0.1 chưa bật)", icon: "⚠️")
+        }
+
+        // 3. KIỂM TRA FREE FIRE CONTAINERS VÀ DOCUMENTS
+        let targets = [
+            ("Free Fire Thường (TH)", FreeFireTarget.freeFireTH.rawValue),
+            ("Free Fire MAX", FreeFireTarget.freeFireMAX.rawValue)
+        ]
+
+        for (displayName, bundleID) in targets {
+            logEntry("GAME", "--- Kiểm tra \(displayName) (\(bundleID)) ---", icon: "🎮")
+
+            // Kiểm tra cài đặt qua LSApplicationProxy
+            let info = appInfoForBundleID(bundleID as NSString)
+            let isInstalled = (info["found"] as? NSNumber)?.boolValue ?? false || (info["name"] != nil && (info["name"] as? String) != bundleID)
+            let version = info["version"] as? String ?? "N/A"
+
+            if isInstalled {
+                logEntry("GAME", "\(displayName): ĐÃ CÀI ĐẶT trên máy (v\(version))", icon: "📱")
+            } else {
+                logEntry("GAME", "\(displayName): Thử tìm theo bundle ID \(bundleID)", icon: "🔍")
+            }
+
+            // Tìm container path
+            let containerPath = resolveContainerPath(bundleID: bundleID)
+                ?? (info["container"] as? String)
+                ?? ContainerStore.resolveAppContainerPath(bundleID: bundleID)
+
+            if let container = containerPath, !container.isEmpty {
+                logEntry("CONTAINER", "Container Data: \(container)", icon: "📂")
+
+                let docsPath = (container as NSString).appendingPathComponent("Documents")
+                let docsExists = FileManager.default.fileExists(atPath: docsPath)
+
+                if docsExists {
+                    let isReadable = FileManager.default.isReadableFile(atPath: docsPath)
+                    let isWritable = FileManager.default.isWritableFile(atPath: docsPath)
+                    logEntry("DOCUMENTS", "Thư mục Documents: TỒN TẠI (Đọc: \(isReadable ? "OK" : "NO"), Ghi: \(isWritable ? "OK" : "NO"))", icon: "📁")
+
+                    // Liệt kê nội dung Documents
+                    if let contents = try? FileManager.default.contentsOfDirectory(atPath: docsPath) {
+                        let count = contents.count
+                        let preview = contents.prefix(5).joined(separator: ", ")
+                        logEntry("DOCUMENTS", "Nội dung Documents (\(count) mục): \(preview)\(count > 5 ? "..." : "")", icon: "📄")
+                    }
+
+                    // Test ghi / đọc file thực tế (Read/Write Probe)
+                    let probePath = (docsPath as NSString).appendingPathComponent(".innova_probe_test.tmp")
+                    let testPayload = "INNOVA_PROBE_\(Date().timeIntervalSince1970)".data(using: .utf8)!
+                    do {
+                        try testPayload.write(to: URL(fileURLWithPath: probePath), options: .atomic)
+                        let verifyData = try Data(contentsOf: URL(fileURLWithPath: probePath))
+                        try? FileManager.default.removeItem(atPath: probePath)
+                        if verifyData == testPayload {
+                            logEntry("PROBE", "THỰC TẾ TRUY CẬP DOCUMENTS: ✅ ĐÃ GHI & ĐỌC THÀNH CÔNG (100% ACCESS)", icon: "🎉")
+                        } else {
+                            logEntry("PROBE", "Dữ liệu kiểm tra không khớp", icon: "⚠️")
+                        }
+                    } catch {
+                        logEntry("PROBE", "Ghi thử nghiệm vào Documents: Lỗi (\(error.localizedDescription))", icon: "❌")
+                    }
+
+                    // Kiểm tra patch file hiện tại
+                    let patchPath = (docsPath as NSString).appendingPathComponent("Assembly-CSharp-patch.bytes")
+                    if FileManager.default.fileExists(atPath: patchPath) {
+                        if let attrs = try? FileManager.default.attributesOfItem(atPath: patchPath),
+                           let size = attrs[.size] as? Int64 {
+                            logEntry("PATCH", "File Assembly-CSharp-patch.bytes: ✅ ĐÃ NẠP SẴN (\(size) bytes)", icon: "⚡")
+                        }
+                    } else {
+                        logEntry("PATCH", "File Assembly-CSharp-patch.bytes: Chưa nạp (Sẵn sàng nạp khi bấm nút)", icon: "ℹ️")
+                    }
+                } else {
+                    logEntry("DOCUMENTS", "Thư mục Documents chưa tạo (Hãy mở game Free Fire 1 lần để tạo Documents)", icon: "⚠️")
+                }
+            } else {
+                logEntry("CONTAINER", "Chưa quét thấy thư mục Container của \(displayName). (Hãy mở game ít nhất 1 lần để hệ thống kích hoạt)", icon: "ℹ️")
+            }
+        }
+
+        logEntry("TEST", "HOÀN TẤT KIỂM TRA TRUY CẬP HỆ THỐNG", icon: "🏁")
+        return logs
     }
 
     // MARK: - File Operations & Injection (iOS 18.7.x & iOS 27)
