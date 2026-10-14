@@ -565,7 +565,9 @@ enum FreeFirePatchService {
         let pairingSize = (try? FileManager.default.attributesOfItem(atPath: pairingPath)[.size] as? Int) ?? 0
         let vpn = LocalDevVPNBridge.detectVPNInterface()
         let wifiIP = RemotePairingAdvertiser.getWiFiAddress() ?? "Không có"
-        let booksInstalled = UIApplication.shared.canOpenURL(URL(string: "ibooks://")!)
+        let booksInstalled = await MainActor.run {
+            UIApplication.shared.canOpenURL(URL(string: "ibooks://")!)
+        }
 
         AppLog.shared.append("[INJECT] 📁 Pairing Record: \(hasPairing ? "✅ CÓ SẴN (\(pairingSize) bytes)" : "⚠️ Chưa có file pairing")")
         AppLog.shared.append("[INJECT] 📚 Apple Books: \(booksInstalled ? "✅ Đã cài đặt" : "⚠️ CHƯA CÀI ĐẶT (AirTraffic yêu cầu có app Sách)")")

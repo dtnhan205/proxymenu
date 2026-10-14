@@ -675,7 +675,7 @@ enum AirliftBridge {
                 if let ptr = ptr { free(ptr) }
             }
         }
-        var ptrArray: [UnsafePointer<CChar>?] = cStrings.map { $0.map { UnsafePointer($0) } }
+        let ptrArray: [UnsafePointer<CChar>?] = cStrings.map { $0.map { UnsafePointer($0) } }
         ptrArray.withUnsafeBufferPointer { buf in
             if let base = buf.baseAddress {
                 _ = al_set_target_hosts(base, hosts.count)

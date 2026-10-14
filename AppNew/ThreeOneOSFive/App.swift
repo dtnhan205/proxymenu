@@ -28,7 +28,7 @@ struct ThreeOneOSFiveApp: App {
         // Ghi lại thông số chẩn đoán chi tiết vào log.txt để phân tích
         Task { @MainActor in
             AppLog.shared.append("[DIAGNOSTIC] ══════════════════════════════════════════════════════════")
-            AppLog.shared.append("[DIAGNOSTIC] 📱 Thiết bị: \(AppInfo.displayMachineName) (\(AppInfo.rawMachineName))")
+            AppLog.shared.append("[DIAGNOSTIC] 📱 Thiết bị: \(AppInfo.hardwareDisplayName) (\(AppInfo.machineName))")
             AppLog.shared.append("[DIAGNOSTIC] 🍎 iOS: \(AppInfo.osVersion) · Build: \(AppInfo.osBuild)")
             let wifi = RemotePairingAdvertiser.getWiFiAddress() ?? "Không có (Đang tắt Wi-Fi / Dùng 4G)"
             AppLog.shared.append("[DIAGNOSTIC] 📶 Wi-Fi IP en0: \(wifi)")
