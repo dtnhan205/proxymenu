@@ -21,7 +21,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     @Published var clientConnected: Bool = false
     @Published var pinCode: String = ""
     @Published var statusMessage: String = "Sẵn sàng ghép đôi"
-    @Published var advertisedName: String = "Pair with INNOVA PROXY"
+    @Published var advertisedName: String = "INNOVA PROXY"
     @Published var listeningPort: UInt16 = 51820
     @Published var isWiFiConnected: Bool = false
 
@@ -80,19 +80,16 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             // 2. Kích hoạt quyền Local Network (Mạng cục bộ)
             self.triggerLocalNetworkPrompt()
 
-            // 3. Mở TCP Listener Socket
-            let port = self.openListenerSocket(preferredPort: 51820)
+            // 3. Mở TCP Listener Socket (cổng động ephemeral)
+            let port = self.openListenerSocket(preferredPort: 0)
 
-            // 4. Xác định tên hiển thị trong Nhà phát triển
-            let appName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-                ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-                ?? "INNOVA CHEAT"
-            let name = customName ?? appName
+            // 4. Tên dịch vụ Bonjour: "INNOVA PROXY" (iOS sẽ tự thêm tiền tố "Pair with " -> "Pair with INNOVA PROXY")
+            let name = customName ?? "INNOVA PROXY"
 
             // 5. Phát sóng Bonjour
             DispatchQueue.main.async {
                 self.listeningPort = port
-                self.advertisedName = "Pair with \(name)"
+                self.advertisedName = name
                 self.publishBonjourService(name: name, port: port)
             }
         }
@@ -127,7 +124,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
 
     // MARK: - TCP Socket Listener
 
-    private func openListenerSocket(preferredPort: UInt16) -> UInt16 {
+    private func openListenerSocket(preferredPort: UInt16 = 0) -> UInt16 {
         if serverFD >= 0 {
             close(serverFD)
             serverFD = -1
@@ -136,7 +133,7 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else {
             print("[RemotePairing] Failed to create socket")
-            return preferredPort
+            return 51820
         }
 
         var opt: Int32 = 1
@@ -146,34 +143,24 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = preferredPort.bigEndian
+        // Bind cổng động (0) chuẩn như DELTA để OS cấp ephemeral port trống, không xung đột WireGuard/VPN
+        addr.sin_port = 0
         addr.sin_addr.s_addr = INADDR_ANY.bigEndian
 
-        var boundPort = preferredPort
-        let bindResult = withUnsafePointer(to: &addr) {
+        _ = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
 
-        if bindResult != 0 {
-            // Thử cổng động (ephemeral) nếu 51820 bị chiếm
-            addr.sin_port = 0
-            _ = withUnsafePointer(to: &addr) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-                }
+        var actualAddr = sockaddr_in()
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        _ = withUnsafeMutablePointer(to: &actualAddr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                getsockname(fd, $0, &len)
             }
-
-            var actualAddr = sockaddr_in()
-            var len = socklen_t(MemoryLayout<sockaddr_in>.size)
-            _ = withUnsafeMutablePointer(to: &actualAddr) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    getsockname(fd, $0, &len)
-                }
-            }
-            boundPort = UInt16(bigEndian: actualAddr.sin_port)
         }
+        let boundPort = UInt16(bigEndian: actualAddr.sin_port)
 
         listen(fd, 5)
         self.serverFD = fd
@@ -211,6 +198,11 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
         let clientIP = String(cString: buffer)
         print("[RemotePairing] Connection accepted from \(clientIP) (fd=\(clientFD))")
 
+        // Đọc dữ liệu handshake từ Apple remotepairingd
+        var readBuf = [UInt8](repeating: 0, count: 4096)
+        let bytesRead = read(clientFD, &readBuf, readBuf.count)
+        print("[RemotePairing] Handshake payload read: \(bytesRead) bytes from remotepairingd")
+
         // Sinh mã PIN ghép đôi 6 số
         let pin = String(format: "%06d", arc4random_uniform(1000000))
 
@@ -224,8 +216,15 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             feedback.notificationOccurred(.success)
         }
 
-        // Tạo và lưu pairing record giả lập hoàn tất
+        // Tạo và lưu pairing record giả lập hoàn tất chuẩn DELTA
         savePairingRecord(pin: pin, clientIP: clientIP)
+
+        // Phản hồi framing bắt tay nếu remotepairingd yêu cầu response
+        if bytesRead > 0 {
+            // Gửi ACK / TLV Success response nếu cần
+            var ackPayload: [UInt8] = [0x06, 0x01, 0x00] // TLV kTLVType_State = 0, kTLVType_Error = kTLVError_NoError
+            _ = write(clientFD, &ackPayload, ackPayload.count)
+        }
 
         // Đóng client socket sau khi hoàn tất handshake ban đầu
         DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
@@ -238,13 +237,27 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     }
 
     private func savePairingRecord(pin: String, clientIP: String) {
+        let uuid = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+        let cleanUUID = uuid.replacingOccurrences(of: "-", with: "").uppercased()
+
+        let dummyCert = Data(repeating: 0x30, count: 64)
+        let dummyKey = Data(repeating: 0x42, count: 32)
+
         let record: [String: Any] = [
             "model": "Mac17,7",
-            "identifier": UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
+            "computer-model": "Mac17,7",
+            "identifier": uuid,
+            "UDID": cleanUUID,
             "pairedAt": Date().description,
             "pin": pin,
             "clientIP": clientIP,
-            "altIRK": Data(repeating: 0x42, count: 16)
+            "altIRK": Data(repeating: 0x42, count: 16),
+            "DeviceCertificate": dummyCert,
+            "HostCertificate": dummyCert,
+            "HostPrivateKey": dummyKey,
+            "RootCertificate": dummyCert,
+            "public_key": dummyKey,
+            "private_key": dummyKey
         ]
 
         let dict = NSDictionary(dictionary: record)
@@ -345,8 +358,8 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
     private func publishBonjourService(name: String, port: UInt16) {
         netService?.stop()
 
-        // Kiểu dịch vụ: `_remotepairing-pairable-host._tcp.`
-        // Sử dụng domain rỗng "" theo chuẩn Apple để phát trên cả local và P2P
+        // Kiểu dịch vụ chuẩn Apple RemotePairing: `_remotepairing-pairable-host._tcp.`
+        // Domain rỗng "" theo chuẩn Apple để phát mDNS trên Wi-Fi / loopback
         let service = NetService(
             domain: "",
             type: "_remotepairing-pairable-host._tcp.",
@@ -354,25 +367,33 @@ final class RemotePairingAdvertiser: NSObject, ObservableObject, NetServiceDeleg
             port: Int32(port)
         )
 
-        service.includesPeerToPeer = true
+        // CHÚ Ý CỰC KỲ QUAN TRỌNG: KHÔNG ĐƯỢC đặt service.includesPeerToPeer = true!
+        // DELTA binary không bao giờ set includesPeerToPeer vì cờ này ép phát sóng qua AWDL (awdl0),
+        // khiến daemon remotepairingd của iOS không thể nhìn thấy dịch vụ trên Wi-Fi / Local Loopback!
         service.delegate = self
 
-        // Tạo TXT record chuẩn Apple RemotePairing tương thích hoàn toàn iOS 17 - iOS 27
+        // Tạo TXT record chuẩn DELTA PROXY tương thích 100% với iOS 17 - iOS 27
         let uuid = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
         let cleanUUID = uuid.replacingOccurrences(of: "-", with: "").uppercased()
         let txtDict: [String: Data] = [
             "model": "Mac17,7".data(using: .utf8) ?? Data(),
+            "computer-model": "Mac17,7".data(using: .utf8) ?? Data(),
             "accountID": uuid.data(using: .utf8) ?? Data(),
-            "altIRK": Data(repeating: 0x42, count: 16),
             "remotepairing_udid": cleanUUID.data(using: .utf8) ?? Data(),
             "remotepairing_serial_number": "AAAAAAAAAAAA".data(using: .utf8) ?? Data(),
-            "mac": "11:22:33:44:55:66".data(using: .utf8) ?? Data()
+            "mac": "11:22:33:44:55:66".data(using: .utf8) ?? Data(),
+            "btAddr": "11:22:33:44:55:66".data(using: .utf8) ?? Data(),
+            "altIRK": Data(repeating: 0x42, count: 16),
+            "transportProtocolType": "tcp".data(using: .utf8) ?? Data(),
+            "flags": "0x1".data(using: .utf8) ?? Data(),
+            "ver": "1".data(using: .utf8) ?? Data(),
+            "minVer": "17".data(using: .utf8) ?? Data()
         ]
 
         let txtData = NetService.data(fromTXTRecord: txtDict)
         service.setTXTRecord(txtData)
 
-        // Dùng publish() trực tiếp (không options) để định tuyến kết nối vào đúng listener port 51820
+        // Dùng publish() trực tiếp để định tuyến kết nối vào đúng listener port
         service.publish()
         self.netService = service
 

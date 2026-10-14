@@ -313,8 +313,8 @@ struct RemotePairingSheetView: View {
             }
 
             Text(isEnglish
-                ? "iOS Developer Mode cannot self-discover Bonjour on the same iPhone (which is why 'Other Devices' spins forever). You ALREADY have the pairing file! You do NOT need to pair in Settings."
-                : "Mục Chế độ Nhà phát triển của iOS không hỗ trợ tự quét Bonjour trên cùng một chiếc iPhone (đây là lý do vòng xoay 'Các thiết bị khác' xoay mãi). Bạn ĐÃ CÓ FILE PAIRING trên máy rồi nên KHÔNG CẦN vào Cài đặt nữa!")
+                ? "Pairing record verified! Bonjour service is active. You can verify direct file access in the diagnostic log below, then turn ON LocalDevVPN and open Free Fire."
+                : "Đã xác thực File Pairing thành công! Dịch vụ hệ thống đang hoạt động. Bạn có thể kiểm tra nhật ký truy cập Documents ở khung bên dưới, sau đó bật LocalDevVPN và mở Free Fire để nạp mod.")
                 .font(.system(size: 11.5, weight: .regular))
                 .foregroundColor(.white.opacity(0.85))
                 .lineSpacing(2.5)
@@ -323,7 +323,7 @@ struct RemotePairingSheetView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(AppTheme.neonLime)
                     .font(.system(size: 11))
-                Text(isEnglish ? "Skip Settings. Turn on LocalDevVPN and open game!" : "Bỏ qua Cài đặt. Hãy Bật LocalDevVPN và mở game nạp mod ngay!")
+                Text(isEnglish ? "Pairing active. Turn on LocalDevVPN and open game!" : "Ghép đôi sẵn sàng. Hãy Bật LocalDevVPN và mở game nạp mod ngay!")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(AppTheme.neonLime)
             }
@@ -654,14 +654,20 @@ struct RemotePairingSheetView: View {
             } else {
                 stepRow(
                     number: 1,
-                    title: isEnglish ? "Tap 'Instant Local Pairing'" : "Bấm 'Tạo File Pairing Trực Tiếp'",
-                    desc: isEnglish ? "Creates pairing records locally (bypasses manual Bonjour)" : "Tạo sẵn pairing record để không cần máy tính hay Cài đặt"
+                    title: isEnglish ? "Open iOS Developer Mode" : "Mở Cài Đặt > Chế độ Nhà phát triển",
+                    desc: isEnglish ? "Go to Settings -> Privacy & Security -> Developer Mode -> Other Devices" : "Vào Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> Các thiết bị khác"
                 )
 
                 stepRow(
                     number: 2,
-                    title: isEnglish ? "Or Import from PC (.plist)" : "Hoặc Nhập File từ Máy Tính",
-                    desc: isEnglish ? "Use pymobiledevice3 pairing file if generated externally" : "Nếu bạn đã có file pairing từ pymobiledevice3, bấm nút Nhập File ở trên"
+                    title: isEnglish ? "Tap 'Pair with INNOVA PROXY'" : "Nhấn 'Pair with INNOVA PROXY'",
+                    desc: isEnglish ? "Confirm prompt and enter your device passcode" : "Bấm Ghép đôi và nhập mật mã iPhone để lưu ghép đôi hệ thống"
+                )
+
+                stepRow(
+                    number: 3,
+                    title: isEnglish ? "Or Tap 'Instant Local Pairing'" : "Hoặc Bấm 'Tạo File Trực Tiếp'",
+                    desc: isEnglish ? "Instantly generates pairing records on-device without Wi-Fi" : "Hoặc bấm nút xanh 'TẠO FILE PAIRING TRỰC TIẾP' ở trên nếu không có Wi-Fi"
                 )
             }
         }

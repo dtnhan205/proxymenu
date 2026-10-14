@@ -24,6 +24,7 @@ struct SettingsView: View {
                     VStack(spacing: 16) {
                         profileCard
                         localDevVPNCard
+                        pairingCard
                         languageCard
                         deviceCard
                         compatibilityCard
@@ -70,15 +71,13 @@ struct SettingsView: View {
         }
         .alert("Ghép đôi iOS 27", isPresented: $showPairingPromptAlert) {
             Button("Huỷ", role: .cancel) {}
-            Button("Mở bảng Ghép đôi") {
-                showPairingSheet = true
+            Button("Bắt đầu") {
+                pairingAdvertiser.startAdvertising()
+                let feedback = UINotificationFeedbackGenerator()
+                feedback.notificationOccurred(.success)
             }
         } message: {
-            if pairingAdvertiser.hasExistingPairing {
-                Text("✅ Thiết bị đã có sẵn File Pairing (Ghép đôi hoàn tất)!\n\nBạn có thể mở bảng Ghép đôi để kiểm tra thông số hoặc kết nối LocalDevVPN và nạp mod ngay.")
-            } else {
-                Text("Ghép đôi dịch vụ hệ thống cho iOS 27 & iOS 18.7.x.\n\nBạn có thể tạo File Pairing trực tiếp ngay trên máy (không cần Wi-Fi) hoặc nhập file .plist từ máy tính.")
-            }
+            Text("Trên iPhone: Cài đặt -> Quyền riêng tư & Bảo mật -> Chế độ nhà phát triển -> mục 'Ghép với INNOVA PROXY'. Sau đó một mã PIN sẽ hiện ra — hãy nhập mã đó trên máy.")
         }
         .sheet(isPresented: $showPairingSheet) {
             RemotePairingSheetView()
@@ -249,6 +248,103 @@ struct SettingsView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .techCard(glow: vpnManager.isConnected ? AppTheme.neonLime : AppTheme.neonCyan, opacity: 0.15)
+    }
+
+    private var pairingCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "link.badge.plus")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.neonLime)
+                NeonReadout(text: "Ghép Đôi iOS 27 (RemotePairing)", tint: AppTheme.neonLime)
+
+                Spacer()
+
+                HStack(spacing: 5) {
+                    PulsingDot(
+                        color: pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber,
+                        size: 6
+                    )
+                    Text(pairingAdvertiser.hasExistingPairing ? "ĐÃ GHÉP ĐÔI" : (pairingAdvertiser.isAdvertising ? "ĐANG PHÁT" : "CHƯA GHÉP ĐÔI"))
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    (pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber).opacity(0.12),
+                    in: Capsule()
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            (pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonAmber).opacity(0.4),
+                            lineWidth: 1
+                        )
+                )
+            }
+
+            Button {
+                handlePairingTap()
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(
+                                (pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.15)
+                            )
+                            .frame(width: 44, height: 44)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder((pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan).opacity(0.4), lineWidth: 1)
+                            )
+
+                        Image(systemName: pairingAdvertiser.hasExistingPairing ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Ghép Đôi iOS 27")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+
+                        Text(pairingAdvertiser.hasExistingPairing
+                            ? "Đã có pairing file · Nhấn để test"
+                            : "Nhấn để sinh PIN & ghép đôi")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .techCard(glow: pairingAdvertiser.hasExistingPairing ? AppTheme.neonLime : AppTheme.neonCyan, opacity: 0.15)
+    }
+
+    private func handlePairingTap() {
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+
+        if pairingAdvertiser.hasExistingPairing {
+            showPairingSheet = true
+        } else {
+            showPairingPromptAlert = true
+        }
     }
 
     private func handleConnectLocalDevVPN() {
