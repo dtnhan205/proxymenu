@@ -1651,6 +1651,10 @@ struct ContentView: View {
     @State private var showColorPickerPopup: Bool = false
     @State private var showSettingsSheet: Bool = false
     @State private var showHowToInstallVideo: Bool = false
+    @ObservedObject private var vpnManager = LocalDevVPNManager.shared
+    @State private var showVPNAlert: Bool = false
+    @State private var vpnAlertTitle: String = ""
+    @State private var vpnAlertMessage: String = ""
     @State private var isCleaningAntiban: Bool = false
     @State private var antibanProgress: Double = 0.0
     @State private var isAntibanReady: Bool = false
@@ -1729,6 +1733,9 @@ struct ContentView: View {
 
                 // Game Target Selector (Side-by-side cards)
                 gameTargetSelector
+
+                // Nút / Banner Kết Nối iOS 27 (LocalDevVPN)
+                localDevVPNMainBanner
 
                 // Warning Banner if Key is Missing / Expired
                 if !isLicenseValid {
@@ -1863,6 +1870,11 @@ struct ContentView: View {
             Button(isEnglish ? "Close" : "Đóng", role: .cancel) {}
         } message: {
             Text(injectionAlertText)
+        }
+        .alert(vpnAlertTitle, isPresented: $showVPNAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(vpnAlertMessage)
         }
         .sheet(isPresented: $showSettingsSheet) {
             settingsSheetView
@@ -3840,7 +3852,10 @@ struct ContentView: View {
                         // 1. GIẤY PHÉP & BẢN QUYỀN
                         licenseSettingsCard
 
-                        // 2. TIỆN ÍCH & NHẬT KÝ
+                        // 2. KẾT NỐI LOCALDEVVPN (iOS 27 & iOS 18.7.x)
+                        localDevVPNSettingsCard
+
+                        // 3. TIỆN ÍCH & NHẬT KÝ
                         utilitiesCard
 
                         // 3. THÔNG TIN ỨNG DỤNG
@@ -4194,6 +4209,240 @@ struct ContentView: View {
                     value: isGameInstalled(.freeFireMAX) ? (isEnglish ? "Installed (Ready)" : "Đã Cài Đặt (Sẵn sàng)") : (isEnglish ? "Not Found" : "Chưa Tìm Thấy"),
                     valueColor: isGameInstalled(.freeFireMAX) ? CyberTheme.matrixGreen : CyberTheme.textMuted
                 )
+            }
+        }
+    }
+
+    // MARK: - LocalDevVPN & Pair Card trong Cài Đặt (iOS 27 & iOS 18.7.x)
+    private var localDevVPNSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            CyberSectionHeader(
+                title: LocalDevVPNBridge.isIOS18_7_x ? "LOCALDEVVPN & PAIR (iOS 18.7.x)" : "LOCALDEVVPN (iOS 27)",
+                subtitle: isEnglish ? "LocalDevVPN tunnel & Pairing conduit" : "Cầu nối LocalDevVPN & Thiết bị ghép đôi (Pair)",
+                icon: "network",
+                accentColor: CyberTheme.cyberCyan
+            )
+
+            CyberCard(glowColor: vpnManager.isConnected ? CyberTheme.matrixGreen.opacity(0.18) : CyberTheme.cyberCyan.opacity(0.12)) {
+                // Trạng thái kết nối
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: (vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon).opacity(0.8), radius: 4)
+
+                    Text(isEnglish ? "Connection Status:" : "Trạng Thái:")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(CyberTheme.textMuted)
+
+                    Spacer()
+
+                    Text(vpnManager.isConnected ? (isEnglish ? "Connected" : "Đã Kết Nối") : (isEnglish ? "Disconnected" : "Chưa Kết Nối"))
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundColor(vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon)
+                }
+
+                Divider().background(CyberTheme.divider)
+
+                // Endpoint Tunnel Info
+                SettingsInfoRow(
+                    icon: "server.rack",
+                    label: "Endpoint Tunnel",
+                    value: vpnManager.lastConnectedHost,
+                    isMonospaced: true
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Exploit / Bridge status
+                SettingsInfoRow(
+                    icon: "shield.checkered",
+                    label: isEnglish ? "Bridge Status" : "Trạng Thái Bridge",
+                    value: vpnManager.statusMessage,
+                    valueColor: vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.mechaGold
+                )
+
+                Divider().background(CyberTheme.divider)
+
+                // Hướng dẫn
+                Text(isEnglish
+                    ? "After enabling the connection in the LocalDevVPN app (10.7.0.1:49152) or pairing the device, tap the button below to activate game patch permissions."
+                    : "Sau khi bật kết nối trong ứng dụng LocalDevVPN (10.7.0.1:49152) hoặc ghép đôi (pair), nhấn nút bên dưới để kích hoạt quyền can thiệp game.")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(Color.white.opacity(0.72))
+                    .lineSpacing(2)
+                    .padding(.vertical, 2)
+
+                // NÚT BẤM TO NỔI BẬT: KẾT NỐI iOS 27
+                Button {
+                    handleConnectVPN()
+                } label: {
+                    HStack(spacing: 8) {
+                        if vpnManager.isConnecting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                .scaleEffect(0.85)
+                            Text(isEnglish ? "Connecting..." : "Đang kết nối...")
+                                .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                                .foregroundColor(.black)
+                        } else {
+                            Image(systemName: vpnManager.isConnected ? "checkmark.circle.fill" : "cable.connector")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundColor(.black)
+                            Text(vpnButtonTitle)
+                                .font(.system(size: 13.5, weight: .heavy, design: .monospaced))
+                                .foregroundColor(.black)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(
+                            colors: vpnManager.isConnected
+                                ? [CyberTheme.matrixGreen, CyberTheme.cyberCyan]
+                                : [CyberTheme.mechaGold, Color(red: 1.0, green: 0.5, blue: 0.0)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                    )
+                    .shadow(
+                        color: (vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.mechaGold).opacity(0.6),
+                        radius: 8,
+                        y: 2
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(vpnManager.isConnecting)
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    // MARK: - Banner Kết Nối iOS 27 / LocalDevVPN trên màn hình chính
+    private var localDevVPNMainBanner: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: vpnManager.isConnected
+                                ? [CyberTheme.matrixGreen, CyberTheme.cyberCyan]
+                                : [CyberTheme.mechaGold, Color(red: 1.0, green: 0.5, blue: 0.0)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 32, height: 32)
+                    .shadow(color: (vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.mechaGold).opacity(0.6), radius: 5)
+
+                Image(systemName: "network")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.black)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x Cầu Nối LocalDevVPN" : "iOS 27 Cầu Nối LocalDevVPN")
+                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                    .foregroundColor(.white)
+
+                Text(vpnManager.isConnected ? "🟢 10.7.0.1:49152 (Đã kết nối)" : "🔴 10.7.0.1:49152 (Chưa kết nối)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundColor(vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.crimsonNeon)
+            }
+
+            Spacer()
+
+            Button {
+                handleConnectVPN()
+            } label: {
+                HStack(spacing: 5) {
+                    if vpnManager.isConnecting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                            .scaleEffect(0.7)
+                        Text(isEnglish ? "Connecting..." : "Đang kết nối...")
+                            .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                            .foregroundColor(.black)
+                    } else {
+                        Image(systemName: vpnManager.isConnected ? "checkmark" : "bolt.fill")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundColor(.black)
+                        Text(vpnManager.isConnected
+                            ? (isEnglish ? "RECONNECT" : "KẾT NỐI LẠI")
+                            : (LocalDevVPNBridge.isIOS18_7_x ? "KẾT NỐI 18.7.X" : "KẾT NỐI iOS 27"))
+                            .font(.system(size: 10.5, weight: .heavy, design: .monospaced))
+                            .foregroundColor(.black)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    LinearGradient(
+                        colors: vpnManager.isConnected
+                            ? [CyberTheme.matrixGreen, CyberTheme.cyberCyan]
+                            : [CyberTheme.mechaGold, Color(red: 1.0, green: 0.5, blue: 0.0)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.8))
+                .shadow(color: (vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.mechaGold).opacity(0.55), radius: 6)
+            }
+            .buttonStyle(.plain)
+            .disabled(vpnManager.isConnecting)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.08, green: 0.08, blue: 0.11).opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(
+                    (vpnManager.isConnected ? CyberTheme.matrixGreen : CyberTheme.mechaGold).opacity(0.55),
+                    lineWidth: 1
+                )
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+    }
+
+    private var vpnButtonTitle: String {
+        let osName = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
+        if vpnManager.isConnected {
+            return isEnglish ? "RECONNECT \(osName.uppercased())" : "KẾT NỐI LẠI \(osName.uppercased())"
+        } else {
+            return isEnglish ? "CONNECT \(osName.uppercased())" : "KẾT NỐI \(osName.uppercased())"
+        }
+    }
+
+    private func handleConnectVPN() {
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+
+        Task {
+            let (success, message) = await vpnManager.connect()
+            await MainActor.run {
+                let os = LocalDevVPNBridge.isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
+                if success {
+                    let notif = UINotificationFeedbackGenerator()
+                    notif.notificationOccurred(.success)
+                    vpnAlertTitle = "⚡ \(os) LocalDevVPN"
+                    vpnAlertMessage = message
+                    showVPNAlert = true
+                    showToast(isEnglish ? "⚡ Connected to \(os) LocalDevVPN!" : "⚡ Đã kết nối \(os) LocalDevVPN!")
+                } else {
+                    let notif = UINotificationFeedbackGenerator()
+                    notif.notificationOccurred(.error)
+                    vpnAlertTitle = isEnglish ? "❌ Connection Failed" : "❌ Chưa Kết Nối"
+                    vpnAlertMessage = message
+                    showVPNAlert = true
+                }
             }
         }
     }
