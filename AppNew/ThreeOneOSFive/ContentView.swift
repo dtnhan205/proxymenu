@@ -815,7 +815,7 @@ final class CheatMenuState: ObservableObject {
 }
 
 // MARK: - Cyber & Dark Sci-Fi Palette
-private enum CyberTheme {
+enum CyberTheme {
     static let bgVoid = Color(red: 0.04, green: 0.04, blue: 0.05)
     static let bgPlate = Color(red: 0.075, green: 0.075, blue: 0.09)
     static let bgPlateElevated = Color(red: 0.105, green: 0.105, blue: 0.13)
