@@ -10,6 +10,7 @@ import UIKit
 /// - Tuyệt đối không can thiệp, không thay đổi luồng hoạt động của các phiên bản iOS khác (iOS 15, 16, 17, 18, 26).
 enum LocalDevVPNBridge {
     static let defaultHost = "10.7.0.1"
+    static let tunnelHost = "10.7.1.1"
     static let loopbackHost = "127.0.0.1"
     static let defaultPort: UInt16 = 49152
 
@@ -32,18 +33,64 @@ enum LocalDevVPNBridge {
     /// Cache đường dẫn container game trên iOS 27 / 18.7.x
     private static var cachedContainerPaths: [String: String] = [:]
 
-    // MARK: - Tunnel Probe & Connectivity
+    // MARK: - Live Network Interface & Tunnel Probe
 
-    /// Kiểm tra kết nối tới LocalDevVPN tunnel (10.7.0.1:49152 hoặc 127.0.0.1:49152)
+    /// Kiểm tra xem Network Interface của LocalDevVPN (utun với IP 10.7.0.1 / 10.7.1.1) có đang Active trên máy không
+    static func detectVPNInterface() -> (active: Bool, deviceIP: String, tunnelIP: String) {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let firstAddr = ifaddr else {
+            return (false, "", "")
+        }
+        defer { freeifaddrs(ifaddr) }
+
+        var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
+        var foundDeviceIP = ""
+        var isFound = false
+
+        while let current = ptr {
+            let interface = current.pointee
+            let addrFamily = interface.ifa_addr.pointee.sa_family
+            if addrFamily == UInt8(AF_INET) {
+                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                getnameinfo(
+                    interface.ifa_addr,
+                    socklen_t(interface.ifa_addr.pointee.sa_len),
+                    &hostname,
+                    socklen_t(hostname.count),
+                    nil,
+                    0,
+                    NI_NUMERICHOST
+                )
+                let ip = String(cString: hostname)
+                if ip == "10.7.0.1" || ip.hasPrefix("10.7.") {
+                    foundDeviceIP = ip
+                    isFound = true
+                    break
+                }
+            }
+            ptr = interface.ifa_next
+        }
+
+        if isFound {
+            return (true, foundDeviceIP.isEmpty ? defaultHost : foundDeviceIP, tunnelHost)
+        }
+        return (false, "", "")
+    }
+
+    /// Kiểm tra kết nối tới LocalDevVPN tunnel (10.7.0.1, 10.7.1.1 hoặc 127.0.0.1)
     static func isTunnelActive(host: String = defaultHost, port: UInt16 = defaultPort, timeoutSeconds: Double = 0.4) -> Bool {
         guard isBridgeSupportedOS else { return false }
 
-        // Thử defaultHost (10.7.0.1) trước, nếu không được thử loopbackHost (127.0.0.1)
-        if probeSocket(host: host, port: port, timeoutSeconds: timeoutSeconds) {
+        // 1. Kiểm tra interface mạng utun của LocalDevVPN (10.7.0.1 / 10.7.1.1)
+        if detectVPNInterface().active {
             return true
         }
-        if host != loopbackHost {
-            return probeSocket(host: loopbackHost, port: port, timeoutSeconds: timeoutSeconds)
+
+        // 2. Thử socket probe tới các IP của LocalDevVPN
+        for candidate in [defaultHost, tunnelHost, loopbackHost] {
+            if probeSocket(host: candidate, port: port, timeoutSeconds: timeoutSeconds) {
+                return true
+            }
         }
         return false
     }
@@ -244,45 +291,55 @@ enum LocalDevVPNBridge {
     /// Gửi tín hiệu thông báo tới LocalDevVPN tunnel nếu đang lắng nghe
     private static func notifyTunnelOfInjection(target: FreeFireTarget) {
         guard isBridgeSupportedOS else { return }
-        guard let url = URL(string: "http://\(defaultHost):\(defaultPort)/airlift/ping") else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 1.0
-        let payload: [String: Any] = [
-            "bundleID": target.rawValue,
-            "action": "injected",
-            "timestamp": Date().timeIntervalSince1970
-        ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: payload, options: [])
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for host in [defaultHost, tunnelHost, loopbackHost] {
+            guard let url = URL(string: "http://\(host):\(defaultPort)/airlift/ping") else { continue }
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 0.5
+            let payload: [String: Any] = [
+                "bundleID": target.rawValue,
+                "action": "injected",
+                "timestamp": Date().timeIntervalSince1970
+            ]
+            request.httpBody = try? JSONSerialization.data(withJSONObject: payload, options: [])
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
+            URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
+        }
     }
 
     /// Chuỗi mô tả trạng thái dành cho UI trên iOS 27 và iOS 18.7.x
     static func statusDescription() -> String {
         guard isBridgeSupportedOS else { return "" }
         let osName = isIOS18_7_x ? "iOS 18.7.x" : "iOS 27"
-        if isTunnelActive() {
-            return "\(osName) LocalDevVPN (10.7.0.1:49152) — Đang kết nối"
+        let vpn = detectVPNInterface()
+        if vpn.active {
+            return "\(osName) LocalDevVPN (\(vpn.deviceIP)) — Đang kết nối"
+        } else if isTunnelActive() {
+            return "\(osName) LocalDevVPN (10.7.0.1) — Đang kết nối"
         } else {
             return "\(osName) LocalDevVPN / Pair — Sẵn sàng kết nối"
         }
     }
 
-    /// Thử nghiệm kết nối tới LocalDevVPN tunnel (10.7.0.1:49152 hoặc 127.0.0.1:49152)
+    /// Thử nghiệm kết nối tới LocalDevVPN tunnel (10.7.0.1, 10.7.1.1 hoặc 127.0.0.1)
     static func testConnection(timeoutSeconds: Double = 0.8) async -> (success: Bool, host: String) {
+        // 1. Kiểm tra trực tiếp Network Interface LocalDevVPN từ hệ thống iOS (như app LocalDevVPN hiển thị)
+        let vpn = detectVPNInterface()
+        if vpn.active {
+            return (true, "\(vpn.deviceIP) (Tunnel: \(vpn.tunnelIP))")
+        }
+
+        // 2. Thử socket probe
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                if probeSocket(host: defaultHost, port: defaultPort, timeoutSeconds: timeoutSeconds) {
-                    continuation.resume(returning: (true, "\(defaultHost):\(defaultPort)"))
-                    return
+                for candidate in [defaultHost, tunnelHost, loopbackHost] {
+                    if probeSocket(host: candidate, port: defaultPort, timeoutSeconds: timeoutSeconds) {
+                        continuation.resume(returning: (true, "\(candidate):\(defaultPort)"))
+                        return
+                    }
                 }
-                if probeSocket(host: loopbackHost, port: defaultPort, timeoutSeconds: timeoutSeconds) {
-                    continuation.resume(returning: (true, "\(loopbackHost):\(defaultPort)"))
-                    return
-                }
-                continuation.resume(returning: (false, "\(defaultHost):\(defaultPort)"))
+                continuation.resume(returning: (false, "\(defaultHost) / \(tunnelHost)"))
             }
         }
     }
@@ -297,7 +354,7 @@ final class LocalDevVPNManager: ObservableObject {
     @Published var isConnected: Bool = false
     @Published var isConnecting: Bool = false
     @Published var statusMessage: String = "Chưa kết nối"
-    @Published var lastConnectedHost: String = "\(LocalDevVPNBridge.defaultHost):\(LocalDevVPNBridge.defaultPort)"
+    @Published var lastConnectedHost: String = "\(LocalDevVPNBridge.defaultHost) (Tunnel: \(LocalDevVPNBridge.tunnelHost))"
     @Published var lastCheckDate: Date?
 
     private init() {
@@ -311,7 +368,7 @@ final class LocalDevVPNManager: ObservableObject {
         }
     }
 
-    /// Kích hoạt kết nối thủ công từ Cài đặt
+    /// Kích hoạt kết nối thủ công từ Cài đặt hoặc Màn hình chính
     func connect() async -> (success: Bool, message: String) {
         isConnecting = true
         defer { isConnecting = false }
@@ -329,7 +386,7 @@ final class LocalDevVPNManager: ObservableObject {
         } else {
             isConnected = false
             statusMessage = "Chưa kết nối"
-            return (false, "Không tìm thấy LocalDevVPN (\(res.host)). Vui lòng đảm bảo app LocalDevVPN đang BẬT hoặc thiết bị đã Ghép Đôi (Pair)!")
+            return (false, "Không tìm thấy LocalDevVPN (\(res.host)). Vui lòng đảm bảo app LocalDevVPN đang ở trạng thái Connected!")
         }
     }
 }
