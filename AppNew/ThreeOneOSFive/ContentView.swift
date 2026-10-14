@@ -4286,20 +4286,20 @@ struct ContentView: View {
                         .foregroundColor(CyberTheme.mechaGold)
 
                     Text(isEnglish
-                        ? "1. Open 'LocalDevVPN' app -> Tap CONNECT (10.7.0.1:49152)."
-                        : "1. Mở ứng dụng 'LocalDevVPN' -> Bấm CONNECT (10.7.0.1:49152).")
+                        ? "1. Open 'LocalDevVPN' app -> Tap CONNECT."
+                        : "1. Mở ứng dụng 'LocalDevVPN' trên máy -> Bấm CONNECT.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.85))
 
                     Text(isEnglish
-                        ? "2. Settings > Privacy & Security > Developer Mode: Turn ON & restart iPhone."
-                        : "2. Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển: BẬT & khởi động lại.")
+                        ? "2. Settings > Privacy & Security > Developer Mode: Make sure it is ON."
+                        : "2. Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển: Đảm bảo đã BẬT.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.85))
 
                     Text(isEnglish
-                        ? "3. Settings > Developer: Confirm device pairing / wireless connection if prompted."
-                        : "3. Cài đặt > Nhà phát triển: Xác nhận ghép đôi (Pairing) khi được yêu cầu.")
+                        ? "3. Connected! You can now tap INJECT on the home screen."
+                        : "3. Đã kết nối! Bạn có thể bấm NẠP CHEAT (INJECT) ngay trên màn hình chính.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.85))
                 }

@@ -461,14 +461,14 @@ final class LocalDevVPNManager: ObservableObject {
             _ = LocalDevVPNBridge.resolveContainerPath(bundleID: FreeFireTarget.freeFireMAX.rawValue)
 
             let msg = """
-            ✅ PHÁT HIỆN LOCALDEVVPN HOẠT ĐỘNG THẬT!
+            ✅ LOCALDEVVPN ĐÃ KẾT NỐI THÀNH CÔNG!
             • Giao diện mạng: \(res.interfaceName)
-            • IP thiết bị: \(res.host)
+            • Tunnel: \(res.host)
 
-            📱 BƯỚC TIẾP THEO (NHÀ PHÁT TRIỂN):
-            1. Mở Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển: Đảm bảo công tắc đã BẬT.
-            2. Nếu đây là lần đầu kết nối, mở Cài đặt > Nhà phát triển và xác nhận Ghép đôi thiết bị (Pairing).
-            3. Quay lại đây và nhấn 'NẠP CHEAT' để nạp menu vào game!
+            👉 BẠN ĐÃ CÓ THỂ NẠP CHEAT NGAY BÂY GIỜ:
+            1. Cài đặt > Quyền riêng tư & Bảo mật > Chế độ Nhà phát triển: Chỉ cần đảm bảo công tắc này đã BẬT.
+            2. Trong mục 'Nhà phát triển' của iOS không có nút ghép đôi thủ công (không cần tìm nút ghép đôi).
+            3. Quay lại màn hình chính của app và bấm 'INJECT (NẠP CHEAT)' để bắt đầu!
             """
             return (true, msg)
         } else {
