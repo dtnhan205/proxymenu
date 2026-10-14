@@ -7,7 +7,6 @@ import AVFoundation
 
 /// Giữ ứng dụng sống ngầm liên tục khi người dùng chuyển sang ứng dụng Cài Đặt (Settings)
 /// Sử dụng AVAudioEngine lặp buffer PCM im lặng kết hợp UIBackgroundTaskIdentifier
-@MainActor
 final class PairingKeepAlive: NSObject {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
@@ -16,8 +15,17 @@ final class PairingKeepAlive: NSObject {
 
     func start() {
         if bgTask == .invalid {
-            bgTask = UIApplication.shared.beginBackgroundTask(withName: "RemotePairingKeepAlive") { [weak self] in
-                self?.stop()
+            if Thread.isMainThread {
+                self.bgTask = UIApplication.shared.beginBackgroundTask(withName: "RemotePairingKeepAlive") { [weak self] in
+                    self?.stop()
+                }
+            } else {
+                DispatchQueue.main.sync { [weak self] in
+                    guard let self = self else { return }
+                    self.bgTask = UIApplication.shared.beginBackgroundTask(withName: "RemotePairingKeepAlive") { [weak self] in
+                        self?.stop()
+                    }
+                }
             }
         }
         guard !audioRunning else { return }
@@ -63,8 +71,15 @@ final class PairingKeepAlive: NSObject {
 
     func stop() {
         if bgTask != .invalid {
-            UIApplication.shared.endBackgroundTask(bgTask)
+            let task = bgTask
             bgTask = .invalid
+            if Thread.isMainThread {
+                UIApplication.shared.endBackgroundTask(task)
+            } else {
+                DispatchQueue.main.async {
+                    UIApplication.shared.endBackgroundTask(task)
+                }
+            }
         }
         guard audioRunning else { return }
         audioRunning = false
@@ -82,7 +97,6 @@ final class PairingKeepAlive: NSObject {
 // MARK: - Local Network Authorization Probe
 
 /// Tự động kích hoạt hộp thoại cấp quyền Mạng Cục Bộ (Local Network) bằng probe Bonjour nhẹ
-@MainActor
 final class LocalNetworkAuthorizationProbe {
     private var browser: NWBrowser?
     private var listener: NWListener?
@@ -101,7 +115,7 @@ final class LocalNetworkAuthorizationProbe {
             listener?.newConnectionHandler = { $0.cancel() }
             listener?.stateUpdateHandler = { [weak self] state in
                 if case .failed = state {
-                    MainActor.assumeIsolated { self?.finish(true) }
+                    self?.finish(true)
                 }
             }
             self.listener = listener
@@ -109,12 +123,12 @@ final class LocalNetworkAuthorizationProbe {
             let browser = NWBrowser(for: .bonjour(type: probeType, domain: nil), using: params)
             browser.stateUpdateHandler = { [weak self] state in
                 if case .failed = state {
-                    MainActor.assumeIsolated { self?.finish(true) }
+                    self?.finish(true)
                 }
             }
             browser.browseResultsChangedHandler = { [weak self] results, _ in
                 if !results.isEmpty {
-                    MainActor.assumeIsolated { self?.finish(true) }
+                    self?.finish(true)
                 }
             }
             self.browser = browser
@@ -123,7 +137,7 @@ final class LocalNetworkAuthorizationProbe {
             browser.start(queue: .main)
 
             DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-                MainActor.assumeIsolated { self?.finish(true) }
+                self?.finish(true)
             }
         }
     }

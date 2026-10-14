@@ -47,8 +47,8 @@ private struct WindowLongPressView: UIViewRepresentable {
                 let sceneWindows = UIApplication.shared.connectedScenes
                     .compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows })
                 if !sceneWindows.isEmpty { return sceneWindows }
-                // Fallback for edge cases
-                return UIApplication.shared.windows
+                // Fallback for edge cases without referencing deprecated UIApplication.windows
+                return (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.windows ?? []
             }()
             let win = hostView.window
                 ?? allWindows.first(where: { $0.isKeyWindow })
