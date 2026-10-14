@@ -805,6 +805,25 @@ enum AirliftBridge {
         }
     }
 
+    /// Inject đồng bộ cả thư mục kèm cấu trúc nội bộ vào `targetParentDir/destName`
+    @discardableResult
+    static func injectFolderSync(folderPath: String, targetParentDir: String, destName: String, pairingPath: String) -> Int32 {
+        guard FileManager.default.fileExists(atPath: pairingPath) else { return -1 }
+        syncTargetHosts()
+        var outError: UnsafeMutablePointer<CChar>? = nil
+        let rc = al_exploit_inject_folder(
+            pairingPath,
+            folderPath,
+            targetParentDir,
+            destName,
+            nil,
+            nil,
+            &outError
+        )
+        if let err = outError { al_string_free(err) }
+        return rc
+    }
+
     /// Inject cả thư mục kèm cấu trúc nội bộ vào `targetParentDir/destName`
     static func injectFolder(folderPath: String, targetParentDir: String, destName: String, pairingPath: String) async throws {
         guard FileManager.default.fileExists(atPath: pairingPath) else {

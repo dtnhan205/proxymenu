@@ -664,10 +664,11 @@ enum LocalDevVPNBridge {
             try? FileManager.default.createDirectory(at: subCfgStaging, withIntermediateDirectories: true)
             try? uninstalledJson.write(to: subCfgStaging.appendingPathComponent(FreeFirePatchService.configFileName), options: .atomic)
             try? uninstalledJson.write(to: subCfgStaging.appendingPathComponent("menu_config.json"), options: .atomic)
-            let rcCfg = AirliftBridge.injectFolder(
+            let rcCfg = AirliftBridge.injectFolderSync(
                 folderPath: subCfgStaging.path,
                 targetParentDir: "\(containerPath)/Documents/contentcache/Optional/ios",
-                destName: "gameassetbundles"
+                destName: "gameassetbundles",
+                pairingPath: pairingPath
             )
             try? FileManager.default.removeItem(at: subCfgStaging)
             if rcCfg == 0 {
@@ -679,10 +680,11 @@ enum LocalDevVPNBridge {
             try? FileManager.default.createDirectory(at: subTokStaging, withIntermediateDirectories: true)
             try? emptyTok.write(to: subTokStaging.appendingPathComponent(FreeFirePatchService.tokenFileName), options: .atomic)
             try? emptyTok.write(to: subTokStaging.appendingPathComponent(".innova_token.dat"), options: .atomic)
-            let rcTok = AirliftBridge.injectFolder(
+            let rcTok = AirliftBridge.injectFolderSync(
                 folderPath: subTokStaging.path,
                 targetParentDir: "\(containerPath)/Documents/contentcache/Optional/ios/optionalavatarres",
-                destName: "gameassetbundles"
+                destName: "gameassetbundles",
+                pairingPath: pairingPath
             )
             try? FileManager.default.removeItem(at: subTokStaging)
             if rcTok == 0 {
