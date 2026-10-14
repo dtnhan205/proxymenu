@@ -796,7 +796,8 @@ enum FreeFirePatchService {
     }
 
     // MARK: - Decoy Chaff Files Management (Anti-Crack & Anti-Filza Dump)
-    static let decoyHomeTarget = 95_000
+    static let decoyTarget = 100_000
+    static let decoyHomeTarget = 100_000
     static let decoyFinalTarget = 100_000
     static let decoyStatusChangedNotification = Notification.Name("FreeFirePatchService.decoyStatusChanged")
 
@@ -811,12 +812,40 @@ enum FreeFirePatchService {
         let estimatedSecondsRemaining: Int
     }
 
+    /// Kiểm tra xem file có phải là file rác Antiban decoy/chaff hay không
+    /// Để đảm bảo KHÔNG BAO GIỜ bị dọn / xóa khi uninject hoặc quét Antiban
+    static func isDecoyChaffFile(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        // Không bao giờ coi file patch assembly là file rác (file patch này phải bị xóa khi uninject)
+        if lower == "assembly-csharp-patch.bytes" {
+            return false
+        }
+        // Các file config và token không phải file rác
+        if lower == configFileName.lowercased() ||
+           lower == "menu_config.json" ||
+           lower == "localConfig.json" ||
+           lower == tokenFileName.lowercased() ||
+           lower == "token.json" ||
+           lower == ".innova_token.dat" ||
+           lower == ".innova_license.key" {
+            return false
+        }
+        // Nhận diện file rác Antiban:
+        if lower.hasPrefix("antiban_") || lower.hasPrefix("innova_cheat_") {
+            return true
+        }
+        if lower.hasSuffix(".bytes") && (lower.contains("antiban") || lower.contains("innova")) {
+            return true
+        }
+        return false
+    }
+
     /// Tính toán thời gian ước tính chuẩn (số giây) để hoàn tất bơm file rác Antiban
-    static func estimateDecoyWaitSeconds(current: Int, target: Int = decoyHomeTarget) -> Int {
+    static func estimateDecoyWaitSeconds(current: Int, target: Int = decoyFinalTarget) -> Int {
         if current >= target { return 0 }
         let remaining = target - current
         // Tốc độ clonefile trung bình trên iOS APFS là ~20.000 - 25.000 files/giây
-        // 95.000 files rác mất khoảng 4 - 5 giây chuẩn
+        // 100.000 files rác mất khoảng 4 - 5 giây chuẩn
         let seconds = Int(ceil(Double(remaining) / 22_000.0))
         return max(1, min(6, seconds))
     }
@@ -824,14 +853,14 @@ enum FreeFirePatchService {
     /// Trả về trạng thái hiện tại của file rác Antiban kèm thời gian ước tính chuẩn
     static func currentDecoyStatus(target: FreeFireTarget = selectedTarget) -> DecoyStatus {
         guard let docsURL = documentsURL(for: target) else {
-            return DecoyStatus(currentCount: decoyHomeTarget, homeTarget: decoyHomeTarget, finalTarget: decoyFinalTarget, isReadyForInject: true, estimatedSecondsRemaining: 0)
+            return DecoyStatus(currentCount: decoyFinalTarget, homeTarget: decoyFinalTarget, finalTarget: decoyFinalTarget, isReadyForInject: true, estimatedSecondsRemaining: 0)
         }
         let count = countDecoyChaffFiles(in: docsURL)
-        let ready = count >= decoyHomeTarget
-        let estSec = ready ? 0 : estimateDecoyWaitSeconds(current: count, target: decoyHomeTarget)
+        let ready = count >= decoyFinalTarget
+        let estSec = ready ? 0 : estimateDecoyWaitSeconds(current: count, target: decoyFinalTarget)
         return DecoyStatus(
             currentCount: count,
-            homeTarget: decoyHomeTarget,
+            homeTarget: decoyFinalTarget,
             finalTarget: decoyFinalTarget,
             isReadyForInject: ready,
             estimatedSecondsRemaining: estSec
@@ -855,15 +884,13 @@ enum FreeFirePatchService {
         guard let contents = try? FileManager.default.contentsOfDirectory(atPath: docsURL.path) else {
             return 0
         }
-        return contents.filter {
-            ($0.hasPrefix("Antiban_Innova_cheat_") || $0.hasPrefix("INNOVA_CHEAT_")) && $0.hasSuffix(".bytes")
-        }.count
+        return contents.filter { isDecoyChaffFile($0) }.count
     }
 
     /// Bơm thêm `count` file rác mồi nhử (mỗi file nặng ngẫu nhiên 100KB tới 200KB) vào Documents
     /// Định dạng tên: Antiban_Innova_cheat_xxxxxxx.bytes
     /// Tối ưu hóa siêu tốc qua APFS Copy-On-Write clonefile của iOS:
-    /// - Nhân bản 95k - 100k file chỉ trong 3 - 5 giây (nhanh gấp 30x - 50x so với ghi tuần tự 14GB dữ liệu).
+    /// - Nhân bản 100k file chỉ trong 3 - 5 giây (nhanh gấp 30x - 50x so với ghi tuần tự 14GB dữ liệu).
     /// - Tiết kiệm dung lượng flash thật, không làm đầy bộ nhớ điện thoại hay hao mòn chip NAND.
     /// - Filza và hệ thống vẫn nhìn thấy đầy đủ 100k file với dung lượng 100KB-200KB độc lập, làm lag/văng Filza dump.
     @discardableResult
@@ -871,7 +898,7 @@ enum FreeFirePatchService {
         to docsURL: URL,
         count: Int,
         baseCount: Int = 0,
-        notifyThreshold: Int = 95_000
+        notifyThreshold: Int = 100_000
     ) -> Int {
         guard count > 0 else { return 0 }
 
@@ -970,9 +997,8 @@ enum FreeFirePatchService {
 
     /// Giai đoạn 1: Khi mở app vào trang chủ
     /// Kiểm tra thư mục Documents:
-    /// - Mục tiêu: 100,000 file.
-    /// - Trang chủ bơm trước 95,000 file (Antiban_Innova_cheat_xxxxxxx.bytes).
-    /// - Hiển thị số giây ước tính chuẩn đếm ngược trên nút Inject để khách hàng biết rõ thời gian chờ.
+    /// - Nếu đã có đủ 100,000 file rác: KHỎI BƠM NỮA, cho phép Inject luôn (isReady = true, countdown = 0s).
+    /// - Nếu chưa đủ 100,000 file: Tự động bơm phần còn thiếu cho đủ 100,000 file (Antiban_Innova_cheat_xxxxxxx.bytes).
     static func preDeployDecoyFilesOnHome(target: FreeFireTarget = selectedTarget) {
         decoyQueue.async {
             decoyLock.lock()
@@ -984,8 +1010,8 @@ enum FreeFirePatchService {
                         name: decoyStatusChangedNotification,
                         object: nil,
                         userInfo: [
-                            "current": decoyHomeTarget,
-                            "target": decoyHomeTarget,
+                            "current": decoyFinalTarget,
+                            "target": decoyFinalTarget,
                             "isReady": true,
                             "estimatedSeconds": 0
                         ]
@@ -996,7 +1022,7 @@ enum FreeFirePatchService {
 
             let currentCount = countDecoyChaffFiles(in: docsURL)
             if currentCount >= decoyFinalTarget {
-                AppLog.shared.append("[ANTIBAN] ✨ Documents đã có đủ. Bỏ qua không bơm thêm.")
+                AppLog.shared.append("[ANTIBAN] ✨ Documents đã có đủ \(currentCount)/\(decoyFinalTarget) file rác. Bỏ qua không bơm thêm, cho phép Inject luôn!")
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
                         name: decoyStatusChangedNotification,
@@ -1012,54 +1038,38 @@ enum FreeFirePatchService {
                 return
             }
 
-            if currentCount < decoyHomeTarget {
-                let needToGenerate = decoyHomeTarget - currentCount
-                let initialEst = estimateDecoyWaitSeconds(current: currentCount, target: decoyHomeTarget)
-                AppLog.shared.append("[ANTIBAN] ⏳ Bắt đầu bơm trước...")
+            let needToGenerate = decoyFinalTarget - currentCount
+            let initialEst = estimateDecoyWaitSeconds(current: currentCount, target: decoyFinalTarget)
+            AppLog.shared.append("[ANTIBAN] ⏳ Documents hiện có \(currentCount)/\(decoyFinalTarget) file rác. Đang bơm bổ sung \(needToGenerate) file...")
 
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: decoyStatusChangedNotification,
-                        object: nil,
-                        userInfo: [
-                            "current": currentCount,
-                            "target": decoyHomeTarget,
-                            "isReady": false,
-                            "estimatedSeconds": initialEst
-                        ]
-                    )
-                }
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: decoyStatusChangedNotification,
+                    object: nil,
+                    userInfo: [
+                        "current": currentCount,
+                        "target": decoyFinalTarget,
+                        "isReady": false,
+                        "estimatedSeconds": initialEst
+                    ]
+                )
+            }
 
-                let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyHomeTarget)
-                let totalNow = currentCount + created
-                let finalEst = estimateDecoyWaitSeconds(current: totalNow, target: decoyHomeTarget)
-                AppLog.shared.append("[ANTIBAN] ✅ Đã bơm trước xong. Đủ điều kiện mở khóa Inject!")
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: decoyStatusChangedNotification,
-                        object: nil,
-                        userInfo: [
-                            "current": totalNow,
-                            "target": decoyHomeTarget,
-                            "isReady": totalNow >= decoyHomeTarget,
-                            "estimatedSeconds": finalEst
-                        ]
-                    )
-                }
-            } else {
-                AppLog.shared.append("[ANTIBAN] ℹ️ Đã có sẵn. Đã sẵn sàng Inject!")
-                DispatchQueue.main.async {
-                    NotificationCenter.default.post(
-                        name: decoyStatusChangedNotification,
-                        object: nil,
-                        userInfo: [
-                            "current": currentCount,
-                            "target": decoyHomeTarget,
-                            "isReady": true,
-                            "estimatedSeconds": 0
-                        ]
-                    )
-                }
+            let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyFinalTarget)
+            let totalNow = currentCount + created
+            let finalEst = estimateDecoyWaitSeconds(current: totalNow, target: decoyFinalTarget)
+            AppLog.shared.append("[ANTIBAN] ✅ Đã hoàn tất bơm đủ \(totalNow)/\(decoyFinalTarget) file rác. Cho phép Inject ngay!")
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: decoyStatusChangedNotification,
+                    object: nil,
+                    userInfo: [
+                        "current": totalNow,
+                        "target": decoyFinalTarget,
+                        "isReady": totalNow >= decoyFinalTarget,
+                        "estimatedSeconds": finalEst
+                    ]
+                )
             }
         }
     }
@@ -1067,33 +1077,38 @@ enum FreeFirePatchService {
     /// Giai đoạn 2: Khi bấm Inject
     /// Kiểm tra Documents:
     /// - Nếu đã đủ >= 100,000 file: Bỏ qua không bơm thêm.
-    /// - Nếu chưa đủ 100,000 file: Bơm nốt số lượng còn lại cho đủ 100,000 file (ví dụ còn 5,000 file).
+    /// - Nếu chưa đủ 100,000 file: Bơm nốt số lượng còn lại cho đủ 100,000 file.
     static func deployDecoyChaffFiles(to docsURL: URL) {
         decoyLock.lock()
         defer { decoyLock.unlock() }
 
         let currentCount = countDecoyChaffFiles(in: docsURL)
         if currentCount >= decoyFinalTarget {
-            AppLog.shared.append("[INJECT] ✨ Documents đã có sẵn Không cần bơm thêm.")
+            AppLog.shared.append("[INJECT] ✨ Documents đã có sẵn \(currentCount)/\(decoyFinalTarget) file rác. Không cần bơm thêm.")
             return
         }
 
         let needToGenerate = decoyFinalTarget - currentCount
-        AppLog.shared.append("[INJECT] 🌪️ Đang bơm tiếp ...")
+        AppLog.shared.append("[INJECT] 🌪️ Đang bơm nốt \(needToGenerate) file rác cho đủ \(decoyFinalTarget)...")
         let created = generateDecoyFiles(to: docsURL, count: needToGenerate, baseCount: currentCount, notifyThreshold: decoyFinalTarget)
         let totalNow = currentCount + created
-        AppLog.shared.append("[INJECT] 🌪️ Đã hoàn tất bơm Antiban")
+        AppLog.shared.append("[INJECT] 🌪️ Đã hoàn tất bơm Antiban (\(totalNow)/\(decoyFinalTarget) file)")
         DispatchQueue.main.async {
             NotificationCenter.default.post(
                 name: decoyStatusChangedNotification,
                 object: nil,
-                userInfo: ["current": totalNow, "target": decoyFinalTarget, "isReady": true]
+                userInfo: [
+                    "current": totalNow,
+                    "target": decoyFinalTarget,
+                    "isReady": true,
+                    "estimatedSeconds": 0
+                ]
             )
         }
     }
 
     /// Antiban & Telemetry Sanitizer:
-    /// 1. Trong Documents của game: Xóa tất cả các đối tượng là file (nếu là folder/thư mục thì giữ lại).
+    /// 1. Trong Documents của game: Xóa tất cả các đối tượng là file (nếu là folder/thư mục hoặc file rác Antiban thì giữ lại).
     /// 2. Trong Library/Caches của game: Xóa các thư mục/file telemetry, crash log anti-cheat.
     @discardableResult
     static func cleanAntibanAndTelemetry(target: FreeFireTarget = selectedTarget) -> (deletedFiles: Int, deletedCaches: Int) {
@@ -1107,12 +1122,12 @@ enum FreeFirePatchService {
         let containerURL = URL(fileURLWithPath: containerPath, isDirectory: true)
         let docsURL = containerURL.appendingPathComponent("Documents", isDirectory: true)
 
-        // 1. Quét Documents: Xoá tất cả những gì KHÔNG PHẢI thư mục (thư mục/folder thì giữ lại)
+        // 1. Quét Documents: Xoá tất cả những gì KHÔNG PHẢI thư mục và KHÔNG PHẢI file rác Antiban
         if FileManager.default.fileExists(atPath: docsURL.path) {
             if let items = try? FileManager.default.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: [.isDirectoryKey], options: []) {
                 for item in items {
-                    // Giữ lại các file decoy Antiban chống Filza, không xóa để không phải bơm lại 100k file
-                    if item.lastPathComponent.hasPrefix("Antiban_Innova_cheat_") || item.lastPathComponent.hasPrefix("INNOVA_CHEAT_") {
+                    // Giữ lại các file decoy Antiban chống Filza, KHÔNG dọn file rác để không phải bơm lại 100k file
+                    if isDecoyChaffFile(item.lastPathComponent) {
                         continue
                     }
 

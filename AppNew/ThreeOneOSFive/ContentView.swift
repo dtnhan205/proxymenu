@@ -1823,7 +1823,12 @@ struct ContentView: View {
             let status = FreeFirePatchService.currentDecoyStatus(target: selectedTarget)
             isAntibanReady = status.isReadyForInject
             decoyCurrentCount = status.currentCount
-            if !isAntibanReady && status.estimatedSecondsRemaining > 0 {
+            if isAntibanReady || status.currentCount >= 100_000 {
+                isAntibanReady = true
+                antibanCountdownSeconds = 0
+                antibanCountdownTimer?.invalidate()
+                antibanCountdownTimer = nil
+            } else if status.estimatedSecondsRemaining > 0 {
                 startAntibanCountdown(initialSeconds: status.estimatedSecondsRemaining)
             } else {
                 antibanCountdownSeconds = 0
@@ -1834,6 +1839,12 @@ struct ContentView: View {
             if let userInfo = notif.userInfo {
                 if let count = userInfo["current"] as? Int {
                     self.decoyCurrentCount = count
+                    if count >= 100_000 {
+                        self.isAntibanReady = true
+                        self.antibanCountdownSeconds = 0
+                        self.antibanCountdownTimer?.invalidate()
+                        self.antibanCountdownTimer = nil
+                    }
                 }
                 if let ready = userInfo["isReady"] as? Bool, ready {
                     self.isAntibanReady = true
@@ -2107,7 +2118,12 @@ struct ContentView: View {
                     let status = FreeFirePatchService.currentDecoyStatus(target: target)
                     isAntibanReady = status.isReadyForInject
                     decoyCurrentCount = status.currentCount
-                    if !isAntibanReady && status.estimatedSecondsRemaining > 0 {
+                    if isAntibanReady || status.currentCount >= 100_000 {
+                        isAntibanReady = true
+                        antibanCountdownSeconds = 0
+                        antibanCountdownTimer?.invalidate()
+                        antibanCountdownTimer = nil
+                    } else if status.estimatedSecondsRemaining > 0 {
                         startAntibanCountdown(initialSeconds: status.estimatedSecondsRemaining)
                     } else {
                         antibanCountdownSeconds = 0
