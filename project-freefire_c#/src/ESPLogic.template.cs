@@ -3031,9 +3031,9 @@ namespace ProjectEspPatch
                                     + bSeed.Substring(3, 1) + bSeed.Substring(5, 1) + " " + bSeed.Substring(7, 1)
                                     + bSeed.Substring(9, 1) + bSeed.Substring(12, 1) + bSeed.Substring(5, 1) + bSeed.Substring(14, 1);
 
-                                float bannerScale = 1.3f;
+                                float bannerScale = 2.6f;
                                 float bannerPosX = originStartX - (44f * bannerScale);
-                                float bannerPosY = isBottomTracer ? ((float)screenHeight - 24f) : (originStartY - 22f);
+                                float bannerPosY = isBottomTracer ? ((float)screenHeight - (24f * bannerScale)) : (originStartY - (20f * bannerScale));
 
                                 GUI.matrix = Matrix4x4.TRS(
                                     new Vector3(bannerPosX, bannerPosY, 0f),
@@ -3042,11 +3042,11 @@ namespace ProjectEspPatch
 
                                 // Bóng chữ 1px đen chống lóa, không có khung nền che game
                                 GUI.color = new Color(0f, 0f, 0f, 0.85f);
-                                GUI.Label(new Rect(1f, 1f, 130f, 24f), bannerText);
+                                GUI.Label(new Rect(1f, 1f, 150f, 26f), bannerText);
 
                                 // Chữ màu theo tia line
                                 GUI.color = lineColor;
-                                GUI.Label(new Rect(0f, 0f, 130f, 24f), bannerText);
+                                GUI.Label(new Rect(0f, 0f, 150f, 26f), bannerText);
 
                                 GUI.matrix = Matrix4x4.identity;
                             }
