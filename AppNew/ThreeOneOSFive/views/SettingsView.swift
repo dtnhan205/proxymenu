@@ -355,9 +355,10 @@ struct SettingsView: View {
                 compatibilityRow(label: "iOS 17", value: ExploitSupportPolicy.verifiedIOS17Range)
                 compatibilityRow(label: "iOS 18", value: ExploitSupportPolicy.verifiedIOS18Range)
                 compatibilityRow(label: "iOS 26", value: ExploitSupportPolicy.verifiedIOS26Range)
+                compatibilityRow(label: "iOS 27", value: ExploitSupportPolicy.verifiedIOS27Range)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("iOS 27.0")
+                    Text("iOS 27.0, 27.0.1 & 27.x (LocalDevVPN)")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.neonCyan)
                     ForEach(ExploitSupportPolicy.verifiedIOS27Builds, id: \.build) { version in
@@ -437,6 +438,9 @@ struct SettingsView: View {
     private func versionLabel(
         _ version: (beta: Int, publicBeta: Int?, build: String)
     ) -> String {
+        if version.beta == 0 {
+            return "Release / Final · \(version.build)"
+        }
         if let publicBeta = version.publicBeta {
             return language.text(
                 "settings.developer_public_beta_build",
