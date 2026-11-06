@@ -357,20 +357,29 @@ struct ProxyClientView: View {
 
             Divider().overlay(Color.white.opacity(0.08))
 
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: ProxySessionProvider.isRoutingThroughProxy
-                      ? "arrow.triangle.branch"
-                      : "arrow.triangle.branch")
-                    .font(.caption2)
-                    .foregroundStyle(ProxySessionProvider.isRoutingThroughProxy
-                                     ? AppTheme.neonLime
-                                     : Color.white.opacity(0.4))
-                Text(ProxySessionProvider.isRoutingThroughProxy
-                     ? "Đang áp dụng cho các service mạng nội bộ (PatchHub, kiểm tra cập nhật, tải ảnh)."
-                     : "Chưa áp dụng — các service mạng nội bộ đang đi trực tiếp.")
-                    .font(.system(size: 10, weight: .regular, design: .monospaced))
-                    .foregroundStyle(Color.white.opacity(0.6))
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.caption2)
+                        .foregroundStyle(ProxySessionProvider.isRoutingThroughProxy
+                                         ? AppTheme.neonLime
+                                         : Color.white.opacity(0.4))
+                    Text(ProxySessionProvider.isRoutingThroughProxy
+                         ? "Đang áp dụng cho PatchHub, tải patch, kiểm tra cập nhật, tải ảnh, telemetry."
+                         : "Chưa áp dụng — chưa kết nối proxy.")
+                        .font(.system(size: 10, weight: .regular, design: .monospaced))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "minus.circle")
+                        .font(.caption2)
+                        .foregroundStyle(Color.white.opacity(0.4))
+                    Text("Không áp dụng được cho: kiểm tra toàn vẹn RSA (cố ý), WKWebView và Safari (iOS không cho đặt proxy), và tiến trình game.")
+                        .font(.system(size: 10, weight: .regular, design: .monospaced))
+                        .foregroundStyle(Color.white.opacity(0.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(14)

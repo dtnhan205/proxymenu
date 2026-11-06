@@ -135,6 +135,9 @@ final class PatchProjectStore: ObservableObject {
                 let configuration = URLSessionConfiguration.ephemeral
                 configuration.timeoutIntervalForRequest = 60
                 configuration.timeoutIntervalForResource = 600
+                // Đi qua proxy nếu Proxy Client đang kết nối.
+                configuration.connectionProxyDictionary =
+                    ProxySessionProvider.currentProxyDictionary
                 let session = URLSession(configuration: configuration)
                 defer { session.invalidateAndCancel() }
 

@@ -149,6 +149,7 @@ enum ProxySessionProvider {
 
     private static let lock = NSLock()
     private static var proxiedSession: URLSession?
+    private static var proxyDictionarySnapshot: [AnyHashable: Any]?
 
     /// Session dùng cho request của app.
     static var session: URLSession {
@@ -163,10 +164,19 @@ enum ProxySessionProvider {
         return proxiedSession != nil
     }
 
-    static func install(_ session: URLSession?) {
+    /// Dictionary proxy hiện hành, để nơi nào buộc phải tự tạo
+    /// `URLSessionConfiguration` vẫn gắn được proxy.
+    static var currentProxyDictionary: [AnyHashable: Any]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return proxyDictionarySnapshot
+    }
+
+    static func install(_ session: URLSession?, proxyDictionary: [AnyHashable: Any]? = nil) {
         lock.lock()
         let previous = proxiedSession
         proxiedSession = session
+        proxyDictionarySnapshot = proxyDictionary
         lock.unlock()
 
         if let previous, previous !== session {
@@ -325,7 +335,7 @@ final class ProxyClient: ObservableObject {
             connectedAt = Date()
             elapsed = 0
             state = .connected
-            ProxySessionProvider.install(newSession)
+            ProxySessionProvider.install(newSession, proxyDictionary: Self.proxyDictionary(for: config))
             startDurationTimer()
         } catch {
             newSession.invalidateAndCancel()
@@ -808,7 +818,7 @@ final class ProxyClient: ObservableObject {
             connectedAt = Date()
             elapsed = 0
             state = .connected
-            ProxySessionProvider.install(reconnectSession)
+            ProxySessionProvider.install(reconnectSession, proxyDictionary: Self.proxyDictionary(for: config))
             startDurationTimer()
         } catch {
             reconnectSession.invalidateAndCancel()
@@ -842,8 +852,8 @@ enum ProxyDiagnostics {
     /// Giải thích vì sao tunnel toàn hệ thống không khả dụng trong build này.
     static var networkExtensionLimitMessage: String {
         if hasRealAppIdentifier {
-            return "Proxy áp dụng cho mọi request của app dùng ProxySessionProvider (các service mạng nội bộ). Muốn toàn hệ thống: thêm target Packet Tunnel Extension, bật entitlement NetworkExtension cho App ID trên Apple Developer, rồi ký lại app."
+            return "Proxy áp dụng cho mọi request URLSession của app. Còn loại trừ: kiểm tra toàn vẹn RSA, WKWebView và Safari (iOS không cho đặt proxy cho hai loại này). Muốn toàn hệ thống: thêm Packet Tunnel Extension và entitlement NetworkExtension, rồi ký lại app."
         }
-        return "Proxy áp dụng cho mọi request của app dùng ProxySessionProvider (các service mạng nội bộ). Build này dùng bundle ID \(bundleIdentifier) — không thể đăng ký App ID này với Apple nên không lấy được entitlement NetworkExtension; VPN toàn hệ thống cần một App ID thật và ký bằng provisioning profile hợp lệ. Xen entitlement bằng cách khác nằm ngoài phạm vi và không được hỗ trợ."
+        return "Proxy áp dụng cho mọi request URLSession của app. Còn loại trừ: kiểm tra toàn vẹn RSA, WKWebView và Safari (iOS không cho đặt proxy cho hai loại này). Toàn hệ thống cần Packet Tunnel Extension + entitlement NetworkExtension trên App ID thật — build này dùng \(bundleIdentifier) nên không thể đăng ký App ID đó."
     }
 }
