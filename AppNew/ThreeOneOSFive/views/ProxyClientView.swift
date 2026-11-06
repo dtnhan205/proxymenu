@@ -354,6 +354,24 @@ struct ProxyClientView: View {
                     .foregroundStyle(Color.white.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Divider().overlay(Color.white.opacity(0.08))
+
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: ProxySessionProvider.isRoutingThroughProxy
+                      ? "arrow.triangle.branch"
+                      : "arrow.triangle.branch")
+                    .font(.caption2)
+                    .foregroundStyle(ProxySessionProvider.isRoutingThroughProxy
+                                     ? AppTheme.neonLime
+                                     : Color.white.opacity(0.4))
+                Text(ProxySessionProvider.isRoutingThroughProxy
+                     ? "Đang áp dụng cho các service mạng nội bộ (PatchHub, kiểm tra cập nhật, tải ảnh)."
+                     : "Chưa áp dụng — các service mạng nội bộ đang đi trực tiếp.")
+                    .font(.system(size: 10, weight: .regular, design: .monospaced))
+                    .foregroundStyle(Color.white.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(14)
         .techCard(glow: AppTheme.neonLime, opacity: 0.10)

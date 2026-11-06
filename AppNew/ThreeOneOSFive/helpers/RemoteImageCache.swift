@@ -31,7 +31,7 @@ enum RemoteImageCache {
     }
 
     static func fetchAndCache(_ remoteURL: URL) async -> UIImage? {
-        guard let (data, response) = try? await URLSession.shared.data(from: remoteURL),
+        guard let (data, response) = try? await ProxySessionProvider.session.data(from: remoteURL),
               let http = response as? HTTPURLResponse,
               (200...299).contains(http.statusCode),
               let image = UIImage(data: data)
