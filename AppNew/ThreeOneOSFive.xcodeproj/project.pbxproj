@@ -97,11 +97,6 @@
 		FF000010 /* LocalDevVPNBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000011; };
 		FF000012 /* RemotePairingAdvertiser.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000013; };
 		FF000014 /* RemotePairingSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000015; };
-		FF000030 /* ProxyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000031; };
-		FF000032 /* ProxyCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000033; };
-		FF000034 /* ProxyConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000035; };
-		FF000036 /* ProxyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000037; };
-		FF000038 /* ProxyClientView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF000039; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -215,11 +210,6 @@
 		FF000023 /* GrappaHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GrappaHelper.m; sourceTree = "<group>"; };
 		FF000025 /* RespringHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RespringHelper.swift; sourceTree = "<group>"; };
 		FF000028 /* airlift.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = airlift.h; sourceTree = "<group>"; };
-		FF000031 /* ProxyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyModels.swift; sourceTree = "<group>"; };
-		FF000033 /* ProxyCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyCredentialStore.swift; sourceTree = "<group>"; };
-		FF000035 /* ProxyConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyConfigStore.swift; sourceTree = "<group>"; };
-		FF000037 /* ProxyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyClient.swift; sourceTree = "<group>"; };
-		FF000039 /* ProxyClientView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyClientView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -317,7 +307,6 @@
 				3105N108 /* AppCompat.swift */,
 				3105N119 /* IntroVideoView.swift */,
 				FF000015 /* RemotePairingSheetView.swift */,
-				FF000039 /* ProxyClientView.swift */,
 			);
 			path = views;
 			sourceTree = "<group>";
@@ -380,10 +369,6 @@
 				FF000023 /* GrappaHelper.m */,
 				FF000025 /* RespringHelper.swift */,
 				FF000028 /* airlift.h */,
-				FF000031 /* ProxyModels.swift */,
-				FF000033 /* ProxyCredentialStore.swift */,
-				FF000035 /* ProxyConfigStore.swift */,
-				FF000037 /* ProxyClient.swift */,
 			);
 			path = helpers;
 			sourceTree = "<group>";
@@ -552,11 +537,6 @@
 				FF000014,
 				FF000024,
 				FF000026,
-				FF000030,
-				FF000032,
-				FF000034,
-				FF000036,
-				FF000038,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
