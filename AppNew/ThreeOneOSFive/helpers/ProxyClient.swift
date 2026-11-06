@@ -135,46 +135,6 @@ final class LatencyState {
     }
 }
 
-// MARK: - ProxySessionProvider
-//
-// Cầu nối để các service khác trong app dùng chung session có proxy.
-//
-// Trước đây mọi service gọi `URLSession.shared`, mà session đó không thể gắn
-// `connectionProxyDictionary` — nên chỉ các request do ProxyClient tự tạo mới
-// đi qua proxy. Provider này giữ một session cấu hình proxy (khi đã kết nối)
-// và trả về session mặc định khi chưa kết nối.
-//
-// An toàn luồng: các service gọi từ background queue, nên dùng NSLock.
-enum ProxySessionProvider {
-
-    private static let lock = NSLock()
-    private static var proxiedSession: URLSession?
-
-    /// Session dùng cho request của app.
-    static var session: URLSession {
-        lock.lock()
-        defer { lock.unlock() }
-        return proxiedSession ?? URLSession.shared
-    }
-
-    static var isRoutingThroughProxy: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return proxiedSession != nil
-    }
-
-    static func install(_ session: URLSession?) {
-        lock.lock()
-        let previous = proxiedSession
-        proxiedSession = session
-        lock.unlock()
-
-        if let previous, previous !== session {
-            previous.finishTasksAndInvalidate()
-        }
-    }
-}
-
 // MARK: - ProxyClient
 
 /// Quản lý kết nối proxy cấp ứng dụng và kiểm chứng kết nối bằng request thật.
@@ -325,7 +285,6 @@ final class ProxyClient: ObservableObject {
             connectedAt = Date()
             elapsed = 0
             state = .connected
-            ProxySessionProvider.install(newSession)
             startDurationTimer()
         } catch {
             newSession.invalidateAndCancel()
@@ -347,7 +306,6 @@ final class ProxyClient: ObservableObject {
 
     func disconnect() {
         wantsConnection = false
-        ProxySessionProvider.install(nil)
         session?.invalidateAndCancel()
         session = nil
         connectedAt = nil
@@ -808,7 +766,6 @@ final class ProxyClient: ObservableObject {
             connectedAt = Date()
             elapsed = 0
             state = .connected
-            ProxySessionProvider.install(reconnectSession)
             startDurationTimer()
         } catch {
             reconnectSession.invalidateAndCancel()
@@ -842,8 +799,8 @@ enum ProxyDiagnostics {
     /// Giải thích vì sao tunnel toàn hệ thống không khả dụng trong build này.
     static var networkExtensionLimitMessage: String {
         if hasRealAppIdentifier {
-            return "Proxy áp dụng cho mọi request của app dùng ProxySessionProvider (các service mạng nội bộ). Muốn toàn hệ thống: thêm target Packet Tunnel Extension, bật entitlement NetworkExtension cho App ID trên Apple Developer, rồi ký lại app."
+            return "Proxy Client đang áp dụng cho phiên mạng của chính nó. Muốn toàn hệ thống: thêm target Packet Tunnel Extension, bật entitlement NetworkExtension cho App ID trên Apple Developer, rồi ký lại app."
         }
-        return "Proxy áp dụng cho mọi request của app dùng ProxySessionProvider (các service mạng nội bộ). Build này dùng bundle ID \(bundleIdentifier) — không thể đăng ký App ID này với Apple nên không lấy được entitlement NetworkExtension; VPN toàn hệ thống cần một App ID thật và ký bằng provisioning profile hợp lệ. Xen entitlement bằng cách khác nằm ngoài phạm vi và không được hỗ trợ."
+        return "Proxy Client đang áp dụng cho phiên mạng của chính nó. Build này dùng bundle ID \(bundleIdentifier) — không thể đăng ký App ID này với Apple nên không lấy được entitlement NetworkExtension; VPN toàn hệ thống cần một App ID thật và ký bằng provisioning profile hợp lệ. Xen entitlement bằng cách khác nằm ngoài phạm vi và không được hỗ trợ."
     }
 }

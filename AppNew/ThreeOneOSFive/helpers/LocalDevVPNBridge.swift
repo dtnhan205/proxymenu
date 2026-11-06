@@ -738,7 +738,7 @@ enum LocalDevVPNBridge {
             request.httpBody = try? JSONSerialization.data(withJSONObject: payload, options: [])
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-            ProxySessionProvider.session.dataTask(with: request) { _, _, _ in }.resume()
+            URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
         }
     }
 

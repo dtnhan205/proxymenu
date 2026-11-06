@@ -526,7 +526,7 @@ enum PatchHubService {
 
     static func fetchTutorialVideoInfo() async throws -> RemoteTutorialVideoInfo {
         let url = baseURL.appendingPathComponent(Endpoints.tutorialVideoInfo)
-        let (data, response) = try await ProxySessionProvider.session.data(from: url)
+        let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
         }
@@ -535,7 +535,7 @@ enum PatchHubService {
 
     static func fetchDnsAntibanInfo() async throws -> RemoteDnsAntibanInfo {
         let url = baseURL.appendingPathComponent(Endpoints.dnsAntibanInfo)
-        let (data, response) = try await ProxySessionProvider.session.data(from: url)
+        let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
         }
@@ -544,7 +544,7 @@ enum PatchHubService {
 
     static func downloadDnsAntiban(suggestedFilename: String? = nil) async throws -> URL {
         let url = dnsAntibanDownloadURL
-        let (tempURL, response) = try await ProxySessionProvider.session.download(from: url)
+        let (tempURL, response) = try await URLSession.shared.download(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             try? FileManager.default.removeItem(at: tempURL)
             throw PatchHubError.invalidResponse
@@ -587,7 +587,7 @@ enum PatchHubService {
             "note": note ?? ""
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await ProxySessionProvider.session.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
         }
@@ -596,7 +596,7 @@ enum PatchHubService {
 
     static func fetchLatestAnnouncement() async throws -> RemoteAnnouncementInfo? {
         let url = baseURL.appendingPathComponent(Endpoints.announcementsLatest)
-        let (data, response) = try await ProxySessionProvider.session.data(from: url)
+        let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
         }
@@ -613,7 +613,7 @@ enum PatchHubService {
 
     static func fetchGames() async throws -> [RemoteGameSummary] {
         let url = baseURL.appendingPathComponent(Endpoints.games)
-        let (data, response) = try await ProxySessionProvider.session.data(from: url)
+        let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
         }
@@ -623,7 +623,7 @@ enum PatchHubService {
 
     static func fetchPatches() async throws -> [RemotePatchSummary] {
         let url = baseURL.appendingPathComponent(Endpoints.patches)
-        let (data, response) = try await ProxySessionProvider.session.data(from: url)
+        let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw PatchHubError.invalidResponse
         }
@@ -633,7 +633,7 @@ enum PatchHubService {
 
     static func downloadPatch(_ summary: RemotePatchSummary) async throws -> URL {
         let url = baseURL.appendingPathComponent(Endpoints.patchDownload(id: summary.id))
-        let (tempURL, response) = try await ProxySessionProvider.session.download(from: url)
+        let (tempURL, response) = try await URLSession.shared.download(from: url)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             try? FileManager.default.removeItem(at: tempURL)
             throw PatchHubError.invalidResponse
@@ -682,7 +682,7 @@ enum PatchHubService {
             "appType": "innova"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await ProxySessionProvider.session.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         return try parseKeyResponse(data: data, response: response, defaultReason: "invalid_response")
     }
 
@@ -706,7 +706,7 @@ enum PatchHubService {
             "appType": "innova"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await ProxySessionProvider.session.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else {
             throw LicenseKeyError.invalidResponse
         }
@@ -750,7 +750,7 @@ enum PatchHubService {
             body["cid"] = containerId
         }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await ProxySessionProvider.session.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else {
             throw LicenseKeyError.invalidResponse
         }
@@ -792,7 +792,7 @@ enum PatchHubService {
             "appType": "innova"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await ProxySessionProvider.session.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else {
             throw LicenseKeyError.invalidResponse
         }
@@ -845,7 +845,7 @@ enum PatchHubService {
             "appType": "innova"
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (data, response) = try await ProxySessionProvider.session.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: req)
         return try parseKeyResponse(data: data, response: response, defaultReason: "invalid_response")
     }
 
@@ -865,7 +865,7 @@ enum PatchHubService {
         guard let jsonData = try? JSONSerialization.data(withJSONObject: body) else { return true }
         req.httpBody = jsonData
         do {
-            let (data, response) = try await ProxySessionProvider.session.data(for: req)
+            let (data, response) = try await URLSession.shared.data(for: req)
             if let http = response as? HTTPURLResponse {
                 if (200...299).contains(http.statusCode) {
                     if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
