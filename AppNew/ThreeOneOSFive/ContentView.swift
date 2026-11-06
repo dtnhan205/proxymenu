@@ -1650,7 +1650,6 @@ struct ContentView: View {
     @State private var selectedColorTarget: ESPColorTarget = .all
     @State private var showColorPickerPopup: Bool = false
     @State private var showSettingsSheet: Bool = false
-    @State private var showHowToInstallVideo: Bool = false
     @ObservedObject private var vpnManager = LocalDevVPNManager.shared
     @ObservedObject private var pairingAdvertiser = RemotePairingAdvertiser.shared
     @State private var showPairingPromptAlert: Bool = false
@@ -1921,9 +1920,6 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showLogModal) {
             LogTerminalModalView(isPresented: $showLogModal)
-        }
-        .fullScreenCover(isPresented: $showHowToInstallVideo) {
-            HowToInstallVideoView(isPresented: $showHowToInstallVideo, isEnglish: isEnglish)
         }
     }
 
@@ -3544,11 +3540,10 @@ struct ContentView: View {
     // MARK: - Floating Futuristic Action HUD (Bottom Bar)
     private var bottomActionBar: some View {
         VStack(spacing: 4) {
-            // Utility Row: Nút Cách Cài : How to install & Nút Ngôn ngữ (Ở trên nút Inject, góc phải)
+            // Utility Row: Nút Ngôn ngữ (Ở trên nút Inject, góc phải)
             HStack(alignment: .bottom) {
                 Spacer()
                 VStack(spacing: 6) {
-                    howToInstallButton
                     languageSelectorButton
                 }
             }
@@ -3783,52 +3778,6 @@ struct ContentView: View {
                 endPoint: .bottom
             )
         )
-    }
-
-    // MARK: - How to Install Video Guide Button (Cách Cài : How to install)
-    private var howToInstallButton: some View {
-        Button {
-            let impact = UIImpactFeedbackGenerator(style: .medium)
-            impact.impactOccurred()
-            showHowToInstallVideo = true
-        } label: {
-            VStack(spacing: 2) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.28, green: 0.20, blue: 0.08),
-                                    Color(red: 0.16, green: 0.10, blue: 0.04)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Circle().strokeBorder(CyberTheme.mechaGold.opacity(0.85), lineWidth: 1)
-                        )
-                        .shadow(color: CyberTheme.mechaGold.opacity(0.4), radius: 4)
-
-                    Image(systemName: "play.rectangle.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(CyberTheme.mechaGold)
-                }
-
-                VStack(spacing: 1) {
-                    Text(isEnglish ? "How to install" : "Cách Cài")
-                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
-                        .foregroundColor(CyberTheme.mechaGold)
-                    Text(isEnglish ? "Cách Cài" : "How to install")
-                        .font(.system(size: 6.8, weight: .medium, design: .monospaced))
-                        .foregroundColor(Color.white.opacity(0.8))
-                }
-                .shadow(color: Color.black.opacity(0.8), radius: 2)
-            }
-            .frame(width: 65)
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Language Selector Quick Action
