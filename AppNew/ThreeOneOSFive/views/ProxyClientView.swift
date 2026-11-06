@@ -21,12 +21,15 @@ struct ProxyClientView: View {
 
     @State private var editorConfig: ProxyConfiguration?
     @State private var pendingDelete: ProxyConfiguration?
+    @State private var routingVerification: ProxyRoutingVerification?
+    @State private var isVerifyingRouting = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
                     statusCard
+                    routingVerificationCard
                     scopeNotice
                     configurationsCard
                     addButton
@@ -268,6 +271,110 @@ struct ProxyClientView: View {
         }
         .buttonStyle(.plain)
         .disabled(config == nil || client.isTesting)
+    }
+
+    // MARK: - Routing verification card
+
+    /// Xác minh lưu lượng thật sự đi qua proxy bằng cách so IP trực tiếp với IP
+    /// qua proxy. Đây là bằng chứng mạnh hơn trạng thái "Connected".
+    private var routingVerificationCard: some View {
+        let config = client.activeConfiguration ?? store.selectedConfiguration
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.neonLime)
+                NeonReadout(text: "XÁC MINH ĐỊNH TUYẾN", tint: AppTheme.neonLime)
+                Spacer()
+                Button {
+                    guard let config else { return }
+                    let password = store.password(for: config.id)
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    isVerifyingRouting = true
+                    routingVerification = nil
+                    Task { @MainActor in
+                        let result = await client.verifyRouting(config, password: password)
+                        routingVerification = result
+                        isVerifyingRouting = false
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        if isVerifyingRouting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .black))
+                                .scaleEffect(0.7)
+                        }
+                        Text("CHẠY")
+                            .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    }
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(AppTheme.neonLime, in: Capsule())
+                    .opacity(config == nil ? 0.4 : 1)
+                }
+                .buttonStyle(.plain)
+                .disabled(config == nil || isVerifyingRouting)
+            }
+
+            if let result = routingVerification {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        verificationTile(
+                            title: "IP TRỰC TIẾP",
+                            value: result.directIP ?? "—",
+                            tint: Color.white.opacity(0.75)
+                        )
+                        Image(systemName: "arrow.right")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Color.white.opacity(0.4))
+                        verificationTile(
+                            title: "IP QUA PROXY",
+                            value: result.proxiedIP ?? "—",
+                            tint: result.routedThroughProxy ? AppTheme.neonLime : AppTheme.neonRed
+                        )
+                    }
+
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: result.routedThroughProxy
+                              ? "checkmark.circle.fill"
+                              : "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(result.routedThroughProxy ? AppTheme.neonLime : AppTheme.neonAmber)
+                        Text(result.message)
+                            .font(.system(size: 10.5, weight: .regular, design: .monospaced))
+                            .foregroundStyle(Color.white.opacity(0.72))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else {
+                Text("So sánh IP khi đi trực tiếp và khi đi qua proxy. Nếu hai IP khác nhau, lưu lượng đã thực sự đi qua proxy.")
+                    .font(.system(size: 10.5, weight: .regular, design: .monospaced))
+                    .foregroundStyle(Color.white.opacity(0.5))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .techCard(glow: AppTheme.neonLime, opacity: 0.10)
+    }
+
+    private func verificationTile(title: String, value: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                .tracking(0.8)
+                .foregroundStyle(Color.white.opacity(0.45))
+            Text(value)
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 7)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     // MARK: - Scope notice

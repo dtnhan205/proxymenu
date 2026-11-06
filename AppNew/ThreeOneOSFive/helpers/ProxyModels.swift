@@ -166,6 +166,23 @@ struct ProxyTestResult: Equatable {
     let message: String
 }
 
+/// Kết quả xác minh định tuyến: so sánh IP khi đi trực tiếp và khi đi qua proxy.
+///
+/// Đây là bằng chứng mạnh hơn "Connected": nếu hai IP khác nhau và IP qua proxy
+/// trùng với IP của chính proxy, request đã thực sự rời máy qua proxy.
+struct ProxyRoutingVerification: Equatable {
+    /// IP thấy được khi KHÔNG dùng proxy (baseline của thiết bị).
+    let directIP: String?
+    /// IP thấy được khi đi qua proxy.
+    let proxiedIP: String?
+    /// Host proxy đang cấu hình.
+    let proxyHost: String
+    /// `true` khi có bằng chứng request đi qua proxy.
+    let routedThroughProxy: Bool
+    /// Kết luận kèm giải thích.
+    let message: String
+}
+
 /// Kiểu kết nối mạng đang hoạt động.
 enum ProxyNetworkType: String {
     case wifi = "Wi-Fi"

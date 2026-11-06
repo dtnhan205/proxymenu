@@ -435,7 +435,7 @@ final class ProxyClient: ObservableObject {
         }
     }
 
-    private static func parseEgressIP(from data: Data) -> String? {
+    nonisolated private static func parseEgressIP(from data: Data) -> String? {
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let ip = object["ip"] as? String {
             let trimmed = ip.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -509,6 +509,109 @@ final class ProxyClient: ObservableObject {
             lastTest = result
             return result
         }
+    }
+
+    // MARK: - Routing verification
+
+    /// Xác minh rằng request thực sự đi qua proxy.
+    ///
+    /// Cách làm: lấy IP egress hai lần — một lần bằng kết nối trực tiếp (không
+    /// proxy), một lần qua proxy — rồi so sánh.
+    ///
+    /// Ý nghĩa:
+    /// - Hai IP khác nhau → proxy đang thay đổi đường ra ⇒ request đi qua proxy.
+    /// - IP qua proxy trùng IP của host proxy ⇒ proxy NAT ra chính nó.
+    /// - Hai IP giống nhau → KHÔNG chứng minh được proxy có tác dụng (có thể
+    ///   proxy trong suốt, cùng mạng, hoặc cấu hình không được áp dụng).
+    func verifyRouting(_ config: ProxyConfiguration, password: String?) async -> ProxyRoutingVerification {
+        let directIP = await Self.fetchDirectIP()
+
+        let session = makeProxiedSession(for: config, password: password)
+        defer { session.invalidateAndCancel() }
+
+        var proxiedIP: String?
+        var failureText: String?
+
+        do {
+            let outcome = try await runProbe(using: session)
+            proxiedIP = outcome.ip
+        } catch {
+            failureText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+
+        guard let proxiedIP else {
+            return ProxyRoutingVerification(
+                directIP: directIP,
+                proxiedIP: nil,
+                proxyHost: config.normalizedHost,
+                routedThroughProxy: false,
+                message: "Không lấy được IP qua proxy. " + (failureText ?? "")
+            )
+        }
+
+        if let directIP, directIP == proxiedIP {
+            return ProxyRoutingVerification(
+                directIP: directIP,
+                proxiedIP: proxiedIP,
+                proxyHost: config.normalizedHost,
+                routedThroughProxy: false,
+                message: "IP trực tiếp và IP qua proxy giống nhau (\(proxiedIP)). "
+                    + "Không chứng minh được lưu lượng đã đi qua proxy — "
+                    + "có thể proxy nằm cùng mạng hoặc cấu hình chưa được áp dụng."
+            )
+        }
+
+        let matchesProxyHost = proxiedIP == config.normalizedHost
+        var message = "IP trực tiếp: \(directIP ?? "không rõ") → IP qua proxy: \(proxiedIP). "
+        if matchesProxyHost {
+            message += "IP qua proxy trùng địa chỉ máy chủ proxy, nên lưu lượng đã rời máy qua proxy."
+        } else {
+            message += "Hai IP khác nhau, nên lưu lượng đã đi qua một đường khác (proxy)."
+        }
+
+        return ProxyRoutingVerification(
+            directIP: directIP,
+            proxiedIP: proxiedIP,
+            proxyHost: config.normalizedHost,
+            routedThroughProxy: true,
+            message: message
+        )
+    }
+
+    /// Lấy IP công khai KHÔNG dùng proxy, làm mốc so sánh.
+    nonisolated static func fetchDirectIP() async -> String? {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 10
+        configuration.waitsForConnectivity = false
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.connectionProxyDictionary = [
+            "HTTPEnable": 0,
+            "HTTPSEnable": 0,
+            "SOCKSEnable": 0,
+            "ProxyAutoConfigEnable": 0,
+            "ProxyAutoDiscoveryEnable": 0
+        ]
+
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+
+        let urls = [
+            URL(string: "https://api.ipify.org?format=json"),
+            URL(string: "https://ifconfig.me/ip")
+        ].compactMap { $0 }
+
+        for url in urls {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 10
+            request.setValue("application/json, text/plain", forHTTPHeaderField: "Accept")
+            if let (data, response) = try? await session.data(for: request),
+               let http = response as? HTTPURLResponse,
+               (200...299).contains(http.statusCode),
+               let ip = parseEgressIP(from: data) {
+                return ip
+            }
+        }
+        return nil
     }
 
     /// Đo thời gian bắt tay TCP tới proxy. `nil` nếu không kết nối được.
