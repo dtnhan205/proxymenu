@@ -120,6 +120,21 @@ struct ProxyClientView: View {
                     .foregroundStyle(Color.white.opacity(0.55))
             }
 
+            if let warning = client.connectionWarning, client.state.isConnected {
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(AppTheme.neonAmber)
+                    Text(warning)
+                        .font(.system(size: 10.5, weight: .regular, design: .monospaced))
+                        .foregroundStyle(AppTheme.neonAmber.opacity(0.95))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppTheme.neonAmber.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
+
             if case .failed(let message) = client.state {
                 Text(message)
                     .font(.caption)

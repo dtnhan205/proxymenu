@@ -10,6 +10,7 @@ enum ProxyClientError: LocalizedError {
     case connectionRefused
     case timeout
     case httpStatus(Int)
+    case probeFailed(String)
     case cancelled
     case unknown(String)
 
@@ -25,6 +26,8 @@ enum ProxyClientError: LocalizedError {
             return "Proxy không phản hồi (timeout)."
         case .httpStatus(let code):
             return "Proxy trả về HTTP \(code)."
+        case .probeFailed(let detail):
+            return detail
         case .cancelled:
             return "Đã huỷ."
         case .unknown(let message):
@@ -160,6 +163,8 @@ final class ProxyClient: ObservableObject {
     @Published private(set) var lastTest: ProxyTestResult?
     @Published private(set) var isTesting: Bool = false
     @Published private(set) var lastError: String?
+    /// Cảnh báo khi proxy chỉ hoạt động được một phần (ví dụ chỉ HTTP).
+    @Published private(set) var connectionWarning: String?
 
     // MARK: Private
 
@@ -261,18 +266,22 @@ final class ProxyClient: ObservableObject {
         lastError = nil
         activeConfiguration = config
         egressIP = nil
+        connectionWarning = nil
 
         let newSession = makeProxiedSession(for: config, password: password)
         session?.invalidateAndCancel()
         session = newSession
 
         do {
-            let ip = try await fetchEgressIP(using: newSession)
+            let outcome = try await runProbe(using: newSession)
             guard wantsConnection else {
                 newSession.invalidateAndCancel()
                 return
             }
-            egressIP = ip
+            egressIP = outcome.ip
+            connectionWarning = outcome.httpsBlocked
+                ? "Proxy chỉ cho phép HTTP. Kết nối HTTPS (CONNECT) bị chặn — các trang https sẽ không tải được."
+                : nil
             connectedAt = Date()
             elapsed = 0
             state = .connected
@@ -309,56 +318,121 @@ final class ProxyClient: ObservableObject {
 
     // MARK: - Probe (egress IP)
 
-    /// Endpoint trả IP công khai. Request là HTTPS thông thường: proxy chỉ thấy
-    /// CONNECT và không thể đọc nội dung nếu không có CA tin cậy.
-    private func fetchEgressIP(using session: URLSession) async throws -> String {
-        let endpoints = [
-            URL(string: "https://api.ipify.org?format=json"),
-            URL(string: "https://ifconfig.me/ip")
-        ].compactMap { $0 }
+    /// Một endpoint kiểm tra.
+    ///
+    /// `httpsProbe == true` nghĩa là request sẽ đi qua CONNECT tới cổng 443.
+    /// Một số proxy chỉ cho phép HTTP thường (cổng 80) và chặn CONNECT — khi đó
+    /// request HTTPS trả 403 nhưng HTTP lại thành công.
+    private struct ProbeEndpoint {
+        let url: URL
+        let httpsProbe: Bool
+    }
 
-        var lastError: Error = ProxyClientError.unknown("Không có endpoint kiểm tra.")
+    /// Danh sách endpoint kiểm tra, ưu tiên HTTPS rồi fallback HTTP.
+    ///
+    /// Việc thử cả HTTP giúp phân biệt hai nguyên nhân 403:
+    /// 1. Proxy chặn CONNECT (HTTPS fail, HTTP pass) → cảnh báo, vẫn dùng được HTTP.
+    /// 2. Proxy/đích từ chối hoàn toàn (cả hai fail) → lỗi thật.
+    private func probeEndpoints() -> [ProbeEndpoint] {
+        var result: [ProbeEndpoint] = []
+        if let u = URL(string: "https://api.ipify.org?format=json") {
+            result.append(ProbeEndpoint(url: u, httpsProbe: true))
+        }
+        if let u = URL(string: "http://api.ipify.org?format=json") {
+            result.append(ProbeEndpoint(url: u, httpsProbe: false))
+        }
+        if let u = URL(string: "https://ifconfig.me/ip") {
+            result.append(ProbeEndpoint(url: u, httpsProbe: true))
+        }
+        if let u = URL(string: "http://ifconfig.me/ip") {
+            result.append(ProbeEndpoint(url: u, httpsProbe: false))
+        }
+        return result
+    }
 
-        for url in endpoints {
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = probeTimeout
-            request.setValue("application/json, text/plain", forHTTPHeaderField: "Accept")
+    /// Kết quả dò: IP lấy được, hoặc lỗi kèm chẩn đoán.
+    private struct ProbeOutcome {
+        let ip: String
+        /// `true` nếu chỉ HTTP hoạt động, HTTPS (CONNECT) bị chặn.
+        let httpsBlocked: Bool
+    }
 
+    private func runProbe(using session: URLSession) async throws -> ProbeOutcome {
+        let endpoints = probeEndpoints()
+
+        // Lượt 1: HTTPS (đi qua CONNECT).
+        var httpsFailure: ProxyClientError?
+        for endpoint in endpoints where endpoint.httpsProbe {
             do {
-                let (data, response) = try await session.data(for: request)
-
-                if let http = response as? HTTPURLResponse {
-                    if http.statusCode == 407 {
-                        throw ProxyClientError.authenticationRequired
-                    }
-                    guard (200...299).contains(http.statusCode) else {
-                        throw ProxyClientError.httpStatus(http.statusCode)
-                    }
-                }
-
-                if let ip = Self.parseEgressIP(from: data) {
-                    return ip
-                }
-
-                throw ProxyClientError.unknown("Không đọc được IP từ phản hồi kiểm tra.")
+                let ip = try await performProbe(endpoint, session: session)
+                return ProbeOutcome(ip: ip, httpsBlocked: false)
             } catch let error as ProxyClientError {
-                // Lỗi xác thực là quyết định — không thử endpoint khác.
                 if case .authenticationRequired = error { throw error }
-                lastError = error
-            } catch let error as URLError {
-                // Xác thực sai cũng là quyết định — không thử endpoint khác.
-                if error.code == .userAuthenticationRequired ||
-                   error.code == .userCancelledAuthentication {
-                    throw ProxyClientError.authenticationRequired
-                }
-                lastError = Self.mapURLError(error)
-            } catch {
-                lastError = error
+                httpsFailure = error
             }
         }
 
-        throw lastError
+        // Lượt 2: HTTP thường. Nếu chạy được thì proxy sống, chỉ chặn CONNECT.
+        var httpFailure: ProxyClientError?
+        for endpoint in endpoints where !endpoint.httpsProbe {
+            do {
+                let ip = try await performProbe(endpoint, session: session)
+                return ProbeOutcome(ip: ip, httpsBlocked: httpsFailure != nil)
+            } catch let error as ProxyClientError {
+                if case .authenticationRequired = error { throw error }
+                httpFailure = error
+            }
+        }
+
+        let finalFailure = httpFailure ?? httpsFailure ?? .unknown("Không có endpoint kiểm tra.")
+
+        // 403/407 trên HTTPS mà không có endpoint nào chạy được: nêu rõ nguyên nhân
+        // để không bị hiểu nhầm là sai mật khẩu.
+        if case .httpStatus(403) = finalFailure {
+            throw ProxyClientError.probeFailed(
+                "Proxy trả HTTP 403. Nếu mật khẩu đúng, nguyên nhân thường là: "
+                + "proxy chỉ cho phép một số đích, proxy chặn CONNECT/cổng 443, "
+                + "hoặc đích chặn IP của proxy. Không phải lỗi xác thực."
+            )
+        }
+
+        throw finalFailure
+    }
+
+    /// Thực hiện một request kiểm tra, trả về IP đọc được.
+    private func performProbe(_ endpoint: ProbeEndpoint, session: URLSession) async throws -> String {
+        var request = URLRequest(url: endpoint.url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = probeTimeout
+        request.setValue("application/json, text/plain", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            if let http = response as? HTTPURLResponse {
+                if http.statusCode == 407 {
+                    throw ProxyClientError.authenticationRequired
+                }
+                guard (200...299).contains(http.statusCode) else {
+                    throw ProxyClientError.httpStatus(http.statusCode)
+                }
+            }
+
+            guard let ip = Self.parseEgressIP(from: data) else {
+                throw ProxyClientError.unknown("Không đọc được IP từ phản hồi kiểm tra.")
+            }
+            return ip
+        } catch let error as ProxyClientError {
+            throw error
+        } catch let error as URLError {
+            if error.code == .userAuthenticationRequired ||
+               error.code == .userCancelledAuthentication {
+                throw ProxyClientError.authenticationRequired
+            }
+            throw Self.mapURLError(error)
+        } catch {
+            throw ProxyClientError.unknown(error.localizedDescription)
+        }
     }
 
     private static func parseEgressIP(from data: Data) -> String? {
@@ -379,7 +453,7 @@ final class ProxyClient: ObservableObject {
         return nil
     }
 
-    private static func mapURLError(_ error: URLError) -> Error {
+    private static func mapURLError(_ error: URLError) -> ProxyClientError {
         switch error.code {
         case .timedOut:
             return ProxyClientError.timeout
@@ -412,13 +486,14 @@ final class ProxyClient: ObservableObject {
         defer { testSession.invalidateAndCancel() }
 
         do {
-            let ip = try await fetchEgressIP(using: testSession)
+            let outcome = try await runProbe(using: testSession)
             let latencyText = latency.map { " · \($0) ms" } ?? ""
+            let httpsNote = outcome.httpsBlocked ? " (chỉ HTTP — HTTPS bị proxy chặn)" : ""
             let result = ProxyTestResult(
                 success: true,
                 tcpLatencyMs: latency,
-                egressIP: ip,
-                message: "Proxy hoạt động. IP: \(ip)\(latencyText)"
+                egressIP: outcome.ip,
+                message: "Proxy hoạt động. IP: \(outcome.ip)\(latencyText)\(httpsNote)"
             )
             lastTest = result
             return result
@@ -576,12 +651,15 @@ final class ProxyClient: ObservableObject {
         state = .connecting
 
         do {
-            let ip = try await fetchEgressIP(using: reconnectSession)
+            let outcome = try await runProbe(using: reconnectSession)
             guard wantsConnection else {
                 reconnectSession.invalidateAndCancel()
                 return
             }
-            egressIP = ip
+            egressIP = outcome.ip
+            connectionWarning = outcome.httpsBlocked
+                ? "Proxy chỉ cho phép HTTP. Kết nối HTTPS (CONNECT) bị chặn — các trang https sẽ không tải được."
+                : nil
             connectedAt = Date()
             elapsed = 0
             state = .connected
@@ -618,8 +696,8 @@ enum ProxyDiagnostics {
     /// Giải thích vì sao tunnel toàn hệ thống không khả dụng trong build này.
     static var networkExtensionLimitMessage: String {
         if hasRealAppIdentifier {
-            return "Cần thêm target Packet Tunnel Extension và bật entitlement NetworkExtension cho App ID trên Apple Developer, rồi ký lại app."
+            return "Proxy Client đang áp dụng cho phiên mạng của chính nó. Muốn toàn hệ thống: thêm target Packet Tunnel Extension, bật entitlement NetworkExtension cho App ID trên Apple Developer, rồi ký lại app."
         }
-        return "Bundle ID hiện tại (\(bundleIdentifier)) không phải App ID thật, nên Apple không thể cấp entitlement NetworkExtension. Không thể tạo VPN toàn hệ thống từ build này."
+        return "Proxy Client đang áp dụng cho phiên mạng của chính nó. Build này dùng bundle ID \(bundleIdentifier) — không thể đăng ký App ID này với Apple nên không lấy được entitlement NetworkExtension; VPN toàn hệ thống cần một App ID thật và ký bằng provisioning profile hợp lệ. Xen entitlement bằng cách khác nằm ngoài phạm vi và không được hỗ trợ."
     }
 }
