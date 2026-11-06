@@ -1,0 +1,625 @@
+﻿import Combine
+import Foundation
+import Network
+
+// MARK: - ProxyClientError
+
+enum ProxyClientError: LocalizedError {
+    case invalidConfiguration(String)
+    case authenticationRequired
+    case connectionRefused
+    case timeout
+    case httpStatus(Int)
+    case cancelled
+    case unknown(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidConfiguration(let reason):
+            return reason
+        case .authenticationRequired:
+            return "Proxy yêu cầu xác thực. Kiểm tra username/password."
+        case .connectionRefused:
+            return "Proxy từ chối kết nối (port đóng hoặc sai địa chỉ)."
+        case .timeout:
+            return "Proxy không phản hồi (timeout)."
+        case .httpStatus(let code):
+            return "Proxy trả về HTTP \(code)."
+        case .cancelled:
+            return "Đã huỷ."
+        case .unknown(let message):
+            return message
+        }
+    }
+}
+
+// MARK: - ProxySessionDelegate
+//
+// Xử lý thử thách xác thực của proxy.
+//
+// Quan trọng: KHÔNG bỏ qua kiểm tra TLS. Với `NSURLAuthenticationMethodServerTrust`
+// luôn trả `.performDefaultHandling` để hệ thống xác thực chứng chỉ máy chủ.
+// Điều này giữ nguyên nguyên tắc: không MITM, không cài CA, không giải mã HTTPS.
+final class ProxySessionDelegate: NSObject, URLSessionTaskDelegate {
+
+    private let proxyHost: String
+    private let proxyPort: Int
+    private let credential: URLCredential?
+
+    /// CFNetwork dùng method này cho xác thực proxy. Hằng số không có trong
+    /// Foundation nên dùng đúng chuỗi mà CFNetwork phát ra.
+    private static let proxyAuthMethod = "NSURLAuthenticationMethodHTTPProxyAuthentication"
+
+    init(proxyHost: String, proxyPort: Int, credential: URLCredential?) {
+        self.proxyHost = proxyHost
+        self.proxyPort = proxyPort
+        self.credential = credential
+        super.init()
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        resolve(challenge, completionHandler: completionHandler)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        resolve(challenge, completionHandler: completionHandler)
+    }
+
+    private func resolve(
+        _ challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        let space = challenge.protectionSpace
+        let method = space.authenticationMethod
+
+        // Chứng chỉ máy chủ: luôn để hệ thống xác thực. Không bypass.
+        if method == NSURLAuthenticationMethodServerTrust {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        // CFNetwork báo xác thực proxy bằng method riêng. Khi đó chắc chắn là
+        // proxy hỏi, không cần so host (với CONNECT, protectionSpace có thể mang
+        // host đích thay vì host proxy).
+        if method == ProxySessionDelegate.proxyAuthMethod, let credential {
+            completionHandler(.useCredential, credential)
+            return
+        }
+
+        // Basic/Digest/NTLM: chỉ trả credential khi đúng endpoint proxy, để
+        // không gửi nhầm mật khẩu cho máy chủ đích.
+        let isStandardAuth =
+            method == NSURLAuthenticationMethodHTTPBasic ||
+            method == NSURLAuthenticationMethodHTTPDigest ||
+            method == NSURLAuthenticationMethodNTLM
+
+        let matchesProxyEndpoint =
+            space.host.caseInsensitiveCompare(proxyHost) == .orderedSame &&
+            (space.port == proxyPort || space.port == 0)
+
+        if isStandardAuth, matchesProxyEndpoint, let credential {
+            completionHandler(.useCredential, credential)
+            return
+        }
+
+        completionHandler(.performDefaultHandling, nil)
+    }
+}
+
+// MARK: - LatencyState
+//
+// Cờ hoàn tất an toàn luồng cho phép đo latency. Đặt ở phạm vi file (không nằm
+// trong @MainActor class) để dùng được từ callback của NWConnection.
+final class LatencyState {
+    private let lock = NSLock()
+    private var completed = false
+
+    func claimCompletion() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if completed { return false }
+        completed = true
+        return true
+    }
+}
+
+// MARK: - ProxyClient
+
+/// Quản lý kết nối proxy cấp ứng dụng và kiểm chứng kết nối bằng request thật.
+///
+/// PHẠM VI (quan trọng):
+/// - Proxy áp dụng cho các `URLSession` do class này tạo ra.
+/// - KHÔNG định tuyến toàn bộ traffic của hệ thống/ứng dụng khác.
+/// - Muốn toàn hệ thống cần `NEPacketTunnelProvider` + entitlement
+///   `com.apple.developer.networking.networkextension` trên App ID thật.
+///
+/// Trạng thái `.connected` chỉ được đặt sau khi request thật đi xuyên proxy
+/// thành công và trả về IP egress.
+@MainActor
+final class ProxyClient: ObservableObject {
+
+    static let shared = ProxyClient()
+
+    // MARK: Published state
+
+    @Published private(set) var state: ProxyConnectionState = .disconnected
+    @Published private(set) var activeConfiguration: ProxyConfiguration?
+    @Published private(set) var egressIP: String?
+    @Published private(set) var connectedAt: Date?
+    @Published private(set) var elapsed: TimeInterval = 0
+    @Published private(set) var networkType: ProxyNetworkType = .other
+    @Published private(set) var lastTest: ProxyTestResult?
+    @Published private(set) var isTesting: Bool = false
+    @Published private(set) var lastError: String?
+
+    // MARK: Private
+
+    private var session: URLSession?
+    private var durationTimer: Timer?
+    private let pathMonitor = NWPathMonitor()
+    private let monitorQueue = DispatchQueue(label: "com.innova.cheat.proxy.pathmonitor")
+    private var isMonitoring = false
+
+    /// Người dùng đang mong muốn kết nối (dùng cho auto-reconnect).
+    private var wantsConnection = false
+    private var lastPathWasSatisfied = true
+
+    private let probeTimeout: TimeInterval = 12
+
+    private init() {
+        // Theo dõi kiểu mạng (Wi-Fi / 4G) suốt vòng đời app để hiển thị chính xác.
+        // Auto-reconnect chỉ chạy khi `wantsConnection == true`.
+        startPathMonitoring()
+    }
+
+    // MARK: - Session construction
+
+    /// Tạo `URLSession` đi xuyên proxy. Public để các thành phần khác có thể
+    /// chủ động dùng proxy nếu cần (không tự động áp dụng cho toàn app).
+    func makeProxiedSession(for config: ProxyConfiguration, password: String?) -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = probeTimeout
+        configuration.timeoutIntervalForResource = probeTimeout * 2
+        configuration.waitsForConnectivity = false
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.connectionProxyDictionary = Self.proxyDictionary(for: config)
+
+        let credential: URLCredential?
+        if config.requiresAuthentication, let password, !password.isEmpty {
+            credential = URLCredential(
+                user: config.username,
+                password: password,
+                persistence: .forSession
+            )
+        } else {
+            credential = nil
+        }
+
+        let delegate = ProxySessionDelegate(
+            proxyHost: config.normalizedHost,
+            proxyPort: config.port,
+            credential: credential
+        )
+        return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
+    }
+
+    /// Dictionary proxy cho CFNetwork.
+    ///
+    /// Ghi chú kỹ thuật:
+    /// - `.http` / `.https` đều là HTTP proxy: HTTPS đi qua CONNECT.
+    ///   CFNetwork không hỗ trợ "proxy nói TLS" (TLS tới chính proxy) qua
+    ///   `connectionProxyDictionary`, nên không có cấu hình riêng cho việc đó.
+    /// - `.socks5` dùng khoá SOCKS. CFNetwork KHÔNG truyền username/password
+    ///   cho SOCKS5 — xem `ProxyProtocol.credentialNote`.
+    static func proxyDictionary(for config: ProxyConfiguration) -> [AnyHashable: Any] {
+        let host = config.normalizedHost
+        let port = config.port
+
+        switch config.proto {
+        case .http, .https:
+            return [
+                "HTTPEnable": 1,
+                "HTTPProxy": host,
+                "HTTPPort": port,
+                "HTTPSEnable": 1,
+                "HTTPSProxy": host,
+                "HTTPSPort": port,
+                "ProxyAutoConfigEnable": 0,
+                "ProxyAutoDiscoveryEnable": 0
+            ]
+        case .socks5:
+            return [
+                "SOCKSEnable": 1,
+                "SOCKSProxy": host,
+                "SOCKSPort": port,
+                "ProxyAutoConfigEnable": 0,
+                "ProxyAutoDiscoveryEnable": 0
+            ]
+        }
+    }
+
+    // MARK: - Connect / Disconnect
+
+    func connect(_ config: ProxyConfiguration, password: String?) async {
+        if let message = config.validationMessage {
+            state = .failed(message)
+            lastError = message
+            return
+        }
+
+        wantsConnection = true
+        state = .connecting
+        lastError = nil
+        activeConfiguration = config
+        egressIP = nil
+
+        let newSession = makeProxiedSession(for: config, password: password)
+        session?.invalidateAndCancel()
+        session = newSession
+
+        do {
+            let ip = try await fetchEgressIP(using: newSession)
+            guard wantsConnection else {
+                newSession.invalidateAndCancel()
+                return
+            }
+            egressIP = ip
+            connectedAt = Date()
+            elapsed = 0
+            state = .connected
+            startDurationTimer()
+        } catch {
+            newSession.invalidateAndCancel()
+            session = nil
+            wantsConnection = false
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            lastError = message
+            state = .failed(message)
+            stopDurationTimer()
+        }
+    }
+
+    /// Session đang kết nối, để tái sử dụng cho traffic thật của ứng dụng.
+    /// `nil` khi chưa kết nối thành công.
+    func activeProxiedSession() -> URLSession? {
+        guard state.isConnected else { return nil }
+        return session
+    }
+
+    func disconnect() {
+        wantsConnection = false
+        session?.invalidateAndCancel()
+        session = nil
+        connectedAt = nil
+        egressIP = nil
+        elapsed = 0
+        lastError = nil
+        state = .disconnected
+        stopDurationTimer()
+    }
+
+    // MARK: - Probe (egress IP)
+
+    /// Endpoint trả IP công khai. Request là HTTPS thông thường: proxy chỉ thấy
+    /// CONNECT và không thể đọc nội dung nếu không có CA tin cậy.
+    private func fetchEgressIP(using session: URLSession) async throws -> String {
+        let endpoints = [
+            URL(string: "https://api.ipify.org?format=json"),
+            URL(string: "https://ifconfig.me/ip")
+        ].compactMap { $0 }
+
+        var lastError: Error = ProxyClientError.unknown("Không có endpoint kiểm tra.")
+
+        for url in endpoints {
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = probeTimeout
+            request.setValue("application/json, text/plain", forHTTPHeaderField: "Accept")
+
+            do {
+                let (data, response) = try await session.data(for: request)
+
+                if let http = response as? HTTPURLResponse {
+                    if http.statusCode == 407 {
+                        throw ProxyClientError.authenticationRequired
+                    }
+                    guard (200...299).contains(http.statusCode) else {
+                        throw ProxyClientError.httpStatus(http.statusCode)
+                    }
+                }
+
+                if let ip = Self.parseEgressIP(from: data) {
+                    return ip
+                }
+
+                throw ProxyClientError.unknown("Không đọc được IP từ phản hồi kiểm tra.")
+            } catch let error as ProxyClientError {
+                // Lỗi xác thực là quyết định — không thử endpoint khác.
+                if case .authenticationRequired = error { throw error }
+                lastError = error
+            } catch let error as URLError {
+                // Xác thực sai cũng là quyết định — không thử endpoint khác.
+                if error.code == .userAuthenticationRequired ||
+                   error.code == .userCancelledAuthentication {
+                    throw ProxyClientError.authenticationRequired
+                }
+                lastError = Self.mapURLError(error)
+            } catch {
+                lastError = error
+            }
+        }
+
+        throw lastError
+    }
+
+    private static func parseEgressIP(from data: Data) -> String? {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let ip = object["ip"] as? String {
+            let trimmed = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if let text = String(data: data, encoding: .utf8) {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Chỉ nhận nếu trông giống một địa chỉ IP (tránh HTML lỗi).
+            if !trimmed.isEmpty,
+               trimmed.count <= 45,
+               trimmed.rangeOfCharacter(from: CharacterSet(charactersIn: "<> \n\r\t")) == nil {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
+    private static func mapURLError(_ error: URLError) -> Error {
+        switch error.code {
+        case .timedOut:
+            return ProxyClientError.timeout
+        case .cannotConnectToHost, .cannotFindHost, .networkConnectionLost, .dnsLookupFailed:
+            return ProxyClientError.connectionRefused
+        case .cancelled:
+            return ProxyClientError.cancelled
+        case .userAuthenticationRequired, .userCancelledAuthentication:
+            return ProxyClientError.authenticationRequired
+        default:
+            return ProxyClientError.unknown(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Test (latency + egress IP)
+
+    func test(_ config: ProxyConfiguration, password: String?) async -> ProxyTestResult {
+        isTesting = true
+        defer { isTesting = false }
+
+        if let message = config.validationMessage {
+            let result = ProxyTestResult(success: false, tcpLatencyMs: nil, egressIP: nil, message: message)
+            lastTest = result
+            return result
+        }
+
+        let latency = await Self.measureTCPLatency(host: config.normalizedHost, port: config.port)
+
+        let testSession = makeProxiedSession(for: config, password: password)
+        defer { testSession.invalidateAndCancel() }
+
+        do {
+            let ip = try await fetchEgressIP(using: testSession)
+            let latencyText = latency.map { " · \($0) ms" } ?? ""
+            let result = ProxyTestResult(
+                success: true,
+                tcpLatencyMs: latency,
+                egressIP: ip,
+                message: "Proxy hoạt động. IP: \(ip)\(latencyText)"
+            )
+            lastTest = result
+            return result
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let latencyText = latency.map { "TCP \($0) ms · " } ?? ""
+            let result = ProxyTestResult(
+                success: false,
+                tcpLatencyMs: latency,
+                egressIP: nil,
+                message: latencyText + message
+            )
+            lastTest = result
+            return result
+        }
+    }
+
+    /// Đo thời gian bắt tay TCP tới proxy. `nil` nếu không kết nối được.
+    nonisolated static func measureTCPLatency(host: String, port: Int) async -> Int? {
+        guard let nwPort = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else { return nil }
+        let connection = NWConnection(
+            host: NWEndpoint.Host(host),
+            port: nwPort,
+            using: .tcp
+        )
+
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Int?, Never>) in
+            let start = Date()
+            let state = LatencyState()
+
+            func finish(_ value: Int?) {
+                guard state.claimCompletion() else { return }
+                connection.cancel()
+                continuation.resume(returning: value)
+            }
+
+            connection.stateUpdateHandler = { nwState in
+                switch nwState {
+                case .ready:
+                    let ms = Int(Date().timeIntervalSince(start) * 1000)
+                    finish(ms)
+                case .failed, .cancelled:
+                    finish(nil)
+                default:
+                    break
+                }
+            }
+
+            connection.start(queue: DispatchQueue.global(qos: .utility))
+
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 6) {
+                finish(nil)
+            }
+        }
+    }
+
+    // MARK: - Duration timer
+
+    private func startDurationTimer() {
+        stopDurationTimer()
+        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, let start = self.connectedAt else { return }
+                self.elapsed = Date().timeIntervalSince(start)
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        durationTimer = timer
+    }
+
+    private func stopDurationTimer() {
+        durationTimer?.invalidate()
+        durationTimer = nil
+    }
+
+    // MARK: - Network path monitoring (Wi-Fi / 4G / auto-reconnect)
+
+    private func startPathMonitoring() {
+        guard !isMonitoring else { return }
+        isMonitoring = true
+        lastPathWasSatisfied = true
+
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let type: ProxyNetworkType
+            if path.status != .satisfied {
+                type = .offline
+            } else if path.usesInterfaceType(.wifi) {
+                type = .wifi
+            } else if path.usesInterfaceType(.cellular) {
+                type = .cellular
+            } else if path.usesInterfaceType(.wiredEthernet) {
+                type = .wired
+            } else {
+                type = .other
+            }
+            let satisfied = path.status == .satisfied
+
+            Task { @MainActor in
+                guard let self else { return }
+                let previousType = self.networkType
+                self.networkType = type
+                await self.handlePathChange(
+                    satisfied: satisfied,
+                    type: type,
+                    previousType: previousType
+                )
+            }
+        }
+        pathMonitor.start(queue: monitorQueue)
+    }
+
+    private func handlePathChange(
+        satisfied: Bool,
+        type: ProxyNetworkType,
+        previousType: ProxyNetworkType
+    ) async {
+        guard wantsConnection, let config = activeConfiguration else {
+            lastPathWasSatisfied = satisfied
+            return
+        }
+
+        if !satisfied {
+            // Mất mạng: đánh dấu lỗi nhưng vẫn giữ ý định kết nối để tự nối lại.
+            if state.isConnected || state.isBusy {
+                state = .failed("Mất kết nối mạng. Đang chờ mạng trở lại…")
+            }
+            lastPathWasSatisfied = false
+            return
+        }
+
+        // Chuyển Wi-Fi ↔ 4G/5G: interface đổi thì phải kiểm chứng lại.
+        let interfaceChanged =
+            previousType != type &&
+            previousType != .other &&
+            previousType != .offline
+
+        if !lastPathWasSatisfied || !state.isConnected || interfaceChanged {
+            lastPathWasSatisfied = true
+            await reconnectIfNeeded(config: config)
+        }
+    }
+
+    private func reconnectIfNeeded(config: ProxyConfiguration) async {
+        guard wantsConnection else { return }
+        let password: String?
+        if config.requiresAuthentication {
+            password = ProxyConfigStore.shared.password(for: config.id)
+        } else {
+            password = nil
+        }
+
+        let reconnectSession = makeProxiedSession(for: config, password: password)
+        session?.invalidateAndCancel()
+        session = reconnectSession
+        state = .connecting
+
+        do {
+            let ip = try await fetchEgressIP(using: reconnectSession)
+            guard wantsConnection else {
+                reconnectSession.invalidateAndCancel()
+                return
+            }
+            egressIP = ip
+            connectedAt = Date()
+            elapsed = 0
+            state = .connected
+            startDurationTimer()
+        } catch {
+            reconnectSession.invalidateAndCancel()
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            lastError = message
+            state = .failed(message)
+            stopDurationTimer()
+        }
+    }
+}
+
+// MARK: - ProxyDiagnostics
+//
+// Tiện ích chẩn đoán: cho biết môi trường build hiện tại có khả năng
+// NetworkExtension hay không, để UI báo giới hạn một cách trung thực.
+enum ProxyDiagnostics {
+
+    /// Bundle ID hiện tại. NetworkExtension yêu cầu App ID thật đã đăng ký
+    /// capability `com.apple.developer.networking.networkextension`.
+    static var bundleIdentifier: String {
+        Bundle.main.bundleIdentifier ?? "(unknown)"
+    }
+
+    /// `true` nếu bundle ID trông giống App ID thật (không phải bundle hệ thống
+    /// bị mạo danh như `com.apple.*`).
+    static var hasRealAppIdentifier: Bool {
+        let id = bundleIdentifier
+        return !id.hasPrefix("com.apple.")
+    }
+
+    /// Giải thích vì sao tunnel toàn hệ thống không khả dụng trong build này.
+    static var networkExtensionLimitMessage: String {
+        if hasRealAppIdentifier {
+            return "Cần thêm target Packet Tunnel Extension và bật entitlement NetworkExtension cho App ID trên Apple Developer, rồi ký lại app."
+        }
+        return "Bundle ID hiện tại (\(bundleIdentifier)) không phải App ID thật, nên Apple không thể cấp entitlement NetworkExtension. Không thể tạo VPN toàn hệ thống từ build này."
+    }
+}

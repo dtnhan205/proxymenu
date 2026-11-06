@@ -1,5 +1,8 @@
 import SwiftUI
 
+// `ProxyClientSettingsCard` là @MainActor (đọc ProxyClient). Đánh dấu cả
+// SettingsView @MainActor để việc khởi tạo card hợp lệ trên mọi SDK SwiftUI.
+@MainActor
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appLanguage) private var language
@@ -25,6 +28,7 @@ struct SettingsView: View {
                     VStack(spacing: 16) {
                         profileCard
                         ios27PairingCard
+                        ProxyClientSettingsCard()
                         languageCard
                         deviceCard
                         compatibilityCard
